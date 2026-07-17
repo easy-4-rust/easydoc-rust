@@ -1,0 +1,29 @@
+[workspace]
+members = [
+    "crates/easydoc",
+    "crates/easydoc-core",
+    "crates/easydoc-docx",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "Apache-2.0"
+repository = "https://github.com/hiwepy/easydoc-rs"
+
+[workspace.dependencies]
+docx-rs = "0.4.20"
+easydoc-core = { version = "0.1.0", path = "crates/easydoc-core" }
+easydoc-docx = { version = "0.1.0", path = "crates/easydoc-docx" }
+thiserror = "2.0.18"
+zip = { version = "7.2.0", default-features = false, features = ["deflate"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"
