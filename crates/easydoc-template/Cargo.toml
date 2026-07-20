@@ -1,6 +1,6 @@
 [package]
-name = "easydoc"
-description = "A Rust library for easy DOC/DOCX document operations"
+name = "easydoc-template"
+description = "DOCX template fill engine for easydoc-rs"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,17 +9,13 @@ repository.workspace = true
 
 [dependencies]
 easydoc-core = { path = "../easydoc-core" }
-easydoc-derive = { path = "../easydoc-derive" }
-easydoc-reader = { path = "../easydoc-reader" }
-easydoc-template = { path = "../easydoc-template" }
 easydoc-writer = { path = "../easydoc-writer" }
 serde.workspace = true
+serde_json.workspace = true
+zip.workspace = true
 
 [dev-dependencies]
-serde.workspace = true
-serde_json.workspace = true
 tempfile.workspace = true
-zip.workspace = true
 
 [lints]
 workspace = true

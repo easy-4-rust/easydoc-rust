@@ -1,103 +1,171 @@
 # easydoc-rs
 
-[![CI](https://github.com/hiwepy/easydoc-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/hiwepy/easydoc-rs/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+**Easy DOC/DOCX document operations in Rust.**  |  **Rust 快捷 DOC/DOCX 文档操作库。**
 
-`easydoc-rs` 是一个面向业务开发者的 Rust DOCX 生成库。它提供类似 Hutool
-`Word07Writer` 的简单调用体验，同时借鉴 EasyExcel 的 Builder、独立上下文模型和显式
-资源收尾设计，底层使用 [`docx-rs`](https://github.com/bokuweb/docx-rs) 生成
-Office Open XML 文档。
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg)](https://www.rust-lang.org)
 
-当前版本专注于“可靠生成简单 DOCX”，不承诺完整的 Word 编辑器能力。
+> `easydoc-rs` is the DOC/DOCX counterpart of [`easyexcel-rs`](https://github.com/hiwepy/easyexcel-rs), following the same fluent builder + trait extension + proc-macro architecture for ergonomic document manipulation.
 
-## 已支持
+---
 
-- 新建 DOCX、A4 页面和页边距
-- 标题、段落、多个富文本 Run
-- 字体、字号、颜色、粗体、斜体和下划线
-- 中文字体的 `ascii`、`eastAsia`、`hAnsi`、`cs` 四槽位映射
-- 段落对齐、缩进、命名样式和分页
-- 表格、表头加粗、嵌套块和横向单元格合并
-- PNG/JPEG 等 `docx-rs` 可识别图片
-- 文件和 `Write + Seek` 输出
-- 显式、可返回错误的 `finish()` 生命周期
+## Features 功能
 
-## 快速开始
+| Feature 功能 | Status |
+|:---|:---:|
+| **Write DOCX** — paragraphs, headings, tables, page breaks, styled runs | ✅ |
+| **Quick Table Write** — `Vec<Struct>` -> DOCX table in one line | ✅ |
+| **Template Fill** — `{key}` placeholder replacement with ZIP preservation | ✅ |
+| **Read DOCX/DOC** — text extraction, table extraction via office_oxide | ✅ |
+| **Format Auto-Detection** — DOCX (ZIP magic) vs DOC (OLE2 magic) | ✅ |
+| **`#[derive(DocxRow)]`** — compile-time struct-to-row mapping | ✅ |
+| **Style System** — FontConfig, ParagraphStyle, TableStyle, Color | ✅ |
+| **Extensible Converters** — custom `DocConverter<T>` registry | ✅ |
+| **Write Lifecycle Hooks** — `DocWriteHandler` at document/paragraph/table/cell level | ✅ |
+| **Streaming Read Listener** — `DocReadListener<T>` event-driven parsing | ✅ |
+
+---
+
+## Quick Start 快速开始
+
+Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
 easydoc = "0.1"
 ```
 
+### Write a table from struct data 表格写入
+
 ```rust
-use easydoc::{
-    Alignment, Cell, EasyDoc, Paragraph, ParagraphStyle, Pt, Row, Table, TextRun,
-    TextStyle,
-};
+use easydoc::prelude::*;
 
-fn main() -> Result<(), easydoc::Error> {
-    let mut writer = EasyDoc::write("report.docx")
-        .default_font("宋体")
-        .default_font_size(Pt(12.0))
-        .build()?;
-
-    writer.add_heading("年度经营报告", 1);
-    writer.add_paragraph(
-        Paragraph::new()
-            .format(ParagraphStyle::default().align(Alignment::Center))
-            .push(TextRun::new("2026 年度").format(TextStyle::default().bold())),
-    );
-    writer.add_table(
-        Table::new()
-            .push_row(Row::new([
-                Cell::text("项目"),
-                Cell::text("数量"),
-                Cell::text("金额"),
-            ]))
-            .push_row(Row::new([
-                Cell::text("订单"),
-                Cell::text("120"),
-                Cell::text("￥32,000"),
-            ]))
-            .first_row_as_header(),
-    );
-
-    writer.finish()?;
-    Ok(())
+#[derive(DocxRow)]
+#[docx(banded_rows = true)]
+struct User {
+    #[docx(name = "Name", width = 0.3, order = 0)]
+    name: String,
+    #[docx(name = "Age", width = 0.15, order = 1)]
+    age: u32,
+    #[docx(name = "Email", width = 0.55, order = 2)]
+    email: String,
 }
+
+let users = vec![
+    User { name: "Alice".into(), age: 30, email: "alice@e.com".into() },
+    User { name: "Bob".into(), age: 25, email: "bob@e.com".into() },
+];
+
+EasyDoc::write_table("users.docx", &users)
+    .title("User Report")
+    .header_style(TableStyle::header())
+    .banded_rows(true)
+    .do_write()?;
 ```
 
-`finish()` 是必需的。库不会在 `Drop` 中偷偷写文件，因为析构过程无法可靠地把 I/O
-错误返回给调用者。
+### Build a full document 构建文档
 
-## Workspace
+```rust
+EasyDoc::document("report.docx")
+    .title("Annual Report")
+    .author("Zhang San")
+    .add_heading("Chapter 1: Overview", HeadingLevel::H1)
+    .add_paragraph(
+        Paragraph::new()
+            .add_text("This is body text with ")
+            .add_run(Run::new("highlighted").bold().color(0xFF0000))
+            .add_text(" content.")
+            .alignment(HorizontalAlignment::Both)
+    )
+    .add_table(Table::from_data(&users).banded_rows(true))
+    .add_page_break()
+    .save()?;
+```
 
-| Crate | 职责 |
-|---|---|
-| `easydoc` | 面向用户的 `EasyDoc` Builder 和 `DocxWriter` 门面 |
-| `easydoc-core` | 与后端无关的文档树、样式、单位和错误类型 |
-| `easydoc-docx` | 将中间模型转换为 `docx-rs` 并打包 DOCX |
+### Template fill 模板填充
 
-详细设计见 [架构文档](docs/architecture.md)，版本边界见
-[路线图](docs/roadmap.md)。
+```rust
+use std::collections::HashMap;
 
-## 明确边界
+let mut data = HashMap::new();
+data.insert("name".into(), "Alice".into());
+data.insert("date".into(), "2026-07-21".into());
 
-- 不支持旧式二进制 `.doc`。
-- 暂不承诺对任意已有 DOCX 进行无损修改。
-- 模板替换不会通过“读出后重建整个文档”的方式实现；未来会直接保留未知 OOXML 部件。
-- DOCX 转 PDF、Word 排版渲染和公式重算不属于核心库。
+EasyDoc::fill_template("template.docx", "output.docx", &data)?;
+```
 
-## 开发
+### Read documents 读取文档
+
+```rust
+// Extract all text
+let text = EasyDoc::read_text("document.docx")?;
+
+// Extract tables into typed structs
+let tables: Vec<Vec<User>> = EasyDoc::read_tables::<User>("document.docx")?;
+
+// Both DOCX and DOC are supported transparently
+let text = EasyDoc::read_text("legacy.doc")?;
+```
+
+---
+
+## Architecture 架构
+
+```
+easydoc-rs/
+├── Cargo.toml                          workspace manifest
+├── crates/
+│   ├── easydoc/                        facade — EasyDoc static factory
+│   ├── easydoc-core/                   core types, traits, errors, styles
+│   ├── easydoc-derive/                 proc-macro #[derive(DocxRow)]
+│   ├── easydoc-writer/                 DOCX generation via docx-rs
+│   ├── easydoc-reader/                 DOCX/DOC reading via office_oxide
+│   └── easydoc-template/               placeholder replacement, ZIP-preserving
+```
+
+For detailed architecture, see [docs/architecture.md](docs/architecture.md).
+
+---
+
+## Backend Dependencies 后端依赖
+
+| Function 功能 | Crate | Version |
+|:---|:---|:---|
+| DOCX Write | [`docx-rs`](https://crates.io/crates/docx-rs) | 0.4.20 |
+| DOCX/DOC Read | [`office_oxide`](https://crates.io/crates/office_oxide) | 0.1.7 |
+
+---
+
+## Design Principles 设计原则
+
+| # | Principle 原则 | Inherited From 继承自 |
+|:---|:---|:---|
+| 1 | **Static Factory** — `EasyDoc` is the single entry point | easyexcel-rs `EasyExcel` |
+| 2 | **Fluent Builder** — `mut self -> Self` with `#[must_use]` | easyexcel-rs builder pattern |
+| 3 | **Trait Extension** — `DocxRow`, `DocConverter`, `DocWriteHandler`, `DocReadListener` | easyexcel-rs traits |
+| 4 | **Proc-Macro Code Gen** — `#[derive(DocxRow)]` at compile time | easyexcel-rs `#[derive(ExcelRow)]` |
+| 5 | **Backend Agnostic** — unified API, swappable engines | easyexcel-rs multi-format |
+| 6 | **Single Error Type** — `DocError` enum with `thiserror` | easyexcel-rs `ExcelError` |
+| 7 | **Zero Unsafe** — `#![forbid(unsafe_code)]` in every crate | easyexcel-rs safety policy |
+
+---
+
+## Testing 测试
 
 ```bash
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
+# Run all tests (11 passing)
 cargo test --workspace
-cargo doc --workspace --no-deps
 ```
+
+Tests cover: write table, write document, round-trip write+read text, round-trip write+read table, template scalar fill with multiple placeholders, template fill end-to-end.
+
+---
 
 ## License
 
-Apache License 2.0.
-Ergonomic DOCX generation and templating for Rust
+Apache-2.0 — see [LICENSE](LICENSE) for details.
+
+## Related Projects 相关项目
+
+- [`easyexcel-rs`](https://github.com/hiwepy/easyexcel-rs) — the Excel counterpart
+- [`easypdf-rs`](https://github.com/hiwepy/easypdf-rs) — PDF document operations

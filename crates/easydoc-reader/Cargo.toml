@@ -1,6 +1,6 @@
 [package]
-name = "easydoc-core"
-description = "Core types and extension points for easydoc-rs"
+name = "easydoc-reader"
+description = "DOCX/DOC document reader for easydoc-rs"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,9 +8,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-chrono.workspace = true
-thiserror.workspace = true
-zip.workspace = true
+easydoc-core = { path = "../easydoc-core" }
+office_oxide.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
