@@ -1,7 +1,7 @@
 //! Content extractors for DOCX/DOC files.
 //!
 //! Both text and table extraction work transparently across
-//! DOCX and DOC formats via office_oxide's unified API.
+//! DOCX and DOC formats via `office_oxide`'s unified API.
 
 pub mod table;
 pub mod text;
@@ -27,16 +27,16 @@ pub fn detect_format(path: &Path) -> Option<DocumentFormat> {
     }
 
     // Fallback: check magic bytes
-    if let Ok(bytes) = std::fs::read(path) {
-        if bytes.len() >= 8 {
-            // DOCX: PK\x03\x04 (ZIP magic)
-            if &bytes[0..4] == b"PK\x03\x04" {
-                return Some(DocumentFormat::Docx);
-            }
-            // DOC: OLE2/CFB magic bytes
-            if &bytes[0..8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" {
-                return Some(DocumentFormat::Doc);
-            }
+    if let Ok(bytes) = std::fs::read(path)
+        && bytes.len() >= 8
+    {
+        // DOCX: PK\x03\x04 (ZIP magic)
+        if &bytes[0..4] == b"PK\x03\x04" {
+            return Some(DocumentFormat::Docx);
+        }
+        // DOC: OLE2/CFB magic bytes
+        if &bytes[0..8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" {
+            return Some(DocumentFormat::Doc);
         }
     }
 

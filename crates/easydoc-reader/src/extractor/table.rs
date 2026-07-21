@@ -1,4 +1,4 @@
-//! Table extraction from DOCX/DOC files via office_oxide IR.
+//! Table extraction from DOCX/DOC files via `office_oxide` IR.
 
 use std::path::Path;
 
@@ -7,7 +7,7 @@ use office_oxide::ir::{DocumentIR, Element, InlineContent};
 
 /// Extracts all tables from a document and deserialises each into `Vec<T>`.
 ///
-/// Uses office_oxide's IR (intermediate representation) to find tables,
+/// Uses `office_oxide`'s IR (intermediate representation) to find tables,
 /// then converts each row via the [`DocxRow`] trait.
 ///
 /// # Errors

@@ -2,9 +2,9 @@
 
 use std::path::PathBuf;
 
-use easydoc_core::style::TableStyle;
 use easydoc_core::DocxRow;
 use easydoc_core::Result;
+use easydoc_core::style::TableStyle;
 
 use crate::executor::table_executor::TableWriteExecutor;
 

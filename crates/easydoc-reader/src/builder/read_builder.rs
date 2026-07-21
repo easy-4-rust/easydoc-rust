@@ -2,8 +2,8 @@
 
 use std::path::PathBuf;
 
-use easydoc_core::{DocxRow, Result};
 use crate::extractor;
+use easydoc_core::{DocxRow, Result};
 
 /// Fluent builder for streaming document reads.
 ///
@@ -16,14 +16,12 @@ impl DocReadBuilder {
     /// Creates a new reader builder.
     #[must_use]
     pub fn new(path: impl Into<PathBuf>) -> Self {
-        Self {
-            path: path.into(),
-        }
+        Self { path: path.into() }
     }
 
     /// Executes a sync read returning all tables flattened into a single `Vec<T>`.
     ///
-    /// Uses office_oxide for backend parsing.
+    /// Uses `office_oxide` for backend parsing.
     ///
     /// # Errors
     ///

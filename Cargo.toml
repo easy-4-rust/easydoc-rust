@@ -36,5 +36,15 @@ unsafe_code = "forbid"
 missing_docs = "warn"
 
 [workspace.lints.clippy]
-all = "warn"
-pedantic = "warn"
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# Allow pedantic lints that are too aggressive for this codebase
+unreadable_literal = "allow"
+cast_possible_truncation = "allow"
+cast_sign_loss = "allow"
+cast_precision_loss = "allow"
+too_many_lines = "allow"
+no_effect_underscore_binding = "allow"
+unnecessary_wraps = "allow"
+wrong_self_convention = "allow"
+missing_errors_doc = "allow"

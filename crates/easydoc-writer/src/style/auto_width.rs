@@ -16,8 +16,8 @@ impl AutoWidthStrategy {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            min_width: 240,   // ~1 character at 11pt
-            max_width: 9600,  // ~40 characters at 11pt
+            min_width: 240,  // ~1 character at 11pt
+            max_width: 9600, // ~40 characters at 11pt
         }
     }
 

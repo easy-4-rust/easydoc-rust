@@ -1,12 +1,12 @@
-//! Plain text extraction from DOCX/DOC files via office_oxide.
+//! Plain text extraction from DOCX/DOC files via `office_oxide`.
 
 use std::path::Path;
 
 use easydoc_core::{DocError, Result};
 
-/// Extracts all plain text from a document using office_oxide.
+/// Extracts all plain text from a document using `office_oxide`.
 ///
-/// Supports DOCX, DOC, and all other formats office_oxide can read.
+/// Supports DOCX, DOC, and all other formats `office_oxide` can read.
 ///
 /// # Errors
 ///

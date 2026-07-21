@@ -2,9 +2,9 @@
 
 use std::path::PathBuf;
 
+use easydoc_core::Result;
 use easydoc_core::metadata::DocumentMeta;
 use easydoc_core::types::HeadingLevel;
-use easydoc_core::Result;
 
 use crate::executor::write_executor::DocWriteExecutor;
 use crate::{DocImage, Paragraph, Table};
@@ -32,10 +32,7 @@ pub struct DocBuilder {
 
 /// A single element in the document — paragraph, table, image, etc.
 pub(crate) enum DocumentElement {
-    Heading {
-        text: String,
-        level: HeadingLevel,
-    },
+    Heading { text: String, level: HeadingLevel },
     Paragraph(Paragraph),
     Table(Table),
     Image(DocImage),

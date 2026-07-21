@@ -1,10 +1,13 @@
 //! Integration tests for the easydoc writer — produces real DOCX files.
 
-use easydoc::prelude::*;
 use easydoc::ConverterRegistry;
-use easydoc::{DocImage, DocWriteContext, DocWriteHandler, ParagraphContext, TableWriteContext, FillConfig, FillDirection};
-use easydoc::{DocError, DocReadContext, DocReadListener, CollectListener};
-use easydoc::{detect_format, DocumentFormat, DocumentMeta};
+use easydoc::DocumentMeta;
+use easydoc::prelude::*;
+use easydoc::{CollectListener, DocError, DocReadContext, DocReadListener};
+use easydoc::{
+    DocImage, DocWriteContext, DocWriteHandler, FillConfig, FillDirection, ParagraphContext,
+    TableWriteContext,
+};
 use std::fs;
 use tempfile::TempDir;
 
@@ -19,15 +22,14 @@ struct TestUser {
 // Manual DocxRow impl for testing (derive will be used in production)
 impl DocxRow for TestUser {
     fn schema() -> &'static [TableColumn] {
-        static SCHEMA: std::sync::LazyLock<Vec<TableColumn>> =
-            std::sync::LazyLock::new(|| {
-                vec![
-                    TableColumn::new("Name", "name", 0).order(0).width(0.3),
-                    TableColumn::new("Age", "age", 1).order(1).width(0.15),
-                    TableColumn::new("Email", "email", 2).order(2).width(0.55),
-                ]
-            });
-        &*SCHEMA
+        static SCHEMA: std::sync::LazyLock<Vec<TableColumn>> = std::sync::LazyLock::new(|| {
+            vec![
+                TableColumn::new("Name", "name", 0).order(0).width(0.3),
+                TableColumn::new("Age", "age", 1).order(1).width(0.15),
+                TableColumn::new("Email", "email", 2).order(2).width(0.55),
+            ]
+        });
+        &SCHEMA
     }
 
     fn from_row(row: &RowData) -> Result<Self> {
@@ -104,7 +106,10 @@ fn test_write_simple_table() {
     // Verify it's a valid ZIP (DOCX is a ZIP)
     let file = fs::File::open(&path).unwrap();
     let mut archive = zip::ZipArchive::new(file).expect("should be valid ZIP");
-    assert!(archive.by_name("word/document.xml").is_ok(), "should contain document.xml");
+    assert!(
+        archive.by_name("word/document.xml").is_ok(),
+        "should contain document.xml"
+    );
 }
 
 #[test]
@@ -149,8 +154,14 @@ fn test_round_trip_write_and_read_text() {
 
     // Read it back
     let text = EasyDoc::read_text(&path).expect("read should succeed");
-    assert!(text.contains("round-trip test"), "text should contain written content: {text}");
-    assert!(text.contains("Second paragraph"), "text should contain second paragraph: {text}");
+    assert!(
+        text.contains("round-trip test"),
+        "text should contain written content: {text}"
+    );
+    assert!(
+        text.contains("Second paragraph"),
+        "text should contain second paragraph: {text}"
+    );
 }
 
 #[test]
@@ -159,8 +170,16 @@ fn test_round_trip_write_and_read_table() {
     let path = dir.path().join("roundtrip_table.docx");
 
     let users = vec![
-        TestUser { name: "Alice".into(), age: 30, email: "alice@e.com".into() },
-        TestUser { name: "Bob".into(), age: 25, email: "bob@e.com".into() },
+        TestUser {
+            name: "Alice".into(),
+            age: 30,
+            email: "alice@e.com".into(),
+        },
+        TestUser {
+            name: "Bob".into(),
+            age: 25,
+            email: "bob@e.com".into(),
+        },
     ];
 
     // Write table
@@ -170,14 +189,18 @@ fn test_round_trip_write_and_read_table() {
         .expect("write should succeed");
 
     // Read tables back
-    let tables: Vec<Vec<TestUser>> = EasyDoc::read_tables::<TestUser>(&path)
-        .expect("read tables should succeed");
+    let tables: Vec<Vec<TestUser>> =
+        EasyDoc::read_tables::<TestUser>(&path).expect("read tables should succeed");
 
     assert!(!tables.is_empty(), "should have at least one table");
     let first_table = &tables[0];
     // Table read may include 3 rows (header + 2 data) depending on
     // how office_oxide interprets header rows
-    assert!(first_table.len() >= 2, "should have at least 2 data rows, got {}", first_table.len());
+    assert!(
+        first_table.len() >= 2,
+        "should have at least 2 data rows, got {}",
+        first_table.len()
+    );
     // Find Alice and Bob in the results
     let names: Vec<&str> = first_table.iter().map(|u| u.name.as_str()).collect();
     assert!(names.contains(&"Alice"), "should contain Alice: {names:?}");
@@ -207,10 +230,22 @@ fn test_template_scalar_fill() {
 
     // Verify the filled output
     let text = EasyDoc::read_text(&output_path).expect("read filled doc");
-    assert!(text.contains("Hello Alice"), "should replace {{name}}: {text}");
-    assert!(text.contains("2026-07-21"), "should replace {{date}}: {text}");
-    assert!(!text.contains("{name}"), "no unreplaced placeholders: {text}");
-    assert!(!text.contains("{date}"), "no unreplaced placeholders: {text}");
+    assert!(
+        text.contains("Hello Alice"),
+        "should replace {{name}}: {text}"
+    );
+    assert!(
+        text.contains("2026-07-21"),
+        "should replace {{date}}: {text}"
+    );
+    assert!(
+        !text.contains("{name}"),
+        "no unreplaced placeholders: {text}"
+    );
+    assert!(
+        !text.contains("{date}"),
+        "no unreplaced placeholders: {text}"
+    );
 }
 
 #[test]
@@ -232,8 +267,7 @@ fn test_template_multiple_scalar_fill() {
     data.insert("order_id".into(), "ORD-12345".into());
     data.insert("total".into(), "$99.99".into());
 
-    EasyDoc::fill_template(&template_path, &output_path, &data)
-        .expect("fill");
+    EasyDoc::fill_template(&template_path, &output_path, &data).expect("fill");
 
     let text = EasyDoc::read_text(&output_path).expect("read");
     assert!(text.contains("Dear Bob"), "{text}");
@@ -262,8 +296,7 @@ fn test_template_list_fill_basic() {
         .save()
         .expect("write");
 
-    EasyDoc::fill_template(&tpl_path, &output_path, &data)
-        .expect("scalar fill");
+    EasyDoc::fill_template(&tpl_path, &output_path, &data).expect("scalar fill");
 
     let text = EasyDoc::read_text(&output_path).expect("read");
     assert!(text.contains("Welcome!"), "{text}");
@@ -283,15 +316,14 @@ fn test_image_insertion() {
         0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR length + type
         0x00, 0x00, 0x00, 0x01, // width=1
         0x00, 0x00, 0x00, 0x01, // height=1
-        0x08, 0x02,             // bit depth=8, color type=2 (RGB)
-        0x00, 0x00, 0x00,       // compression, filter, interlace
+        0x08, 0x02, // bit depth=8, color type=2 (RGB)
+        0x00, 0x00, 0x00, // compression, filter, interlace
         0x90, 0x77, 0x53, 0xDE, // IHDR CRC (correct for above data)
         // IDAT chunk (raw deflate: 1 pixel RGB = FF 00 00 = red pixel)
         0x00, 0x00, 0x00, 0x0F, // IDAT length = 15
         0x49, 0x44, 0x41, 0x54, // IDAT type
         0x78, 0x01, 0x62, 0x60, 0x60, 0x60, 0x00, 0x00, // zlib header + deflate data
-        0x00, 0x04, 0x00, 0x01, 0x00, 0x01, 0x0B, 0x05,
-        0x18, 0xD4, 0x95, 0x7D, // IDAT CRC
+        0x00, 0x04, 0x00, 0x01, 0x00, 0x01, 0x0B, 0x05, 0x18, 0xD4, 0x95, 0x7D, // IDAT CRC
         // IEND chunk
         0x00, 0x00, 0x00, 0x00, // IEND length = 0
         0x49, 0x45, 0x4E, 0x44, // IEND type
@@ -324,7 +356,9 @@ fn test_converter_fallback_types() {
     let col = TableColumn::new("test", "test", 0);
 
     // String
-    let v = ConverterRegistry::new().to_doc_value(&"hello".to_string(), &col).unwrap();
+    let v = ConverterRegistry::new()
+        .to_doc_value(&"hello".to_string(), &col)
+        .unwrap();
     assert!(matches!(v, DocValue::String(ref s) if s == "hello"));
 
     // i32
@@ -332,8 +366,10 @@ fn test_converter_fallback_types() {
     assert!(matches!(v, DocValue::Int(42)));
 
     // f64
-    let v = ConverterRegistry::new().to_doc_value(&3.14f64, &col).unwrap();
-    assert!(matches!(v, DocValue::Float(n) if (n - 3.14).abs() < 0.001));
+    let v = ConverterRegistry::new()
+        .to_doc_value(&std::f64::consts::PI, &col)
+        .unwrap();
+    assert!(matches!(v, DocValue::Float(n) if (n - std::f64::consts::PI).abs() < 0.001));
 
     // bool
     let v = ConverterRegistry::new().to_doc_value(&true, &col).unwrap();
@@ -385,8 +421,8 @@ fn test_style_builders() {
 
 #[test]
 fn test_format_detection() {
-    use easydoc::detect_format;
     use easydoc::DocumentFormat;
+    use easydoc::detect_format;
 
     let dir = TempDir::new().expect("tempdir");
 
@@ -415,12 +451,19 @@ fn test_error_variants() {
     assert_eq!(err.to_string(), "Format error: bad");
 
     // Template
-    let err = DocError::Template { placeholder: "{x}".into(), message: "missing".into() };
+    let err = DocError::Template {
+        placeholder: "{x}".into(),
+        message: "missing".into(),
+    };
     assert!(err.to_string().contains("{x}"));
 
     // Conversion
-    let err = DocError::Conversion { field: "f".into(), value: "v".into(), message: "m".into() };
-    assert!(err.to_string().contains("f"));
+    let err = DocError::Conversion {
+        field: "f".into(),
+        value: "v".into(),
+        message: "m".into(),
+    };
+    assert!(err.to_string().contains('f'));
 
     // Unsupported
     let err = DocError::Unsupported("nope".into());
@@ -442,7 +485,9 @@ fn test_doc_write_handler_defaults() {
     impl DocWriteHandler for TestHandler {}
 
     let mut h = TestHandler;
-    let ctx = DocWriteContext { path: "test.docx".into() };
+    let ctx = DocWriteContext {
+        path: "test.docx".into(),
+    };
 
     // All methods should return Ok(()) by default
     assert!(h.before_document(&ctx).is_ok());
@@ -452,7 +497,10 @@ fn test_doc_write_handler_defaults() {
     assert!(h.before_paragraph(&pctx).is_ok());
     assert!(h.after_paragraph(&pctx).is_ok());
 
-    let tctx = TableWriteContext { index: 0, row_count: 1 };
+    let tctx = TableWriteContext {
+        index: 0,
+        row_count: 1,
+    };
     assert!(h.before_table(&tctx).is_ok());
     assert!(h.after_table(&tctx).is_ok());
 }
@@ -460,7 +508,10 @@ fn test_doc_write_handler_defaults() {
 #[test]
 fn test_collect_listener() {
     let mut listener = CollectListener(Vec::new());
-    let ctx = DocReadContext { path: "test.docx".into(), index: 0 };
+    let ctx = DocReadContext {
+        path: "test.docx".into(),
+        index: 0,
+    };
 
     listener.invoke("item1".to_string(), &ctx).unwrap();
     listener.invoke("item2".to_string(), &ctx).unwrap();
@@ -495,7 +546,8 @@ fn test_document_to_bytes() {
     // Corresponds to Hutool's ByteArrayOutputStream pattern
     let bytes = EasyDoc::document_to_bytes(|b| {
         b.add_paragraph(Paragraph::new().add_text("In-memory document"))
-    }).expect("to_bytes should succeed");
+    })
+    .expect("to_bytes should succeed");
 
     assert!(!bytes.is_empty(), "bytes should not be empty");
 
@@ -507,12 +559,13 @@ fn test_document_to_bytes() {
 
 #[test]
 fn test_write_table_to_bytes() {
-    let users = vec![
-        TestUser { name: "Alice".into(), age: 30, email: "alice@e.com".into() },
-    ];
+    let users = vec![TestUser {
+        name: "Alice".into(),
+        age: 30,
+        email: "alice@e.com".into(),
+    }];
 
-    let bytes = EasyDoc::write_table_to_bytes(&users)
-        .expect("to_bytes should succeed");
+    let bytes = EasyDoc::write_table_to_bytes(&users).expect("to_bytes should succeed");
 
     assert!(!bytes.is_empty());
 
@@ -558,8 +611,14 @@ fn test_edit_existing_document() {
 
     // Verify
     let text = EasyDoc::read_text(&path).expect("read");
-    assert!(text.contains("Hello World"), "should replace placeholder: {text}");
-    assert!(!text.contains("{name}"), "placeholder should be gone: {text}");
+    assert!(
+        text.contains("Hello World"),
+        "should replace placeholder: {text}"
+    );
+    assert!(
+        !text.contains("{name}"),
+        "placeholder should be gone: {text}"
+    );
 }
 
 #[test]
@@ -590,9 +649,11 @@ fn test_edit_save_as() {
 
 #[test]
 fn test_write_table_to_writer() {
-    let users = vec![
-        TestUser { name: "Eve".into(), age: 28, email: "eve@e.com".into() },
-    ];
+    let users = vec![TestUser {
+        name: "Eve".into(),
+        age: 28,
+        email: "eve@e.com".into(),
+    }];
 
     let mut buf = Vec::new();
     let cursor = std::io::Cursor::new(&mut buf);

@@ -48,7 +48,7 @@ impl EasyDoc {
     pub fn write_table<T: DocxRow>(
         path: impl Into<PathBuf>,
         data: &[T],
-    ) -> TableWriteBuilder<T> {
+    ) -> TableWriteBuilder<'_, T> {
         TableWriteBuilder::new(path, data)
     }
 
@@ -59,9 +59,7 @@ impl EasyDoc {
     /// # Errors
     ///
     /// Returns ZIP or I/O errors.
-    pub fn document_to_bytes(
-        f: impl FnOnce(DocBuilder) -> DocBuilder,
-    ) -> Result<Vec<u8>> {
+    pub fn document_to_bytes(f: impl FnOnce(DocBuilder) -> DocBuilder) -> Result<Vec<u8>> {
         let builder = DocBuilder::new("memory.docx");
         f(builder).save_to_bytes()
     }
@@ -78,7 +76,7 @@ impl EasyDoc {
     /// Opens an existing DOCX file for editing.
     ///
     /// Corresponds to Hutool's `Word07Writer(File)` pattern that opens
-    /// existing files. Uses office_oxide's `EditableDocument` for text
+    /// existing files. Uses `office_oxide`'s `EditableDocument` for text
     /// replacement and structural edits.
     ///
     /// # Errors
@@ -116,12 +114,7 @@ impl EasyDoc {
         data: &[T],
         list_field: &str,
     ) -> Result<()> {
-        easydoc_template::fill_template_list(
-            template.as_ref(),
-            output.as_ref(),
-            data,
-            list_field,
-        )
+        easydoc_template::fill_template_list(template.as_ref(), output.as_ref(), data, list_field)
     }
 
     // ========================================================================

@@ -3,8 +3,6 @@
 //! Provides text extraction, table reading, and streaming document analysis,
 //! wrapping `office_oxide` for backend parsing.
 
-#![warn(missing_docs)]
-#![warn(clippy::pedantic)]
 #![deny(unsafe_code)]
 
 use std::path::Path;
@@ -21,7 +19,7 @@ pub use listener::collect::CollectListener;
 
 /// Synchronously reads all plain text from a document.
 ///
-/// Auto-detects DOCX/DOC format via office_oxide.
+/// Auto-detects DOCX/DOC format via `office_oxide`.
 ///
 /// # Errors
 ///

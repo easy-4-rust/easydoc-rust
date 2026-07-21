@@ -29,7 +29,7 @@ impl Color {
     /// Returns the color as a 24-bit hex value.
     #[must_use]
     pub fn to_hex(self) -> u32 {
-        (self.r as u32) << 16 | (self.g as u32) << 8 | (self.b as u32)
+        u32::from(self.r) << 16 | u32::from(self.g) << 8 | u32::from(self.b)
     }
 
     /// Black.

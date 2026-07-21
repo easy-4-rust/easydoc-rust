@@ -30,7 +30,7 @@ impl BandedRowsStrategy {
     /// Returns the background color for a given row index.
     #[must_use]
     pub fn color_for_row(&self, row_index: usize) -> Option<Color> {
-        if row_index % 2 == 0 {
+        if row_index.is_multiple_of(2) {
             Some(self.even_color)
         } else {
             self.odd_color

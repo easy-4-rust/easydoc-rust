@@ -11,7 +11,7 @@ use office_oxide::edit::EditableDocument;
 /// An open DOCX file ready for modification.
 ///
 /// Created via [`EasyDoc::edit()`].
-/// Wraps office_oxide's `EditableDocument` for text replacement and saving.
+/// Wraps `office_oxide`'s `EditableDocument` for text replacement and saving.
 ///
 /// # Example
 ///
@@ -59,7 +59,8 @@ impl DocEditor {
     ///
     /// Returns I/O errors.
     pub fn save(self) -> Result<()> {
-        self.doc.save(&self.path)
+        self.doc
+            .save(&self.path)
             .map_err(|e| DocError::Document(format!("cannot save document: {e}")))
     }
 
@@ -69,7 +70,8 @@ impl DocEditor {
     ///
     /// Returns I/O errors.
     pub fn save_as(self, path: impl AsRef<Path>) -> Result<()> {
-        self.doc.save(path.as_ref())
+        self.doc
+            .save(path.as_ref())
             .map_err(|e| DocError::Document(format!("cannot save document: {e}")))
     }
 }

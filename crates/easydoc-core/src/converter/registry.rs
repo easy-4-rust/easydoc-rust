@@ -75,16 +75,12 @@ impl ConverterRegistry {
     ///
     /// Returns [`DocError::Conversion`] if no suitable converter is found or the
     /// value cannot be converted.
-    pub fn from_doc_value<V: 'static>(
-        &self,
-        value: &DocValue,
-        column: &TableColumn,
-    ) -> Result<V> {
+    pub fn from_doc_value<V: 'static>(&self, value: &DocValue, column: &TableColumn) -> Result<V> {
         let type_id = TypeId::of::<V>();
-        if let Some(boxed) = self.converters.get(&type_id) {
-            if let Some(converter) = boxed.downcast_ref::<Box<dyn DocConverter<V>>>() {
-                return converter.from_doc_value(value, column);
-            }
+        if let Some(boxed) = self.converters.get(&type_id)
+            && let Some(converter) = boxed.downcast_ref::<Box<dyn DocConverter<V>>>()
+        {
+            return converter.from_doc_value(value, column);
         }
         fallback_from_doc_value(value, column)
     }
@@ -277,12 +273,13 @@ impl FallbackConvert for NaiveDate {
         match value {
             DocValue::Date(d) => Ok(*d),
             DocValue::DateTime(dt) => Ok(dt.date_naive()),
-            DocValue::String(s) => NaiveDate::parse_from_str(s, "%Y-%m-%d")
-                .map_err(|_| DocError::Conversion {
+            DocValue::String(s) => {
+                NaiveDate::parse_from_str(s, "%Y-%m-%d").map_err(|_| DocError::Conversion {
                     field: column.field_name.clone(),
                     value: s.clone(),
                     message: "cannot parse as NaiveDate (expected YYYY-MM-DD)".to_owned(),
-                }),
+                })
+            }
             other => Err(DocError::Conversion {
                 field: column.field_name.clone(),
                 value: format!("{other:?}"),
@@ -300,12 +297,15 @@ impl FallbackConvert for NaiveDateTime {
         match value {
             DocValue::NaiveDateTime(ndt) => Ok(*ndt),
             DocValue::DateTime(dt) => Ok(dt.naive_utc()),
-            DocValue::String(s) => NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S")
-                .map_err(|_| DocError::Conversion {
-                    field: column.field_name.clone(),
-                    value: s.clone(),
-                    message: "cannot parse as NaiveDateTime".to_owned(),
-                }),
+            DocValue::String(s) => {
+                NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").map_err(|_| {
+                    DocError::Conversion {
+                        field: column.field_name.clone(),
+                        value: s.clone(),
+                        message: "cannot parse as NaiveDateTime".to_owned(),
+                    }
+                })
+            }
             other => Err(DocError::Conversion {
                 field: column.field_name.clone(),
                 value: format!("{other:?}"),
@@ -315,7 +315,10 @@ impl FallbackConvert for NaiveDateTime {
     }
 }
 
-fn fallback_to_doc_value<V: 'static + std::fmt::Debug>(value: &V, _column: &TableColumn) -> Result<DocValue> {
+fn fallback_to_doc_value<V: 'static + std::fmt::Debug>(
+    value: &V,
+    _column: &TableColumn,
+) -> Result<DocValue> {
     let type_id = TypeId::of::<V>();
 
     if type_id == TypeId::of::<String>() {
@@ -359,7 +362,9 @@ fn fallback_to_doc_value<V: 'static + std::fmt::Debug>(value: &V, _column: &Tabl
     if type_id == TypeId::of::<DateTime<Utc>>() {
         let any_val = value as &dyn Any;
         if let Some(dt) = any_val.downcast_ref::<DateTime<Utc>>() {
-            return Ok(<DateTime<Utc> as FallbackConvert>::to_doc_value_from_ref(dt));
+            return Ok(<DateTime<Utc> as FallbackConvert>::to_doc_value_from_ref(
+                dt,
+            ));
         }
     }
     if type_id == TypeId::of::<NaiveDate>() {
@@ -371,7 +376,9 @@ fn fallback_to_doc_value<V: 'static + std::fmt::Debug>(value: &V, _column: &Tabl
     if type_id == TypeId::of::<NaiveDateTime>() {
         let any_val = value as &dyn Any;
         if let Some(ndt) = any_val.downcast_ref::<NaiveDateTime>() {
-            return Ok(<NaiveDateTime as FallbackConvert>::to_doc_value_from_ref(ndt));
+            return Ok(<NaiveDateTime as FallbackConvert>::to_doc_value_from_ref(
+                ndt,
+            ));
         }
     }
 
@@ -379,10 +386,7 @@ fn fallback_to_doc_value<V: 'static + std::fmt::Debug>(value: &V, _column: &Tabl
     Ok(DocValue::String(format!("{value:?}")))
 }
 
-fn fallback_from_doc_value<V: 'static>(
-    value: &DocValue,
-    column: &TableColumn,
-) -> Result<V> {
+fn fallback_from_doc_value<V: 'static>(value: &DocValue, column: &TableColumn) -> Result<V> {
     let type_id = TypeId::of::<V>();
 
     let err = |msg: &str| -> Result<V> {

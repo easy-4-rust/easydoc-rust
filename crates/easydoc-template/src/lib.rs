@@ -3,8 +3,6 @@
 //! Detects `{key}` and `{.field}` placeholders in DOCX documents and
 //! replaces them with provided data — analogous to `easyexcel-template`.
 
-#![warn(missing_docs)]
-#![warn(clippy::pedantic)]
 #![deny(unsafe_code)]
 
 use std::collections::HashMap;
@@ -26,11 +24,8 @@ pub use placeholder::Placeholder;
 /// # Errors
 ///
 /// Returns I/O or template-processing errors.
-pub fn fill_template(
-    template: &Path,
-    output: &Path,
-    data: &HashMap<String, String>,
-) -> Result<()> {
+#[allow(clippy::implicit_hasher)]
+pub fn fill_template(template: &Path, output: &Path, data: &HashMap<String, String>) -> Result<()> {
     fill_executor::fill_scalar(template, output, data)
 }
 

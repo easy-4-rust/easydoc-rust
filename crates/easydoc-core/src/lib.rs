@@ -4,8 +4,6 @@
 //! all other `easydoc-rs` crates build upon. It mirrors the architecture of
 //! `easyexcel-core` but for the DOC/DOCX domain.
 
-#![warn(missing_docs)]
-#![warn(clippy::pedantic)]
 #![deny(unsafe_code)]
 
 pub mod converter;

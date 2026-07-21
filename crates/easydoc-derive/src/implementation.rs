@@ -52,8 +52,13 @@ pub(crate) fn expand_docx_row_tokens(input: TokenStream) -> syn::Result<TokenStr
         let field_name = f.ident.to_string();
         let index = f.index;
         let order = f.order;
-        let width = f.width.map(|w| quote! { Some(#w) }).unwrap_or_else(|| quote! { None });
-        let format = f.format.as_ref().map(|fmt| quote! { Some(#fmt.to_owned()) }).unwrap_or_else(|| quote! { None });
+        let width = f
+            .width
+            .map_or_else(|| quote! { None }, |w| quote! { Some(#w) });
+        let format = f
+            .format
+            .as_ref()
+            .map_or_else(|| quote! { None }, |fmt| quote! { Some(#fmt.to_owned()) });
 
         quote! {
             easydoc_core::TableColumn {
@@ -71,7 +76,8 @@ pub(crate) fn expand_docx_row_tokens(input: TokenStream) -> syn::Result<TokenStr
     // Generate to_row body
     let to_row_cells = fields.iter().filter(|f| !f.ignored).map(|f| {
         let ident = &f.ident;
-        let value_expr = match &f.format {
+
+        match &f.format {
             Some(fmt_str) => {
                 quote! {
                     {
@@ -85,75 +91,78 @@ pub(crate) fn expand_docx_row_tokens(input: TokenStream) -> syn::Result<TokenStr
                     easydoc_core::CellData::new(self.#ident.clone())
                 }
             }
-        };
-        value_expr
+        }
     });
 
     let field_count = fields.iter().filter(|f| !f.ignored).count();
 
     // Generate from_row body
-    let from_row_bindings = fields.iter().filter(|f| !f.ignored).enumerate().map(|(i, f)| {
-        let ident = &f.ident;
-        let idx = syn::Index::from(i);
-        let ty = &f.ty;
-        let field_name = f.ident.to_string();
+    let from_row_bindings = fields
+        .iter()
+        .filter(|f| !f.ignored)
+        .enumerate()
+        .map(|(i, f)| {
+            let ident = &f.ident;
+            let idx = syn::Index::from(i);
+            let ty = &f.ty;
+            let field_name = f.ident.to_string();
 
-        quote! {
-            let #ident: #ty = {
-                let cell = &row.cells[#idx];
-                match &cell.value {
-                    easydoc_core::DocValue::String(s) => {
-                        s.parse().map_err(|_| easydoc_core::DocError::Conversion {
-                            field: #field_name.to_owned(),
-                            value: s.clone(),
-                            message: "parse error".to_owned(),
-                        })?
+            quote! {
+                let #ident: #ty = {
+                    let cell = &row.cells[#idx];
+                    match &cell.value {
+                        easydoc_core::DocValue::String(s) => {
+                            s.parse().map_err(|_| easydoc_core::DocError::Conversion {
+                                field: #field_name.to_owned(),
+                                value: s.clone(),
+                                message: "parse error".to_owned(),
+                            })?
+                        }
+                        easydoc_core::DocValue::Int(n) => {
+                            let n = *n;
+                            // Use a type-erased conversion; for now just format as string
+                            // and re-parse. The derive is a best-effort starting point.
+                            let s = n.to_string();
+                            s.parse().map_err(|_| easydoc_core::DocError::Conversion {
+                                field: #field_name.to_owned(),
+                                value: s.clone(),
+                                message: "parse error".to_owned(),
+                            })?
+                        }
+                        easydoc_core::DocValue::Float(n) => {
+                            let s = n.to_string();
+                            s.parse().map_err(|_| easydoc_core::DocError::Conversion {
+                                field: #field_name.to_owned(),
+                                value: s.clone(),
+                                message: "parse error".to_owned(),
+                            })?
+                        }
+                        easydoc_core::DocValue::Bool(b) => {
+                            let s = b.to_string();
+                            s.parse().map_err(|_| easydoc_core::DocError::Conversion {
+                                field: #field_name.to_owned(),
+                                value: s.clone(),
+                                message: "parse error".to_owned(),
+                            })?
+                        }
+                        easydoc_core::DocValue::Empty => {
+                            return Err(easydoc_core::DocError::Conversion {
+                                field: #field_name.to_owned(),
+                                value: "<empty>".to_owned(),
+                                message: "required field is empty".to_owned(),
+                            })
+                        }
+                        _ => {
+                            return Err(easydoc_core::DocError::Conversion {
+                                field: #field_name.to_owned(),
+                                value: format!("{:?}", cell.value),
+                                message: "unsupported value type".to_owned(),
+                            })
+                        }
                     }
-                    easydoc_core::DocValue::Int(n) => {
-                        let n = *n;
-                        // Use a type-erased conversion; for now just format as string
-                        // and re-parse. The derive is a best-effort starting point.
-                        let s = n.to_string();
-                        s.parse().map_err(|_| easydoc_core::DocError::Conversion {
-                            field: #field_name.to_owned(),
-                            value: s.clone(),
-                            message: "parse error".to_owned(),
-                        })?
-                    }
-                    easydoc_core::DocValue::Float(n) => {
-                        let s = n.to_string();
-                        s.parse().map_err(|_| easydoc_core::DocError::Conversion {
-                            field: #field_name.to_owned(),
-                            value: s.clone(),
-                            message: "parse error".to_owned(),
-                        })?
-                    }
-                    easydoc_core::DocValue::Bool(b) => {
-                        let s = b.to_string();
-                        s.parse().map_err(|_| easydoc_core::DocError::Conversion {
-                            field: #field_name.to_owned(),
-                            value: s.clone(),
-                            message: "parse error".to_owned(),
-                        })?
-                    }
-                    easydoc_core::DocValue::Empty => {
-                        return Err(easydoc_core::DocError::Conversion {
-                            field: #field_name.to_owned(),
-                            value: "<empty>".to_owned(),
-                            message: "required field is empty".to_owned(),
-                        })
-                    }
-                    _ => {
-                        return Err(easydoc_core::DocError::Conversion {
-                            field: #field_name.to_owned(),
-                            value: format!("{:?}", cell.value),
-                            message: "unsupported value type".to_owned(),
-                        })
-                    }
-                }
-            };
-        }
-    });
+                };
+            }
+        });
 
     let from_row_self = fields.iter().filter(|f| !f.ignored).map(|f| {
         let ident = &f.ident;
@@ -224,24 +233,28 @@ fn parse_struct_attrs(attrs: &[syn::Attribute]) -> StructConfig {
         if !attr.path().is_ident("docx") {
             continue;
         }
-        if let Ok(nested) = attr.parse_args_with(
-            Punctuated::<MetaNameValue, Comma>::parse_terminated,
-        ) {
+        if let Ok(nested) =
+            attr.parse_args_with(Punctuated::<MetaNameValue, Comma>::parse_terminated)
+        {
             for nv in nested {
-                let key = nv.path.get_ident().map(|i| i.to_string()).unwrap_or_default();
+                let key = nv
+                    .path
+                    .get_ident()
+                    .map(std::string::ToString::to_string)
+                    .unwrap_or_default();
                 match key.as_str() {
                     "banded_rows" => {
-                        if let syn::Expr::Lit(lit) = &nv.value {
-                            if let syn::Lit::Bool(b) = &lit.lit {
-                                config.banded_rows = b.value();
-                            }
+                        if let syn::Expr::Lit(lit) = &nv.value
+                            && let syn::Lit::Bool(b) = &lit.lit
+                        {
+                            config.banded_rows = b.value();
                         }
                     }
                     "auto_width" | "table_width" => {
-                        if let syn::Expr::Lit(lit) = &nv.value {
-                            if let syn::Lit::Bool(b) = &lit.lit {
-                                config.auto_width = b.value();
-                            }
+                        if let syn::Expr::Lit(lit) = &nv.value
+                            && let syn::Lit::Bool(b) = &lit.lit
+                        {
+                            config.auto_width = b.value();
                         }
                     }
                     _ => {}
@@ -277,52 +290,53 @@ fn collect_fields(fields: &syn::Fields) -> syn::Result<Vec<FieldConfig>> {
             }
 
             // Parse as list of name-value pairs
-            if let Ok(nested) = attr.parse_args_with(
-                Punctuated::<MetaNameValue, Comma>::parse_terminated,
-            ) {
+            if let Ok(nested) =
+                attr.parse_args_with(Punctuated::<MetaNameValue, Comma>::parse_terminated)
+            {
                 for nv in nested {
-                    let key = nv.path.get_ident().map(|i| i.to_string()).unwrap_or_default();
+                    let key = nv
+                        .path
+                        .get_ident()
+                        .map(std::string::ToString::to_string)
+                        .unwrap_or_default();
                     match key.as_str() {
                         "name" => {
-                            if let syn::Expr::Lit(lit) = &nv.value {
-                                if let syn::Lit::Str(s) = &lit.lit {
-                                    name = s.value();
-                                }
+                            if let syn::Expr::Lit(lit) = &nv.value
+                                && let syn::Lit::Str(s) = &lit.lit
+                            {
+                                name = s.value();
                             }
                         }
                         "index" => {
-                            if let syn::Expr::Lit(lit) = &nv.value {
-                                if let syn::Lit::Int(n) = &lit.lit {
-                                    if let Ok(v) = n.base10_parse::<usize>() {
-                                        index = v;
-                                        order = v as u32;
-                                    }
-                                }
+                            if let syn::Expr::Lit(lit) = &nv.value
+                                && let syn::Lit::Int(n) = &lit.lit
+                                && let Ok(v) = n.base10_parse::<usize>()
+                            {
+                                index = v;
+                                order = v as u32;
                             }
                         }
                         "order" => {
-                            if let syn::Expr::Lit(lit) = &nv.value {
-                                if let syn::Lit::Int(n) = &lit.lit {
-                                    if let Ok(v) = n.base10_parse::<u32>() {
-                                        order = v;
-                                    }
-                                }
+                            if let syn::Expr::Lit(lit) = &nv.value
+                                && let syn::Lit::Int(n) = &lit.lit
+                                && let Ok(v) = n.base10_parse::<u32>()
+                            {
+                                order = v;
                             }
                         }
                         "width" => {
-                            if let syn::Expr::Lit(lit) = &nv.value {
-                                if let syn::Lit::Float(n) = &lit.lit {
-                                    if let Ok(v) = n.base10_parse::<f64>() {
-                                        width = Some(v);
-                                    }
-                                }
+                            if let syn::Expr::Lit(lit) = &nv.value
+                                && let syn::Lit::Float(n) = &lit.lit
+                                && let Ok(v) = n.base10_parse::<f64>()
+                            {
+                                width = Some(v);
                             }
                         }
                         "format" => {
-                            if let syn::Expr::Lit(lit) = &nv.value {
-                                if let syn::Lit::Str(s) = &lit.lit {
-                                    format = Some(s.value());
-                                }
+                            if let syn::Expr::Lit(lit) = &nv.value
+                                && let syn::Lit::Str(s) = &lit.lit
+                            {
+                                format = Some(s.value());
                             }
                         }
                         "ignore" => {
@@ -333,10 +347,10 @@ fn collect_fields(fields: &syn::Fields) -> syn::Result<Vec<FieldConfig>> {
                 }
             } else {
                 // Try parsing as a path (for #[docx(ignore)])
-                if let Ok(path) = attr.parse_args::<syn::Path>() {
-                    if path.is_ident("ignore") {
-                        ignored = true;
-                    }
+                if let Ok(path) = attr.parse_args::<syn::Path>()
+                    && path.is_ident("ignore")
+                {
+                    ignored = true;
                 }
             }
         }

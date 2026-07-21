@@ -119,7 +119,11 @@ pub trait DocReadListener<T> {
     ///
     /// Return [`ErrorAction::Stop`] to propagate the error, or
     /// [`ErrorAction::Skip`] / [`ErrorAction::Continue`] to proceed.
-    fn on_error(&mut self, _error: &crate::error::DocError, _context: &DocReadContext) -> ErrorAction {
+    fn on_error(
+        &mut self,
+        _error: &crate::error::DocError,
+        _context: &DocReadContext,
+    ) -> ErrorAction {
         ErrorAction::Stop
     }
 
@@ -174,6 +178,7 @@ pub struct CellContext {
 /// override only the hooks you need.
 pub trait DocWriteHandler {
     /// Execution order (lower values execute first).
+    #[must_use]
     fn order() -> i32 {
         0
     }

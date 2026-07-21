@@ -16,6 +16,7 @@ use docx_rs::{BreakType, Docx, Pic, RunFonts};
 /// Wraps `docx-rs` for the actual OOXML generation.
 pub struct DocWriteExecutor {
     path: PathBuf,
+    #[allow(dead_code)]
     meta: DocumentMeta,
     elements: Vec<DocumentElement>,
 }
@@ -34,17 +35,14 @@ impl DocWriteExecutor {
         })
     }
 
-    /// Builds the docx_rs document from stored elements.
+    /// Builds the `docx_rs` document from stored elements.
     fn build_docx(&self) -> Result<Docx> {
         let mut docx = Docx::new();
 
         for element in &self.elements {
             match element {
                 DocumentElement::Heading { text, level } => {
-                    let run = docx_rs::Run::new()
-                        .add_text(text.as_str())
-                        .bold()
-                        .size(28);
+                    let run = docx_rs::Run::new().add_text(text.as_str()).bold().size(28);
                     let p = docx_rs::Paragraph::new().add_run(run);
                     docx = docx.add_paragraph(p);
                     let _ = level;
@@ -76,10 +74,10 @@ impl DocWriteExecutor {
                         }
                         p = p.add_run(r);
                     }
-                    if let Some(style) = para.paragraph_style() {
-                        if let Some(alignment) = style.alignment {
-                            p = p.align(convert_alignment(alignment));
-                        }
+                    if let Some(style) = para.paragraph_style()
+                        && let Some(alignment) = style.alignment
+                    {
+                        p = p.align(convert_alignment(alignment));
                     }
                     docx = docx.add_paragraph(p);
                 }
@@ -92,11 +90,8 @@ impl DocWriteExecutor {
                         .iter()
                         .map(|h| {
                             docx_rs::TableCell::new().add_paragraph(
-                                docx_rs::Paragraph::new().add_run(
-                                    docx_rs::Run::new()
-                                        .add_text(h.as_str())
-                                        .bold(),
-                                ),
+                                docx_rs::Paragraph::new()
+                                    .add_run(docx_rs::Run::new().add_text(h.as_str()).bold()),
                             )
                         })
                         .collect();
@@ -132,8 +127,7 @@ impl DocWriteExecutor {
                         Pic::new(&bytes)
                     };
                     docx = docx.add_paragraph(
-                        docx_rs::Paragraph::new()
-                            .add_run(docx_rs::Run::new().add_image(pic)),
+                        docx_rs::Paragraph::new().add_run(docx_rs::Run::new().add_image(pic)),
                     );
                 }
                 DocumentElement::PageBreak => {
@@ -156,7 +150,9 @@ impl DocWriteExecutor {
     pub fn save(self) -> Result<()> {
         let file = File::create(&self.path)?;
         let docx = self.build_docx()?;
-        docx.build().pack(file).map_err(|e| DocError::Zip(e.to_string()))?;
+        docx.build()
+            .pack(file)
+            .map_err(|e| DocError::Zip(e.to_string()))?;
         Ok(())
     }
 
@@ -170,7 +166,9 @@ impl DocWriteExecutor {
     /// Returns an I/O or ZIP error.
     pub fn save_to_writer<W: Write + Seek>(self, writer: W) -> Result<()> {
         let docx = self.build_docx()?;
-        docx.build().pack(writer).map_err(|e| DocError::Zip(e.to_string()))?;
+        docx.build()
+            .pack(writer)
+            .map_err(|e| DocError::Zip(e.to_string()))?;
         Ok(())
     }
 
@@ -179,7 +177,9 @@ impl DocWriteExecutor {
         let mut buf = Vec::new();
         let cursor = std::io::Cursor::new(&mut buf);
         let docx = self.build_docx()?;
-        docx.build().pack(cursor).map_err(|e| DocError::Zip(e.to_string()))?;
+        docx.build()
+            .pack(cursor)
+            .map_err(|e| DocError::Zip(e.to_string()))?;
         Ok(buf)
     }
 }

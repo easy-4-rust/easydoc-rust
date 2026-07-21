@@ -111,6 +111,7 @@ pub struct RowData {
 
 impl RowData {
     /// Creates a row from cells.
+    #[must_use]
     pub fn new(cells: Vec<CellData>) -> Self {
         Self {
             cells,

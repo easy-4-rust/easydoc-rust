@@ -3,8 +3,6 @@
 //! Wraps `docx-rs` behind a fluent builder API mirroring
 //! `easyexcel-writer`'s patterns.
 
-#![warn(missing_docs)]
-#![warn(clippy::pedantic)]
 #![deny(unsafe_code)]
 
 mod builder;
@@ -19,8 +17,8 @@ pub use doc_editor::DocEditor;
 pub use executor::table_executor::TableWriteExecutor;
 pub use executor::write_executor::DocWriteExecutor;
 pub use handler::DocWriteHandler;
-pub use style::banded_rows::BandedRowsStrategy;
 pub use style::auto_width::AutoWidthStrategy;
+pub use style::banded_rows::BandedRowsStrategy;
 
 use std::path::PathBuf;
 
@@ -185,10 +183,7 @@ impl Table {
             .map(|c| c.name.clone())
             .collect();
 
-        let rows = data
-            .iter()
-            .filter_map(|item| item.to_row().ok())
-            .collect();
+        let rows = data.iter().filter_map(|item| item.to_row().ok()).collect();
 
         Self {
             headers,
@@ -240,7 +235,7 @@ impl Table {
 pub struct DocImage {
     /// Path to the image file.
     pub path: PathBuf,
-    /// Desired width in pixels (applied via Pic::new_with_dimensions).
+    /// Desired width in pixels (applied via `Pic::new_with_dimensions`).
     pub(crate) width: Option<u32>,
     /// Desired height in pixels.
     pub(crate) height: Option<u32>,

@@ -37,23 +37,23 @@
 mod easy_doc;
 
 // Re-export everything from sub-crates
+pub use easy_doc::EasyDoc;
 pub use easydoc_core::*;
 pub use easydoc_derive::DocxRow;
 pub use easydoc_reader::*;
 pub use easydoc_template::*;
 pub use easydoc_writer::*;
-pub use easy_doc::EasyDoc;
 
 /// Java-compatible alias for [`EasyDoc`].
 pub type EasyDocFactory = EasyDoc;
 
 /// Prelude module with the most commonly used types.
 pub mod prelude {
+    pub use super::EasyDoc;
     pub use easydoc_core::{
         CellData, Color, DocError, DocValue, DocxRow, ErrorAction, FontConfig, HeadingLevel,
         HorizontalAlignment, ParagraphStyle, Result, RowData, TableColumn, TableData, TableStyle,
     };
     pub use easydoc_derive::DocxRow as DocxRowDerive;
     pub use easydoc_writer::{DocBuilder, Paragraph, Run, TableWriteBuilder};
-    pub use super::EasyDoc;
 }

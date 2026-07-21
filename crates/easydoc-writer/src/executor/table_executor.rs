@@ -35,18 +35,14 @@ impl<'a, T: DocxRow> TableWriteExecutor<'a, T> {
         }
     }
 
-    /// Builds the docx_rs document from stored data.
+    /// Builds the `docx_rs` document from stored data.
     fn build_docx(&self) -> Result<Docx> {
         let mut docx = Docx::new();
 
         if let Some(ref title) = self.title {
             docx = docx.add_paragraph(
-                docx_rs::Paragraph::new().add_run(
-                    docx_rs::Run::new()
-                        .add_text(title.as_str())
-                        .bold()
-                        .size(28),
-                ),
+                docx_rs::Paragraph::new()
+                    .add_run(docx_rs::Run::new().add_text(title.as_str()).bold().size(28)),
             );
         }
 
@@ -62,21 +58,23 @@ impl<'a, T: DocxRow> TableWriteExecutor<'a, T> {
                     if self.style.header_font.bold {
                         run = run.bold();
                     }
-                    docx_rs::TableCell::new()
-                        .add_paragraph(docx_rs::Paragraph::new().add_run(run))
+                    docx_rs::TableCell::new().add_paragraph(docx_rs::Paragraph::new().add_run(run))
                 })
                 .collect();
             rows.push(docx_rs::TableRow::new(header_cells));
         }
 
-        for item in self.data.iter() {
+        for item in self.data {
             let cells = item.to_row()?;
-            let data_cells: Vec<docx_rs::TableCell> = cells.iter().map(|cell| {
-                let text = doc_value_str(&cell.value);
-                docx_rs::TableCell::new().add_paragraph(
-                    docx_rs::Paragraph::new().add_run(docx_rs::Run::new().add_text(text)),
-                )
-            }).collect();
+            let data_cells: Vec<docx_rs::TableCell> = cells
+                .iter()
+                .map(|cell| {
+                    let text = doc_value_str(&cell.value);
+                    docx_rs::TableCell::new().add_paragraph(
+                        docx_rs::Paragraph::new().add_run(docx_rs::Run::new().add_text(text)),
+                    )
+                })
+                .collect();
             rows.push(docx_rs::TableRow::new(data_cells));
         }
 
@@ -88,7 +86,9 @@ impl<'a, T: DocxRow> TableWriteExecutor<'a, T> {
     pub fn execute(self) -> Result<()> {
         let file = File::create(&self.path)?;
         let docx = self.build_docx()?;
-        docx.build().pack(file).map_err(|e| DocError::Zip(e.to_string()))?;
+        docx.build()
+            .pack(file)
+            .map_err(|e| DocError::Zip(e.to_string()))?;
         Ok(())
     }
 
@@ -97,7 +97,9 @@ impl<'a, T: DocxRow> TableWriteExecutor<'a, T> {
     /// Corresponds to Hutool's `flush(OutputStream)` pattern.
     pub fn execute_to_writer<W: Write + Seek>(self, writer: W) -> Result<()> {
         let docx = self.build_docx()?;
-        docx.build().pack(writer).map_err(|e| DocError::Zip(e.to_string()))?;
+        docx.build()
+            .pack(writer)
+            .map_err(|e| DocError::Zip(e.to_string()))?;
         Ok(())
     }
 
@@ -106,7 +108,9 @@ impl<'a, T: DocxRow> TableWriteExecutor<'a, T> {
         let mut buf = Vec::new();
         let cursor = Cursor::new(&mut buf);
         let docx = self.build_docx()?;
-        docx.build().pack(cursor).map_err(|e| DocError::Zip(e.to_string()))?;
+        docx.build()
+            .pack(cursor)
+            .map_err(|e| DocError::Zip(e.to_string()))?;
         Ok(buf)
     }
 }

@@ -1,4 +1,4 @@
-//! CollectListener — collects all parsed items into a `Vec<T>`.
+//! `CollectListener` — collects all parsed items into a `Vec<T>`.
 
 use easydoc_core::{DocReadContext, DocReadListener, Result};
 

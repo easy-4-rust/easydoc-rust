@@ -11,10 +11,11 @@ use std::fs;
 use std::io::{Cursor, Read, Write};
 use std::path::Path;
 
-use easydoc_core::{DocError, Result};
 use crate::placeholder::Placeholder;
+use easydoc_core::{DocError, Result};
 
-/// Helper to convert zip errors to DocError.
+/// Helper to convert zip errors to `DocError`.
+#[allow(clippy::needless_pass_by_value)]
 fn zip_err(e: zip::result::ZipError) -> DocError {
     DocError::Zip(e.to_string())
 }
@@ -65,11 +66,7 @@ impl TemplateFillBuilder {
 /// # Errors
 ///
 /// Returns I/O or ZIP processing errors.
-pub fn fill_scalar(
-    template: &Path,
-    output: &Path,
-    data: &HashMap<String, String>,
-) -> Result<()> {
+pub fn fill_scalar(template: &Path, output: &Path, data: &HashMap<String, String>) -> Result<()> {
     let template_bytes = fs::read(template)?;
     let reader = Cursor::new(template_bytes);
     let mut archive = zip::ZipArchive::new(reader)
@@ -82,13 +79,11 @@ pub fn fill_scalar(
         .compression_method(zip::CompressionMethod::Deflated);
 
     for i in 0..archive.len() {
-        let mut entry = archive.by_index(i)
-            .map_err(zip_err)?;
+        let mut entry = archive.by_index(i).map_err(zip_err)?;
         let name = entry.name().to_owned();
 
         if entry.is_dir() {
-            out_zip.add_directory(name, options)
-                .map_err(zip_err)?;
+            out_zip.add_directory(name, options).map_err(zip_err)?;
             continue;
         }
 
@@ -103,8 +98,7 @@ pub fn fill_scalar(
             content_str
         };
 
-        out_zip.start_file(name, options)
-            .map_err(zip_err)?;
+        out_zip.start_file(name, options).map_err(zip_err)?;
         out_zip.write_all(modified.as_bytes())?;
     }
 
@@ -130,20 +124,18 @@ pub fn fill_list<T: serde::Serialize + std::fmt::Debug>(
     let items: Vec<HashMap<String, String>> = data
         .iter()
         .map(|item| {
-            let value = serde_json::to_value(item)
-                .map_err(|e| DocError::Conversion {
-                    field: list_field.to_owned(),
-                    value: format!("{item:?}"),
-                    message: format!("serialization error: {e}"),
-                })?;
+            let value = serde_json::to_value(item).map_err(|e| DocError::Conversion {
+                field: list_field.to_owned(),
+                value: format!("{item:?}"),
+                message: format!("serialization error: {e}"),
+            })?;
             to_string_map(&value)
         })
         .collect::<Result<Vec<_>>>()?;
 
     let template_bytes = fs::read(template)?;
     let reader = Cursor::new(template_bytes);
-    let mut archive = zip::ZipArchive::new(reader)
-        .map_err(zip_err)?;
+    let mut archive = zip::ZipArchive::new(reader).map_err(zip_err)?;
 
     let out_file = fs::File::create(output)?;
     let mut out_zip = zip::ZipWriter::new(out_file);
@@ -151,13 +143,11 @@ pub fn fill_list<T: serde::Serialize + std::fmt::Debug>(
         .compression_method(zip::CompressionMethod::Deflated);
 
     for i in 0..archive.len() {
-        let mut entry = archive.by_index(i)
-            .map_err(zip_err)?;
+        let mut entry = archive.by_index(i).map_err(zip_err)?;
         let name = entry.name().to_owned();
 
         if entry.is_dir() {
-            out_zip.add_directory(name, options)
-                .map_err(zip_err)?;
+            out_zip.add_directory(name, options).map_err(zip_err)?;
             continue;
         }
 
@@ -171,8 +161,7 @@ pub fn fill_list<T: serde::Serialize + std::fmt::Debug>(
             content_str
         };
 
-        out_zip.start_file(name, options)
-            .map_err(zip_err)?;
+        out_zip.start_file(name, options).map_err(zip_err)?;
         out_zip.write_all(modified.as_bytes())?;
     }
 
@@ -190,10 +179,10 @@ fn replace_scalar_placeholders(xml: &str, data: &HashMap<String, String>) -> Str
     let mut result = xml.to_owned();
 
     for placeholder in &placeholders {
-        if let Placeholder::Scalar { raw, key } = placeholder {
-            if let Some(replacement) = data.get(key) {
-                result = result.replace(raw.as_str(), replacement);
-            }
+        if let Placeholder::Scalar { raw, key } = placeholder
+            && let Some(replacement) = data.get(key)
+        {
+            result = result.replace(raw.as_str(), replacement);
         }
     }
 
@@ -265,16 +254,12 @@ fn try_expand_in_paragraphs(xml: &str, items: &[HashMap<String, String>]) -> Opt
 }
 
 /// Try to expand in table rows (<w:tr>).
-fn try_expand_in_table_rows(
-    xml: &str,
-    items: &[HashMap<String, String>],
-) -> Result<String> {
+fn try_expand_in_table_rows(xml: &str, items: &[HashMap<String, String>]) -> Result<String> {
     // Find any <w:tr> containing {. placeholder
-    let tr_start = xml.find("<w:tr")
-        .ok_or_else(|| DocError::Template {
-            placeholder: "{.field}".to_owned(),
-            message: "no table row (<w:tr>) found in document".to_owned(),
-        })?;
+    let tr_start = xml.find("<w:tr").ok_or_else(|| DocError::Template {
+        placeholder: "{.field}".to_owned(),
+        message: "no table row (<w:tr>) found in document".to_owned(),
+    })?;
 
     // Find the specific <w:tr> that contains a collection placeholder
     let mut search_pos = tr_start;
@@ -403,7 +388,7 @@ fn find_matching_close(xml: &str, tag_start: usize, tag_name: &str) -> Result<us
             // Advance one character
             let mut chars = remaining.char_indices();
             chars.next(); // skip current char
-            let next = chars.next().map(|(i, _)| i).unwrap_or(1);
+            let next = chars.next().map_or(1, |(i, _)| i);
             pos += next;
         }
     }
