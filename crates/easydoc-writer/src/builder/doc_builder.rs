@@ -114,12 +114,35 @@ impl DocBuilder {
         DocWriteExecutor::new(self.path, self.meta, self.elements)
     }
 
-    /// Builds and immediately saves the document.
+    /// Builds and immediately saves the document to disk.
     ///
     /// # Errors
     ///
     /// Returns an error if the document cannot be written.
     pub fn save(self) -> Result<()> {
         self.build()?.save()
+    }
+
+    /// Builds and writes the document to a generic writer implementing `Write + Seek`.
+    ///
+    /// Corresponds to Hutool's `Word07Writer.flush(OutputStream)` pattern.
+    /// Useful for writing to memory buffers, HTTP responses, etc.
+    ///
+    /// # Errors
+    ///
+    /// Returns an I/O or ZIP error.
+    pub fn save_to_writer<W: std::io::Write + std::io::Seek>(self, writer: W) -> Result<()> {
+        self.build()?.save_to_writer(writer)
+    }
+
+    /// Builds and returns the document as a `Vec<u8>`.
+    ///
+    /// Useful for in-memory generation without touching the filesystem.
+    ///
+    /// # Errors
+    ///
+    /// Returns a ZIP error if packaging fails.
+    pub fn save_to_bytes(self) -> Result<Vec<u8>> {
+        self.build()?.save_to_bytes()
     }
 }

@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use easydoc_core::{DocxRow, Result};
 use easydoc_reader::DocReadBuilder;
-use easydoc_writer::{DocBuilder, TableWriteBuilder};
+use easydoc_writer::{DocBuilder, DocEditor, TableWriteBuilder};
 
 /// Static factory — the single entry point for all `easydoc` operations.
 ///
@@ -50,6 +50,42 @@ impl EasyDoc {
         data: &[T],
     ) -> TableWriteBuilder<T> {
         TableWriteBuilder::new(path, data)
+    }
+
+    /// Quick one-liner: creates a document and returns it as bytes.
+    ///
+    /// Corresponds to Hutool's pattern of writing to `ByteArrayOutputStream`.
+    ///
+    /// # Errors
+    ///
+    /// Returns ZIP or I/O errors.
+    pub fn document_to_bytes(
+        f: impl FnOnce(DocBuilder) -> DocBuilder,
+    ) -> Result<Vec<u8>> {
+        let builder = DocBuilder::new("memory.docx");
+        f(builder).save_to_bytes()
+    }
+
+    /// Quick one-liner: writes a table and returns it as bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns ZIP or conversion errors.
+    pub fn write_table_to_bytes<T: DocxRow>(data: &[T]) -> Result<Vec<u8>> {
+        TableWriteBuilder::new("memory.docx", data).do_write_to_bytes()
+    }
+
+    /// Opens an existing DOCX file for editing.
+    ///
+    /// Corresponds to Hutool's `Word07Writer(File)` pattern that opens
+    /// existing files. Uses office_oxide's `EditableDocument` for text
+    /// replacement and structural edits.
+    ///
+    /// # Errors
+    ///
+    /// Returns I/O or format errors if the file cannot be opened.
+    pub fn edit(path: impl AsRef<Path>) -> Result<DocEditor> {
+        DocEditor::open(path.as_ref())
     }
 
     /// Fills scalar `{key}` placeholders in a DOCX template.

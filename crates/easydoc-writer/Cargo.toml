@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 easydoc-core = { path = "../easydoc-core" }
 docx-rs.workspace = true
+office_oxide.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

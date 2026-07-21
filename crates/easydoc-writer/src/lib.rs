@@ -8,12 +8,14 @@
 #![deny(unsafe_code)]
 
 mod builder;
+mod doc_editor;
 mod executor;
 mod handler;
 mod style;
 
 pub use builder::doc_builder::DocBuilder;
 pub use builder::table_builder::TableWriteBuilder;
+pub use doc_editor::DocEditor;
 pub use executor::table_executor::TableWriteExecutor;
 pub use executor::write_executor::DocWriteExecutor;
 pub use handler::DocWriteHandler;
@@ -238,8 +240,10 @@ impl Table {
 pub struct DocImage {
     /// Path to the image file.
     pub path: PathBuf,
-    width: Option<u32>,
-    height: Option<u32>,
+    /// Desired width in pixels (applied via Pic::new_with_dimensions).
+    pub(crate) width: Option<u32>,
+    /// Desired height in pixels.
+    pub(crate) height: Option<u32>,
     alt_text: Option<String>,
 }
 

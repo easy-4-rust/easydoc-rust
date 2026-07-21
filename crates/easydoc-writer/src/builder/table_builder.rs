@@ -69,7 +69,7 @@ impl<'a, T: DocxRow> TableWriteBuilder<'a, T> {
         self
     }
 
-    /// Executes the write and saves the document.
+    /// Executes the write and saves the document to disk.
     ///
     /// # Errors
     ///
@@ -83,5 +83,42 @@ impl<'a, T: DocxRow> TableWriteBuilder<'a, T> {
             self.need_header,
         );
         executor.execute()
+    }
+
+    /// Executes the write and returns the document as bytes.
+    ///
+    /// Useful for in-memory generation without touching the filesystem.
+    /// Corresponds to Hutool's pattern of writing to a `ByteArrayOutputStream`.
+    ///
+    /// # Errors
+    ///
+    /// Returns ZIP or conversion errors.
+    pub fn do_write_to_bytes(self) -> Result<Vec<u8>> {
+        let executor = TableWriteExecutor::new(
+            self.path,
+            self.data,
+            self.title,
+            self.style,
+            self.need_header,
+        );
+        executor.execute_to_bytes()
+    }
+
+    /// Executes the write to a generic writer implementing `Write + Seek`.
+    ///
+    /// Corresponds to Hutool's `flush(OutputStream)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns I/O, ZIP, or conversion errors.
+    pub fn do_write_to_writer<W: std::io::Write + std::io::Seek>(self, writer: W) -> Result<()> {
+        let executor = TableWriteExecutor::new(
+            self.path,
+            self.data,
+            self.title,
+            self.style,
+            self.need_header,
+        );
+        executor.execute_to_writer(writer)
     }
 }

@@ -1,6 +1,7 @@
 //! Document write executor — orchestrates the assembly of a complete DOCX file.
 
 use std::fs::File;
+use std::io::{Seek, Write};
 use std::path::PathBuf;
 
 use easydoc_core::metadata::DocumentMeta;
@@ -33,13 +34,8 @@ impl DocWriteExecutor {
         })
     }
 
-    /// Saves the assembled document to disk.
-    ///
-    /// # Errors
-    ///
-    /// Returns an I/O or ZIP error if the file cannot be written.
-    pub fn save(self) -> Result<()> {
-        let file = File::create(&self.path)?;
+    /// Builds the docx_rs document from stored elements.
+    fn build_docx(&self) -> Result<Docx> {
         let mut docx = Docx::new();
 
         for element in &self.elements {
@@ -51,7 +47,7 @@ impl DocWriteExecutor {
                         .size(28);
                     let p = docx_rs::Paragraph::new().add_run(run);
                     docx = docx.add_paragraph(p);
-                    let _ = level; // heading levels applied via styles in future phase
+                    let _ = level;
                 }
                 DocumentElement::Paragraph(para) => {
                     let mut p = docx_rs::Paragraph::new();
@@ -111,14 +107,7 @@ impl DocWriteExecutor {
                         let cells: Vec<docx_rs::TableCell> = row
                             .iter()
                             .map(|cell| {
-                                let text = match &cell.value {
-                                    easydoc_core::DocValue::String(s) => s.clone(),
-                                    easydoc_core::DocValue::Int(n) => n.to_string(),
-                                    easydoc_core::DocValue::Float(n) => n.to_string(),
-                                    easydoc_core::DocValue::Bool(b) => b.to_string(),
-                                    easydoc_core::DocValue::Empty => String::new(),
-                                    other => format!("{other:?}"),
-                                };
+                                let text = doc_value_to_string(&cell.value);
                                 docx_rs::TableCell::new().add_paragraph(
                                     docx_rs::Paragraph::new()
                                         .add_run(docx_rs::Run::new().add_text(text)),
@@ -132,11 +121,19 @@ impl DocWriteExecutor {
                 }
                 DocumentElement::Image(image) => {
                     let bytes = std::fs::read(&image.path).map_err(|e| {
-                        DocError::Document(format!("cannot read image {}: {e}", image.path.display()))
+                        DocError::Document(format!(
+                            "cannot read image {}: {e}",
+                            image.path.display()
+                        ))
                     })?;
-                    let pic = Pic::new(&bytes);
+                    let pic = if let (Some(w), Some(h)) = (image.width, image.height) {
+                        Pic::new_with_dimensions(bytes, w, h)
+                    } else {
+                        Pic::new(&bytes)
+                    };
                     docx = docx.add_paragraph(
-                        docx_rs::Paragraph::new().add_run(docx_rs::Run::new().add_image(pic)),
+                        docx_rs::Paragraph::new()
+                            .add_run(docx_rs::Run::new().add_image(pic)),
                     );
                 }
                 DocumentElement::PageBreak => {
@@ -148,8 +145,53 @@ impl DocWriteExecutor {
             }
         }
 
+        Ok(docx)
+    }
+
+    /// Saves the assembled document to disk.
+    ///
+    /// # Errors
+    ///
+    /// Returns an I/O or ZIP error if the file cannot be written.
+    pub fn save(self) -> Result<()> {
+        let file = File::create(&self.path)?;
+        let docx = self.build_docx()?;
         docx.build().pack(file).map_err(|e| DocError::Zip(e.to_string()))?;
         Ok(())
+    }
+
+    /// Writes the assembled document to a generic writer.
+    ///
+    /// Corresponds to Hutool's `Word07Writer.flush(OutputStream)`.
+    /// The writer must implement both `Write` and `Seek` (required by docx-rs).
+    ///
+    /// # Errors
+    ///
+    /// Returns an I/O or ZIP error.
+    pub fn save_to_writer<W: Write + Seek>(self, writer: W) -> Result<()> {
+        let docx = self.build_docx()?;
+        docx.build().pack(writer).map_err(|e| DocError::Zip(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Writes the assembled document to a `Vec<u8>` buffer.
+    pub fn save_to_bytes(self) -> Result<Vec<u8>> {
+        let mut buf = Vec::new();
+        let cursor = std::io::Cursor::new(&mut buf);
+        let docx = self.build_docx()?;
+        docx.build().pack(cursor).map_err(|e| DocError::Zip(e.to_string()))?;
+        Ok(buf)
+    }
+}
+
+fn doc_value_to_string(value: &easydoc_core::DocValue) -> String {
+    match value {
+        easydoc_core::DocValue::String(s) => s.clone(),
+        easydoc_core::DocValue::Int(n) => n.to_string(),
+        easydoc_core::DocValue::Float(n) => n.to_string(),
+        easydoc_core::DocValue::Bool(b) => b.to_string(),
+        easydoc_core::DocValue::Empty => String::new(),
+        other => format!("{other:?}"),
     }
 }
 

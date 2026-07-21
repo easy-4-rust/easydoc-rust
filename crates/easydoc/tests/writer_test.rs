@@ -485,3 +485,123 @@ fn test_fill_config() {
     assert!(config.force_new_row);
     assert!(!config.auto_style);
 }
+
+// ============================================================================
+// New tests: Hutool-parity features (stream output, bytes, edit)
+// ============================================================================
+
+#[test]
+fn test_document_to_bytes() {
+    // Corresponds to Hutool's ByteArrayOutputStream pattern
+    let bytes = EasyDoc::document_to_bytes(|b| {
+        b.add_paragraph(Paragraph::new().add_text("In-memory document"))
+    }).expect("to_bytes should succeed");
+
+    assert!(!bytes.is_empty(), "bytes should not be empty");
+
+    // Verify it's valid ZIP
+    let cursor = std::io::Cursor::new(bytes);
+    let mut archive = zip::ZipArchive::new(cursor).expect("valid ZIP");
+    assert!(archive.by_name("word/document.xml").is_ok());
+}
+
+#[test]
+fn test_write_table_to_bytes() {
+    let users = vec![
+        TestUser { name: "Alice".into(), age: 30, email: "alice@e.com".into() },
+    ];
+
+    let bytes = EasyDoc::write_table_to_bytes(&users)
+        .expect("to_bytes should succeed");
+
+    assert!(!bytes.is_empty());
+
+    let cursor = std::io::Cursor::new(bytes);
+    let mut archive = zip::ZipArchive::new(cursor).expect("valid ZIP");
+    assert!(archive.by_name("word/document.xml").is_ok());
+}
+
+#[test]
+fn test_save_to_writer() {
+    // Write to a Vec<u8> via generic writer
+    let mut buf = Vec::new();
+    let cursor = std::io::Cursor::new(&mut buf);
+
+    EasyDoc::document("test.docx")
+        .add_paragraph(Paragraph::new().add_text("Writer test"))
+        .save_to_writer(cursor)
+        .expect("save_to_writer should succeed");
+
+    assert!(!buf.is_empty());
+
+    let read_cursor = std::io::Cursor::new(buf);
+    zip::ZipArchive::new(read_cursor).expect("valid ZIP");
+}
+
+#[test]
+fn test_edit_existing_document() {
+    let dir = TempDir::new().expect("tempdir");
+    let path = dir.path().join("editable.docx");
+
+    // Create initial document
+    EasyDoc::document(&path)
+        .add_paragraph(Paragraph::new().add_text("Hello {name}"))
+        .save()
+        .expect("create");
+
+    // Edit it (Hutool-style: open existing file)
+    EasyDoc::edit(&path)
+        .expect("open for edit")
+        .replace_text("{name}", "World")
+        .save()
+        .expect("save edit");
+
+    // Verify
+    let text = EasyDoc::read_text(&path).expect("read");
+    assert!(text.contains("Hello World"), "should replace placeholder: {text}");
+    assert!(!text.contains("{name}"), "placeholder should be gone: {text}");
+}
+
+#[test]
+fn test_edit_save_as() {
+    let dir = TempDir::new().expect("tempdir");
+    let src = dir.path().join("src.docx");
+    let dst = dir.path().join("dst.docx");
+
+    EasyDoc::document(&src)
+        .add_paragraph(Paragraph::new().add_text("Original"))
+        .save()
+        .expect("create");
+
+    EasyDoc::edit(&src)
+        .expect("open")
+        .replace_text("Original", "Modified")
+        .save_as(&dst)
+        .expect("save_as");
+
+    // Source unchanged
+    let src_text = EasyDoc::read_text(&src).expect("read src");
+    assert!(src_text.contains("Original"));
+
+    // Destination modified
+    let dst_text = EasyDoc::read_text(&dst).expect("read dst");
+    assert!(dst_text.contains("Modified"));
+}
+
+#[test]
+fn test_write_table_to_writer() {
+    let users = vec![
+        TestUser { name: "Eve".into(), age: 28, email: "eve@e.com".into() },
+    ];
+
+    let mut buf = Vec::new();
+    let cursor = std::io::Cursor::new(&mut buf);
+
+    EasyDoc::write_table("test.docx", &users)
+        .do_write_to_writer(cursor)
+        .expect("write to writer");
+
+    assert!(!buf.is_empty());
+    let read = std::io::Cursor::new(buf);
+    zip::ZipArchive::new(read).expect("valid ZIP");
+}

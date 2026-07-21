@@ -186,6 +186,7 @@ version = "0.1.0"
 dependencies = [
  "docx-rs",
  "easydoc-core",
+ "office_oxide",
  "tempfile",
 ]
 
