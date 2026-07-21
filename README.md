@@ -157,7 +157,17 @@ For detailed architecture, see [docs/architecture.md](docs/architecture.md).
 cargo test --workspace
 ```
 
-Tests cover: write table, write document, round-trip write+read text, round-trip write+read table, template scalar fill with multiple placeholders, template fill end-to-end.
+Tests cover: write table, write document, round-trip write+read text, round-trip write+read table, template scalar fill with multiple placeholders, template fill end-to-end, image insertion, style builders, converters, format detection, error variants, lifecycle hooks.
+
+---
+
+## Documentation 文档
+
+| Document | Description |
+|:---|:---|
+| [Usage Guide 使用指南](docs/usage-guide.md) | Comprehensive guide with real-world examples and API reference |
+| [Architecture Design 架构设计](docs/architecture.md) | Full architecture, data flow, design decisions |
+| [API Reference 接口速查](#10-api-reference-接口速查) | Quick-reference in the Usage Guide |
 
 ---
 
