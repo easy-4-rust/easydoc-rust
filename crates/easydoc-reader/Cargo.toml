@@ -1,6 +1,6 @@
 [package]
 name = "easydoc-reader"
-description = "DOCX/DOC document reader for easydoc-rs"
+description = "DOCX/DOC document reader for easydoc-rust"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

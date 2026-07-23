@@ -1,7 +1,7 @@
-//! Core data model and extension points for `easydoc-rs`.
+//! Core data model and extension points for `easydoc-rust`.
 //!
 //! This crate provides the foundational types, traits, and converters that
-//! all other `easydoc-rs` crates build upon. It mirrors the architecture of
+//! all other `easydoc-rust` crates build upon. It mirrors the architecture of
 //! `easyexcel-core` but for the DOC/DOCX domain.
 
 #![deny(unsafe_code)]

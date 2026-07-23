@@ -1,4 +1,4 @@
-//! Core extension traits for `easydoc-rs`.
+//! Core extension traits for `easydoc-rust`.
 //!
 //! These four traits form the backbone of the extensibility system,
 //! mirroring `ExcelRow`, `Converter<T>`, `ReadListener<T>`, and

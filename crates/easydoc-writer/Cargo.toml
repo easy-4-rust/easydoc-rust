@@ -1,6 +1,6 @@
 [package]
 name = "easydoc-writer"
-description = "DOCX document writer for easydoc-rs"
+description = "DOCX document writer for easydoc-rust"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

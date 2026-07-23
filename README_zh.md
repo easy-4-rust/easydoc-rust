@@ -1,11 +1,11 @@
-# easydoc-rs
+# easydoc-rust
 
 **Rust 快捷 DOC/DOCX 文档操作库。**
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg)](https://www.rust-lang.org)
 
-> `easydoc-rs` 是 [`easyexcel-rs`](https://github.com/hiwepy/easyexcel-rs) 在 DOC/DOCX 领域的平行实现，遵循相同的流式 Builder + Trait 扩展 + Proc-Macro 架构模式。
+> `easydoc-rust` 是 [`easyexcel-rs`](https://github.com/hiwepy/easyexcel-rs) 在 DOC/DOCX 领域的平行实现，遵循相同的流式 Builder + Trait 扩展 + Proc-Macro 架构模式。
 
 ---
 
@@ -112,7 +112,7 @@ let text = EasyDoc::read_text("legacy.doc")?;
 ## 项目架构
 
 ```
-easydoc-rs/
+easydoc-rust/
 ├── Cargo.toml                          workspace 清单
 ├── crates/
 │   ├── easydoc/                        门面 — EasyDoc 静态工厂

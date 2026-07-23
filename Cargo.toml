@@ -14,7 +14,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.88"
 license = "Apache-2.0"
-repository = "https://github.com/hiwepy/easydoc-rs"
+repository = "https://github.com/easy-4-rust/easydoc-rust"
 
 [workspace.dependencies]
 chrono = { version = "0.4.41", default-features = false, features = ["std"] }

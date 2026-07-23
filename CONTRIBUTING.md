@@ -1,10 +1,10 @@
-# Contributing to easydoc-rs
+# Contributing to easydoc-rust
 
 ## Development Setup
 
 ```bash
-git clone https://github.com/hiwepy/easydoc-rs
-cd easydoc-rs
+git clone https://github.com/easy-4-rust/easydoc-rust
+cd easydoc-rust
 cargo build
 ```
 
@@ -32,7 +32,7 @@ cargo doc --workspace --no-deps
 ## Project Structure
 
 ```
-easydoc-rs/
+easydoc-rust/
 ├── crates/
 │   ├── easydoc/          facade — public API
 │   ├── easydoc-core/     shared types and traits

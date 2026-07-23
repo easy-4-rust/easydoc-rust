@@ -1,10 +1,10 @@
-//! Unified error type for easydoc-rs.
+//! Unified error type for easydoc-rust.
 //!
 //! Mirrors the single-enum error pattern from `easyexcel-rs`.
 
 use thiserror::Error;
 
-/// The single, flat error enum used by all `easydoc-rs` crates.
+/// The single, flat error enum used by all `easydoc-rust` crates.
 ///
 /// Java `easyexcel` splits errors across seven `RuntimeException` subclasses;
 /// this enum collapses them into one idiomatic Rust type.
@@ -51,7 +51,7 @@ pub enum DocError {
     Document(String),
 }
 
-/// The standard `Result` type alias used throughout `easydoc-rs`.
+/// The standard `Result` type alias used throughout `easydoc-rust`.
 pub type Result<T> = std::result::Result<T, DocError>;
 
 impl From<zip::result::ZipError> for DocError {

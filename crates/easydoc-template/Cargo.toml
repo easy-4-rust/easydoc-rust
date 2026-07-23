@@ -1,6 +1,6 @@
 [package]
 name = "easydoc-template"
-description = "DOCX template fill engine for easydoc-rs"
+description = "DOCX template fill engine for easydoc-rust"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

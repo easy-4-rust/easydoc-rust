@@ -1,4 +1,4 @@
-//! DOCX/DOC document reader for `easydoc-rs`.
+//! DOCX/DOC document reader for `easydoc-rust`.
 //!
 //! Provides text extraction, table reading, and streaming document analysis,
 //! wrapping `office_oxide` for backend parsing.

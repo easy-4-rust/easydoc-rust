@@ -1,6 +1,6 @@
 [package]
 name = "easydoc-derive"
-description = "Derive macros for easydoc-rs"
+description = "Derive macros for easydoc-rust"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

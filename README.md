@@ -1,11 +1,11 @@
-# easydoc-rs
+# easydoc-rust
 
 **Easy DOC/DOCX document operations in Rust.**  |  **Rust 快捷 DOC/DOCX 文档操作库。**
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg)](https://www.rust-lang.org)
 
-> `easydoc-rs` is the DOC/DOCX counterpart of [`easyexcel-rs`](https://github.com/hiwepy/easyexcel-rs), following the same fluent builder + trait extension + proc-macro architecture for ergonomic document manipulation.
+> `easydoc-rust` is the DOC/DOCX counterpart of [`easyexcel-rs`](https://github.com/hiwepy/easyexcel-rs), following the same fluent builder + trait extension + proc-macro architecture for ergonomic document manipulation.
 
 ---
 
@@ -112,7 +112,7 @@ let text = EasyDoc::read_text("legacy.doc")?;
 ## Architecture 架构
 
 ```
-easydoc-rs/
+easydoc-rust/
 ├── Cargo.toml                          workspace manifest
 ├── crates/
 │   ├── easydoc/                        facade — EasyDoc static factory

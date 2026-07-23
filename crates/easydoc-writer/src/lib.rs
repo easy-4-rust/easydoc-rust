@@ -1,4 +1,4 @@
-//! DOCX document writer for `easydoc-rs`.
+//! DOCX document writer for `easydoc-rust`.
 //!
 //! Wraps `docx-rs` behind a fluent builder API mirroring
 //! `easyexcel-writer`'s patterns.

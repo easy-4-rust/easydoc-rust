@@ -1,4 +1,4 @@
-//! DOCX template fill engine for `easydoc-rs`.
+//! DOCX template fill engine for `easydoc-rust`.
 //!
 //! Detects `{key}` and `{.field}` placeholders in DOCX documents and
 //! replaces them with provided data — analogous to `easyexcel-template`.

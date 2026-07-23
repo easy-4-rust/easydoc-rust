@@ -1,6 +1,6 @@
 [package]
 name = "easydoc-core"
-description = "Core types and extension points for easydoc-rs"
+description = "Core types and extension points for easydoc-rust"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -1,7 +1,7 @@
-# easydoc-rs Architecture Design Document &middot; 架构设计文档
+# easydoc-rust Architecture Design Document &middot; 架构设计文档
 
 > **Version**: 0.1.0 &nbsp;|&nbsp; **Date**: 2026-07-21 &nbsp;|&nbsp; **Status**: All Phases Complete
-> **Author**: easydoc-rs team &nbsp;|&nbsp; **License**: Apache-2.0
+> **Author**: easydoc-rust team &nbsp;|&nbsp; **License**: Apache-2.0
 
 ---
 
@@ -25,7 +25,7 @@
 
 ## 1. Project Vision 项目愿景
 
-`easydoc-rs` aims to provide **the same developer experience for DOC/DOCX operations** that
+`easydoc-rust` aims to provide **the same developer experience for DOC/DOCX operations** that
 [easyexcel-rs](https://github.com/hiwepy/easyexcel-rs) provides for Excel:
 
 > **Type-safe Builders + Compile-time Reflection + Multi-engine Backends = Ergonomic document manipulation in idiomatic Rust.**
@@ -58,7 +58,7 @@ The library covers three primary use cases:
 ## 3. Crate Architecture 包架构
 
 ```
-easydoc-rs/
+easydoc-rust/
 ├── Cargo.toml                     Virtual workspace (edition 2024, resolver="3")
 │
 ├── crates/
@@ -602,7 +602,7 @@ proc_macro::TokenStream
 
 ## 12. Conventions from easyexcel-rs 继承约定
 
-| Convention 约定 | easyexcel-rs | easydoc-rs | Notes |
+| Convention 约定 | easyexcel-rs | easydoc-rust | Notes |
 |:---|:---|:---|:---|
 | **Workspace** | Virtual manifest + shared `[workspace.dependencies]` | Same | `resolver = "3"`, edition 2024 |
 | **Crate naming** | `easyexcel`, `easyexcel-core`, `easyexcel-derive`, ... | `easydoc`, `easydoc-core`, `easydoc-derive`, ... | Same pattern |
@@ -629,7 +629,7 @@ proc_macro::TokenStream
 
 Understanding these differences is critical for API design:
 
-| Dimension | Excel (easyexcel-rs) | DOC (easydoc-rs) |
+| Dimension | Excel (easyexcel-rs) | DOC (easydoc-rust) |
 |:---|:---|:---|
 | **Layout model** | Grid-based (rows x columns) | Flow-based (paragraphs, headings, sections) |
 | **Data unit** | Cell (A1, B2, ...) at row/col intersection | Paragraph / Table cell in document flow |

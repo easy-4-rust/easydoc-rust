@@ -1,4 +1,4 @@
-# easydoc-rs Usage Guide &middot; 使用指南
+# easydoc-rust Usage Guide &middot; 使用指南
 
 > **Version**: 0.1.0 | **Date**: 2026-07-21 | **Language**: English / 中文
 
@@ -879,4 +879,4 @@ detect_format(path) -> Option<DocumentFormat>
 
 ---
 
-> *"The best API is the one you don't need to look up."* — easydoc-rs philosophy
+> *"The best API is the one you don't need to look up."* — easydoc-rust philosophy
