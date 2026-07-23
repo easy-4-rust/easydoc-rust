@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg)](https://www.rust-lang.org)
 
-> `easydoc-rust` is the DOC/DOCX counterpart of [`easyexcel-rs`](https://github.com/hiwepy/easyexcel-rs), following the same fluent builder + trait extension + proc-macro architecture for ergonomic document manipulation.
+> `easydoc-rust` is the DOC/DOCX counterpart of [`easyexcel-rust`](https://github.com/easy-4-rust/easyexcel-rust), following the same fluent builder + trait extension + proc-macro architecture for ergonomic document manipulation.
 
 ---
 
@@ -140,13 +140,13 @@ For detailed architecture, see [docs/architecture.md](docs/architecture.md).
 
 | # | Principle 原则 | Inherited From 继承自 |
 |:---|:---|:---|
-| 1 | **Static Factory** — `EasyDoc` is the single entry point | easyexcel-rs `EasyExcel` |
-| 2 | **Fluent Builder** — `mut self -> Self` with `#[must_use]` | easyexcel-rs builder pattern |
-| 3 | **Trait Extension** — `DocxRow`, `DocConverter`, `DocWriteHandler`, `DocReadListener` | easyexcel-rs traits |
-| 4 | **Proc-Macro Code Gen** — `#[derive(DocxRow)]` at compile time | easyexcel-rs `#[derive(ExcelRow)]` |
-| 5 | **Backend Agnostic** — unified API, swappable engines | easyexcel-rs multi-format |
-| 6 | **Single Error Type** — `DocError` enum with `thiserror` | easyexcel-rs `ExcelError` |
-| 7 | **Zero Unsafe** — `#![forbid(unsafe_code)]` in every crate | easyexcel-rs safety policy |
+| 1 | **Static Factory** — `EasyDoc` is the single entry point | easyexcel-rust `EasyExcel` |
+| 2 | **Fluent Builder** — `mut self -> Self` with `#[must_use]` | easyexcel-rust builder pattern |
+| 3 | **Trait Extension** — `DocxRow`, `DocConverter`, `DocWriteHandler`, `DocReadListener` | easyexcel-rust traits |
+| 4 | **Proc-Macro Code Gen** — `#[derive(DocxRow)]` at compile time | easyexcel-rust `#[derive(ExcelRow)]` |
+| 5 | **Backend Agnostic** — unified API, swappable engines | easyexcel-rust multi-format |
+| 6 | **Single Error Type** — `DocError` enum with `thiserror` | easyexcel-rust `ExcelError` |
+| 7 | **Zero Unsafe** — `#![forbid(unsafe_code)]` in every crate | easyexcel-rust safety policy |
 
 ---
 
@@ -177,5 +177,5 @@ Apache-2.0 — see [LICENSE](LICENSE) for details.
 
 ## Related Projects 相关项目
 
-- [`easyexcel-rs`](https://github.com/hiwepy/easyexcel-rs) — the Excel counterpart
+- [`easyexcel-rust`](https://github.com/easy-4-rust/easyexcel-rust) — the Excel counterpart
 - [`easypdf-rs`](https://github.com/hiwepy/easypdf-rs) — PDF document operations

@@ -1,7 +1,7 @@
 //! Public facade for easy DOC/DOCX document operations.
 //!
 //! `easydoc` provides a fluent, annotation-driven API for creating, reading,
-//! and template-filling Word documents — the DOC/DOCX counterpart to `easyexcel-rs`.
+//! and template-filling Word documents — the DOC/DOCX counterpart to `easyexcel-rust`.
 //!
 //! # Quick start
 //!

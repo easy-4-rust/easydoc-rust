@@ -6,7 +6,7 @@ use easydoc_writer::{DocBuilder, DocEditor, TableWriteBuilder};
 
 /// Static factory — the single entry point for all `easydoc` operations.
 ///
-/// Mirrors the `EasyExcel` factory pattern from `easyexcel-rs`:
+/// Mirrors the `EasyExcel` factory pattern from `easyexcel-rust`:
 /// every read, write, or template operation begins with a static method
 /// returning a fluent builder.
 ///

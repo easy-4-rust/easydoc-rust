@@ -18,7 +18,7 @@
 9. [Error Handling 错误处理](#9-error-handling-错误处理)
 10. [Template Engine 模板引擎](#10-template-engine-模板引擎)
 11. [Derive Macro 派生宏](#11-derive-macro-派生宏)
-12. [Conventions from easyexcel-rs 继承约定](#12-conventions-from-easyexcel-rs-继承约定)
+12. [Conventions from easyexcel-rust 继承约定](#12-conventions-from-easyexcel-rust-继承约定)
 13. [DOC vs Excel Paradigm Differences DOC与Excel范式差异](#13-doc-vs-excel-paradigm-differences-doc与excel范式差异)
 
 ---
@@ -26,7 +26,7 @@
 ## 1. Project Vision 项目愿景
 
 `easydoc-rust` aims to provide **the same developer experience for DOC/DOCX operations** that
-[easyexcel-rs](https://github.com/hiwepy/easyexcel-rs) provides for Excel:
+[easyexcel-rust](https://github.com/easy-4-rust/easyexcel-rust) provides for Excel:
 
 > **Type-safe Builders + Compile-time Reflection + Multi-engine Backends = Ergonomic document manipulation in idiomatic Rust.**
 
@@ -44,14 +44,14 @@ The library covers three primary use cases:
 
 | # | Goal 目标 | Rationale 理由 |
 |:---|:---|:---|
-| G1 | **Pure Rust, zero unsafe** | `#![forbid(unsafe_code)]` in every crate. Aligns with easyexcel-rs's safety policy. |
+| G1 | **Pure Rust, zero unsafe** | `#![forbid(unsafe_code)]` in every crate. Aligns with easyexcel-rust's safety policy. |
 | G2 | **Fluent Builder API** | `mut self -> Self` with `#[must_use]`. Method chains read like natural language. |
 | G3 | **Multi-engine backend** | docx-rs for writing, office_oxide for reading -- swappable without API changes. |
 | G4 | **Compile-time reflection** | `#[derive(DocxRow)]` replaces runtime annotation scanning. |
 | G5 | **Extensibility via traits** | `DocxRow`, `DocReadListener`, `DocWriteHandler`, `DocConverter<T>` -- users plug in custom logic. |
 | G6 | **Single error type** | `DocError` enum with `thiserror`, `type Result<T> = ...` -- no scattered error types. |
 | G7 | **Separation of concerns** | Core types != engine implementations != facade. Each crate has one job. |
-| G8 | **Follow easyexcel-rs conventions** | Naming, structure, quality gates -- consistency across the ecosystem. |
+| G8 | **Follow easyexcel-rust conventions** | Naming, structure, quality gates -- consistency across the ecosystem. |
 
 ---
 
@@ -156,7 +156,7 @@ easydoc-rust/
 Key observations:
 
 1. **easydoc-core has zero writer/reader engine dependencies** -- it defines *what* a document element is, not *how* to render it.
-2. **Writer and Reader use different engines** -- docx-rs (write) and office_oxide (read), mirroring easyexcel-rs's calamine + rust_xlsxwriter split.
+2. **Writer and Reader use different engines** -- docx-rs (write) and office_oxide (read), mirroring easyexcel-rust's calamine + rust_xlsxwriter split.
 3. **Template shares zip with core** -- ZIP manipulation used for both error conversion and template fill.
 4. **Facade depends on everyone** -- it wires sub-crates together and provides the ergonomic `EasyDoc::document()` / `EasyDoc::read()` entry points.
 
@@ -289,7 +289,7 @@ DocError (enum)           -- Central error type, 7 variants
   ├── Unsupported(String) -- Operation not available
   └── Document(String)    -- Generic document-level errors
 
-DocValue (enum)           -- Universal value bridge (like CellValue in easyexcel-rs)
+DocValue (enum)           -- Universal value bridge (like CellValue in easyexcel-rust)
   ├── String(String)
   ├── Bool(bool)
   ├── Int(i64)
@@ -432,7 +432,7 @@ User calls EasyDoc::read_text("in.docx" / "in.doc")
 
 ### 8.3 Why Two Engines
 
-Following easyexcel-rs's precedent (calamine for reading + rust_xlsxwriter for writing):
+Following easyexcel-rust's precedent (calamine for reading + rust_xlsxwriter for writing):
 
 - **docx-rs** is the most mature DOCX writer in the Rust ecosystem (~219K downloads, WASM support, clean builder API). It is the clear choice for writing.
 - **office_oxide** is the only pure-Rust crate capable of reading both DOCX and DOC. It provides a unified IR with text, table, and metadata extraction.
@@ -600,9 +600,9 @@ proc_macro::TokenStream
 
 ---
 
-## 12. Conventions from easyexcel-rs 继承约定
+## 12. Conventions from easyexcel-rust 继承约定
 
-| Convention 约定 | easyexcel-rs | easydoc-rust | Notes |
+| Convention 约定 | easyexcel-rust | easydoc-rust | Notes |
 |:---|:---|:---|:---|
 | **Workspace** | Virtual manifest + shared `[workspace.dependencies]` | Same | `resolver = "3"`, edition 2024 |
 | **Crate naming** | `easyexcel`, `easyexcel-core`, `easyexcel-derive`, ... | `easydoc`, `easydoc-core`, `easydoc-derive`, ... | Same pattern |
@@ -629,7 +629,7 @@ proc_macro::TokenStream
 
 Understanding these differences is critical for API design:
 
-| Dimension | Excel (easyexcel-rs) | DOC (easydoc-rust) |
+| Dimension | Excel (easyexcel-rust) | DOC (easydoc-rust) |
 |:---|:---|:---|
 | **Layout model** | Grid-based (rows x columns) | Flow-based (paragraphs, headings, sections) |
 | **Data unit** | Cell (A1, B2, ...) at row/col intersection | Paragraph / Table cell in document flow |

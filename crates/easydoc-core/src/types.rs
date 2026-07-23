@@ -2,7 +2,7 @@
 //!
 //! These types form the universal intermediate representation between
 //! typed Rust values and document cell/paragraph content, analogous to
-//! `CellValue` in `easyexcel-rs`.
+//! `CellValue` in `easyexcel-rust`.
 
 use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 

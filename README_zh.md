@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg)](https://www.rust-lang.org)
 
-> `easydoc-rust` 是 [`easyexcel-rs`](https://github.com/hiwepy/easyexcel-rs) 在 DOC/DOCX 领域的平行实现，遵循相同的流式 Builder + Trait 扩展 + Proc-Macro 架构模式。
+> `easydoc-rust` 是 [`easyexcel-rust`](https://github.com/easy-4-rust/easyexcel-rust) 在 DOC/DOCX 领域的平行实现，遵循相同的流式 Builder + Trait 扩展 + Proc-Macro 架构模式。
 
 ---
 
@@ -140,13 +140,13 @@ easydoc-rust/
 
 | # | 原则 | 继承自 |
 |:---|:---|:---|
-| 1 | **静态工厂** — `EasyDoc` 是所有操作的唯一入口 | easyexcel-rs `EasyExcel` |
-| 2 | **流式 Builder** — `mut self -> Self` + `#[must_use]` | easyexcel-rs builder 模式 |
-| 3 | **Trait 扩展** — `DocxRow`、`DocConverter`、`DocWriteHandler`、`DocReadListener` | easyexcel-rs traits |
-| 4 | **Proc-Macro 代码生成** — `#[derive(DocxRow)]` 编译时展开 | easyexcel-rs `#[derive(ExcelRow)]` |
-| 5 | **后端无关** — 统一 API，可替换引擎 | easyexcel-rs 多格式 |
-| 6 | **单一错误类型** — `DocError` 枚举 + `thiserror` | easyexcel-rs `ExcelError` |
-| 7 | **零 unsafe** — `#![forbid(unsafe_code)]` 每个 crate | easyexcel-rs 安全策略 |
+| 1 | **静态工厂** — `EasyDoc` 是所有操作的唯一入口 | easyexcel-rust `EasyExcel` |
+| 2 | **流式 Builder** — `mut self -> Self` + `#[must_use]` | easyexcel-rust builder 模式 |
+| 3 | **Trait 扩展** — `DocxRow`、`DocConverter`、`DocWriteHandler`、`DocReadListener` | easyexcel-rust traits |
+| 4 | **Proc-Macro 代码生成** — `#[derive(DocxRow)]` 编译时展开 | easyexcel-rust `#[derive(ExcelRow)]` |
+| 5 | **后端无关** — 统一 API，可替换引擎 | easyexcel-rust 多格式 |
+| 6 | **单一错误类型** — `DocError` 枚举 + `thiserror` | easyexcel-rust `ExcelError` |
+| 7 | **零 unsafe** — `#![forbid(unsafe_code)]` 每个 crate | easyexcel-rust 安全策略 |
 
 ---
 
@@ -184,5 +184,5 @@ Apache-2.0 — 详见 [LICENSE](LICENSE)。
 
 ## 相关项目
 
-- [`easyexcel-rs`](https://github.com/hiwepy/easyexcel-rs) — Excel 对应实现
+- [`easyexcel-rust`](https://github.com/easy-4-rust/easyexcel-rust) — Excel 对应实现
 - [`easypdf-rs`](https://github.com/hiwepy/easypdf-rs) — PDF 文档操作

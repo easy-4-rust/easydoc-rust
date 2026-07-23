@@ -1,6 +1,6 @@
 //! Unified error type for easydoc-rust.
 //!
-//! Mirrors the single-enum error pattern from `easyexcel-rs`.
+//! Mirrors the single-enum error pattern from `easyexcel-rust`.
 
 use thiserror::Error;
 

@@ -2,7 +2,7 @@
 //!
 //! These four traits form the backbone of the extensibility system,
 //! mirroring `ExcelRow`, `Converter<T>`, `ReadListener<T>`, and
-//! `WriteHandler` from `easyexcel-rs`.
+//! `WriteHandler` from `easyexcel-rust`.
 
 use crate::converter::ConverterRegistry;
 use crate::error::Result;
@@ -15,7 +15,7 @@ use crate::types::{CellData, DocValue, ErrorAction, RowData, TableData};
 
 /// Maps a Rust struct to/from a DOCX table row.
 ///
-/// Analogous to [`ExcelRow`](easyexcel_core::ExcelRow) in `easyexcel-rs`.
+/// Analogous to [`ExcelRow`](easyexcel_core::ExcelRow) in `easyexcel-rust`.
 /// Generated automatically by `#[derive(DocxRow)]`.
 ///
 /// # Example
@@ -58,7 +58,7 @@ pub trait DocxRow {
 
 /// Converts between a Rust type `T` and a [`DocValue`].
 ///
-/// Analogous to `Converter<T>` in `easyexcel-rs`. Register custom converters
+/// Analogous to `Converter<T>` in `easyexcel-rust`. Register custom converters
 /// via [`ConverterRegistry`] or the builder's `register_converter` method.
 pub trait DocConverter<T> {
     /// Returns the `TypeId` this converter handles.
@@ -96,7 +96,7 @@ pub struct DocReadContext {
 
 /// Receives parsed content during streaming document reads.
 ///
-/// Analogous to `ReadListener<T>` in `easyexcel-rs`.
+/// Analogous to `ReadListener<T>` in `easyexcel-rust`.
 pub trait DocReadListener<T> {
     /// Called for each parsed data item (paragraph text or row).
     ///
@@ -174,7 +174,7 @@ pub struct CellContext {
 
 /// Write lifecycle interceptor — hooks at document, paragraph, table, and cell level.
 ///
-/// Analogous to `WriteHandler` in `easyexcel-rs`. All methods have no-op defaults;
+/// Analogous to `WriteHandler` in `easyexcel-rust`. All methods have no-op defaults;
 /// override only the hooks you need.
 pub trait DocWriteHandler {
     /// Execution order (lower values execute first).

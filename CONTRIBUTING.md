@@ -51,7 +51,7 @@ easydoc-rust/
 2. **Fluent builders** — `mut self -> Self` with `#[must_use]`
 3. **Trait extensibility** — `DocxRow`, `DocConverter`, `DocWriteHandler`, `DocReadListener`
 4. **Single error type** — `DocError` enum, `type Result<T> = ...`
-5. **Follow easyexcel-rs conventions** — consistency across the ecosystem
+5. **Follow easyexcel-rust conventions** — consistency across the ecosystem
 
 ## Adding a New Feature
 
