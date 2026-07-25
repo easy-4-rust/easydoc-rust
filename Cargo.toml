@@ -17,18 +17,18 @@ license = "Apache-2.0"
 repository = "https://github.com/easy-4-rust/easydoc-rust"
 
 [workspace.dependencies]
-chrono = { version = "0.4.41", default-features = false, features = ["std"] }
+chrono = { version = "0.4.45", default-features = false, features = ["std"] }
 docx-rs = "0.4"
 office_oxide = "0.1"
-proc-macro-crate = "3.4.0"
-proc-macro2 = "1.0.103"
-quote = "1.0.40"
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.140"
-syn = { version = "2.0.104", features = ["full"] }
-tempfile = "3.20.0"
+proc-macro-crate = "3.5.0"
+proc-macro2 = "1.0.107"
+quote = "1.0.47"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+syn = { version = "2.0.119", features = ["full"] }
+tempfile = "3.27.0"
 thiserror = "2.0.18"
-uuid = { version = "1.16.0", features = ["v4"] }
+uuid = { version = "1.24.0", features = ["v4"] }
 zip = { version = "7.2.0", default-features = false, features = ["deflate"] }
 
 [workspace.lints.rust]
