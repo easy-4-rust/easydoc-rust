@@ -10,7 +10,7 @@ use office_oxide::edit::EditableDocument;
 
 /// An open DOCX file ready for modification.
 ///
-/// Created via [`EasyDoc::edit()`].
+/// Created via the facade's `EasyDoc::edit()` method.
 /// Wraps `office_oxide`'s `EditableDocument` for text replacement and saving.
 ///
 /// # Example

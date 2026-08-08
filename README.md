@@ -17,6 +17,8 @@
 | **Quick Table Write** — `Vec<Struct>` -> DOCX table in one line | ✅ |
 | **Template Fill** — `{key}` placeholder replacement with ZIP preservation | ✅ |
 | **Read DOCX/DOC** — text extraction, table extraction via office_oxide | ✅ |
+| **DOC/DOCX to Markdown** — headings, rich text, lists, tables, notes, code and images | ✅ |
+| **Safe OOXML Rewrite** — resource limits, binary fidelity, atomic output | ✅ |
 | **Format Auto-Detection** — DOCX (ZIP magic) vs DOC (OLE2 magic) | ✅ |
 | **`#[derive(DocxRow)]`** — compile-time struct-to-row mapping | ✅ |
 | **Style System** — FontConfig, ParagraphStyle, TableStyle, Color | ✅ |
@@ -107,6 +109,22 @@ let tables: Vec<Vec<User>> = EasyDoc::read_tables::<User>("document.docx")?;
 let text = EasyDoc::read_text("legacy.doc")?;
 ```
 
+### Convert to Markdown 转换 Markdown
+
+```rust
+let markdown = EasyDoc::to_markdown("document.docx")?;
+
+let result = EasyDoc::markdown("document.docx")
+    .image_directory("output/assets")
+    .image_reference_prefix("assets")
+    .include_front_matter(true)
+    .write_to("output/document.md")?;
+
+for warning in result.warnings {
+    eprintln!("conversion fallback: {}", warning.message);
+}
+```
+
 ---
 
 ## Architecture 架构
@@ -118,9 +136,11 @@ easydoc-rust/
 │   ├── easydoc/                        facade — EasyDoc static factory
 │   ├── easydoc-core/                   core types, traits, errors, styles
 │   ├── easydoc-derive/                 proc-macro #[derive(DocxRow)]
+│   ├── easydoc-ooxml/                  safe package rewrite, limits, atomic output
 │   ├── easydoc-writer/                 DOCX generation via docx-rs
 │   ├── easydoc-reader/                 DOCX/DOC reading via office_oxide
-│   └── easydoc-template/               placeholder replacement, ZIP-preserving
+│   ├── easydoc-template/               placeholder replacement, ZIP-preserving
+│   └── easydoc-markdown/               semantic DOC/DOCX to Markdown conversion
 ```
 
 For detailed architecture, see [docs/architecture.md](docs/architecture.md).
@@ -153,11 +173,11 @@ For detailed architecture, see [docs/architecture.md](docs/architecture.md).
 ## Testing 测试
 
 ```bash
-# Run all tests (11 passing)
+# Run all tests
 cargo test --workspace
 ```
 
-Tests cover: write table, write document, round-trip write+read text, round-trip write+read table, template scalar fill with multiple placeholders, template fill end-to-end, image insertion, style builders, converters, format detection, error variants, lifecycle hooks.
+Tests cover: write/read round trips, Markdown conversion, GFM/merged tables, image extraction, OOXML binary fidelity and limits, atomic failure safety, template XML escaping, format detection, styles, converters and lifecycle hooks.
 
 ---
 

@@ -10,6 +10,8 @@ repository.workspace = true
 [dependencies]
 easydoc-core = { path = "../easydoc-core" }
 easydoc-derive = { path = "../easydoc-derive" }
+easydoc-markdown = { path = "../easydoc-markdown" }
+easydoc-ooxml = { path = "../easydoc-ooxml" }
 easydoc-reader = { path = "../easydoc-reader" }
 easydoc-template = { path = "../easydoc-template" }
 easydoc-writer = { path = "../easydoc-writer" }

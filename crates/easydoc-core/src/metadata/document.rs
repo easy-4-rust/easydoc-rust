@@ -1,5 +1,5 @@
 /// Document-level metadata for DOCX files.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DocumentMeta {
     /// Document title (maps to `dc:title`).
     pub title: Option<String>,

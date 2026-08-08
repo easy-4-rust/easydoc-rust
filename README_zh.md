@@ -17,6 +17,8 @@
 | **快捷表格写入** — 一行代码 `Vec<Struct>` → DOCX 表格 | ✅ |
 | **模板填充** — `{key}` 占位符替换，ZIP 结构保留 | ✅ |
 | **读取 DOCX/DOC** — 文本提取、表格提取 (via office_oxide) | ✅ |
+| **DOC/DOCX 转 Markdown** — 标题、富文本、列表、表格、注释、代码和图片 | ✅ |
+| **安全 OOXML 重写** — 资源限制、二进制保真、原子输出 | ✅ |
 | **格式自动检测** — DOCX (ZIP 魔数) vs DOC (OLE2 魔数) | ✅ |
 | **`#[derive(DocxRow)]`** — 编译时 struct 到表格行映射 | ✅ |
 | **样式系统** — FontConfig、ParagraphStyle、TableStyle、Color | ✅ |
@@ -107,6 +109,22 @@ let tables: Vec<Vec<User>> = EasyDoc::read_tables::<User>("document.docx")?;
 let text = EasyDoc::read_text("legacy.doc")?;
 ```
 
+### 转换 Markdown
+
+```rust
+let markdown = EasyDoc::to_markdown("document.docx")?;
+
+let result = EasyDoc::markdown("document.docx")
+    .image_directory("output/assets")
+    .image_reference_prefix("assets")
+    .include_front_matter(true)
+    .write_to("output/document.md")?;
+
+for warning in result.warnings {
+    eprintln!("转换降级: {}", warning.message);
+}
+```
+
 ---
 
 ## 项目架构
@@ -118,9 +136,11 @@ easydoc-rust/
 │   ├── easydoc/                        门面 — EasyDoc 静态工厂
 │   ├── easydoc-core/                   核心类型、trait、错误、样式
 │   ├── easydoc-derive/                 proc-macro #[derive(DocxRow)]
+│   ├── easydoc-ooxml/                  安全包重写、资源限制、原子输出
 │   ├── easydoc-writer/                 DOCX 生成 (via docx-rs)
 │   ├── easydoc-reader/                 DOCX/DOC 读取 (via office_oxide)
-│   └── easydoc-template/              占位符替换、ZIP 保留式修改
+│   ├── easydoc-template/              占位符替换、ZIP 保留式修改
+│   └── easydoc-markdown/              DOC/DOCX 语义化转换 Markdown
 ```
 
 详细架构见 [docs/architecture.md](docs/architecture.md)。
@@ -153,7 +173,7 @@ easydoc-rust/
 ## 测试
 
 ```bash
-# 运行所有测试（11 个全部通过）
+# 运行所有测试
 cargo test --workspace
 ```
 
@@ -164,6 +184,8 @@ cargo test --workspace
 - 往返测试：写表格 -> 读表格 -> 验证数据
 - 模板标量填充（多占位符）
 - 模板填充端到端
+- Markdown、GFM/合并表格和图片提取
+- OOXML 二进制保真、资源限制和原子失败安全
 - 图片插入、样式构建器、类型转换器、格式检测、错误变体、生命周期钩子
 
 ---

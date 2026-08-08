@@ -9,6 +9,7 @@ repository.workspace = true
 
 [dependencies]
 easydoc-core = { path = "../easydoc-core" }
+easydoc-ooxml = { path = "../easydoc-ooxml" }
 docx-rs.workspace = true
 office_oxide.workspace = true
 

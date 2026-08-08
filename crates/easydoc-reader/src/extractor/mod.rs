@@ -3,6 +3,7 @@
 //! Both text and table extraction work transparently across
 //! DOCX and DOC formats via `office_oxide`'s unified API.
 
+pub(crate) mod semantic;
 pub mod table;
 pub mod text;
 

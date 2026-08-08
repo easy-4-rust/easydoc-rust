@@ -1,6 +1,6 @@
 [package]
-name = "easydoc-template"
-description = "DOCX template fill engine for easydoc-rust"
+name = "easydoc-markdown"
+description = "DOC and DOCX to Markdown conversion for easydoc-rust"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,13 +10,11 @@ repository.workspace = true
 [dependencies]
 easydoc-core = { path = "../easydoc-core" }
 easydoc-ooxml = { path = "../easydoc-ooxml" }
-easydoc-writer = { path = "../easydoc-writer" }
-serde.workspace = true
-serde_json.workspace = true
+easydoc-reader = { path = "../easydoc-reader" }
 
 [dev-dependencies]
+easydoc-writer = { path = "../easydoc-writer" }
 tempfile.workspace = true
-zip.workspace = true
 
 [lints]
 workspace = true

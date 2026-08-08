@@ -15,7 +15,7 @@ use crate::types::{CellData, DocValue, ErrorAction, RowData, TableData};
 
 /// Maps a Rust struct to/from a DOCX table row.
 ///
-/// Analogous to [`ExcelRow`](easyexcel_core::ExcelRow) in `easyexcel-rust`.
+/// Analogous to `ExcelRow` in `easyexcel-rust`.
 /// Generated automatically by `#[derive(DocxRow)]`.
 ///
 /// # Example
@@ -70,14 +70,14 @@ pub trait DocConverter<T> {
     ///
     /// # Errors
     ///
-    /// Returns [`DocError::Conversion`] if the value cannot be converted.
+    /// Returns [`crate::DocError::Conversion`] if the value cannot be converted.
     fn to_doc_value(&self, value: &T, column: &TableColumn) -> Result<DocValue>;
 
     /// Converts a document value back into a Rust value for reading.
     ///
     /// # Errors
     ///
-    /// Returns [`DocError::Conversion`] if the value cannot be converted.
+    /// Returns [`crate::DocError::Conversion`] if the value cannot be converted.
     fn from_doc_value(&self, value: &DocValue, column: &TableColumn) -> Result<T>;
 }
 

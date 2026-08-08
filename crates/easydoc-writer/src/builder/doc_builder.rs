@@ -11,7 +11,7 @@ use crate::{DocImage, Paragraph, Table};
 
 /// Fluent builder for constructing complete DOCX documents.
 ///
-/// Created via [`EasyDoc::document()`].
+/// Created via the facade's `EasyDoc::document()` method.
 ///
 /// # Example
 ///

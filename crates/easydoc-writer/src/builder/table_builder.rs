@@ -10,7 +10,7 @@ use crate::executor::table_executor::TableWriteExecutor;
 
 /// Fluent builder for writing a typed `Vec<T>` as a DOCX table.
 ///
-/// Created via [`EasyDoc::write_table()`].
+/// Created via the facade's `EasyDoc::write_table()` method.
 ///
 /// # Example
 ///

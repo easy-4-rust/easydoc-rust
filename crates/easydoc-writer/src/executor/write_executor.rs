@@ -1,17 +1,17 @@
 //! Document write executor — orchestrates the assembly of a complete DOCX file.
 
-use std::fs::File;
 use std::io::{Seek, Write};
 use std::path::PathBuf;
 
 use easydoc_core::metadata::DocumentMeta;
 use easydoc_core::{DocError, Result};
+use easydoc_ooxml::AtomicFile;
 
 use crate::builder::doc_builder::DocumentElement;
 
 use docx_rs::{BreakType, Docx, Pic, RunFonts};
 
-/// Executor for rendering a [`DocBuilder`] into a physical DOCX file.
+/// Executor for rendering a [`crate::DocBuilder`] into a physical DOCX file.
 ///
 /// Wraps `docx-rs` for the actual OOXML generation.
 pub struct DocWriteExecutor {
@@ -43,9 +43,11 @@ impl DocWriteExecutor {
             match element {
                 DocumentElement::Heading { text, level } => {
                     let run = docx_rs::Run::new().add_text(text.as_str()).bold().size(28);
-                    let p = docx_rs::Paragraph::new().add_run(run);
+                    let p = docx_rs::Paragraph::new()
+                        .style(heading_style(*level))
+                        .outline_lvl(heading_outline_level(*level))
+                        .add_run(run);
                     docx = docx.add_paragraph(p);
-                    let _ = level;
                 }
                 DocumentElement::Paragraph(para) => {
                     let mut p = docx_rs::Paragraph::new();
@@ -148,12 +150,12 @@ impl DocWriteExecutor {
     ///
     /// Returns an I/O or ZIP error if the file cannot be written.
     pub fn save(self) -> Result<()> {
-        let file = File::create(&self.path)?;
         let docx = self.build_docx()?;
-        docx.build()
-            .pack(file)
-            .map_err(|e| DocError::Zip(e.to_string()))?;
-        Ok(())
+        AtomicFile::write(&self.path, |file| {
+            docx.build()
+                .pack(file)
+                .map_err(|error| DocError::Zip(error.to_string()))
+        })
     }
 
     /// Writes the assembled document to a generic writer.
@@ -181,6 +183,28 @@ impl DocWriteExecutor {
             .pack(cursor)
             .map_err(|e| DocError::Zip(e.to_string()))?;
         Ok(buf)
+    }
+}
+
+fn heading_style(level: easydoc_core::HeadingLevel) -> &'static str {
+    match level {
+        easydoc_core::HeadingLevel::H1 => "Heading1",
+        easydoc_core::HeadingLevel::H2 => "Heading2",
+        easydoc_core::HeadingLevel::H3 => "Heading3",
+        easydoc_core::HeadingLevel::H4 => "Heading4",
+        easydoc_core::HeadingLevel::H5 => "Heading5",
+        easydoc_core::HeadingLevel::H6 => "Heading6",
+    }
+}
+
+fn heading_outline_level(level: easydoc_core::HeadingLevel) -> usize {
+    match level {
+        easydoc_core::HeadingLevel::H1 => 0,
+        easydoc_core::HeadingLevel::H2 => 1,
+        easydoc_core::HeadingLevel::H3 => 2,
+        easydoc_core::HeadingLevel::H4 => 3,
+        easydoc_core::HeadingLevel::H5 => 4,
+        easydoc_core::HeadingLevel::H6 => 5,
     }
 }
 

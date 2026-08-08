@@ -119,6 +119,8 @@ version = "0.1.0"
 dependencies = [
  "easydoc-core",
  "easydoc-derive",
+ "easydoc-markdown",
+ "easydoc-ooxml",
  "easydoc-reader",
  "easydoc-template",
  "easydoc-writer",
@@ -150,6 +152,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "easydoc-markdown"
+version = "0.1.0"
+dependencies = [
+ "easydoc-core",
+ "easydoc-ooxml",
+ "easydoc-reader",
+ "easydoc-writer",
+ "tempfile",
+]
+
+[[package]]
+name = "easydoc-ooxml"
+version = "0.1.0"
+dependencies = [
+ "easydoc-core",
+ "tempfile",
+ "zip",
+]
+
+[[package]]
 name = "easydoc-reader"
 version = "0.1.0"
 dependencies = [
@@ -163,6 +185,7 @@ name = "easydoc-template"
 version = "0.1.0"
 dependencies = [
  "easydoc-core",
+ "easydoc-ooxml",
  "easydoc-writer",
  "serde",
  "serde_json",
@@ -176,6 +199,7 @@ version = "0.1.0"
 dependencies = [
  "docx-rs",
  "easydoc-core",
+ "easydoc-ooxml",
  "office_oxide",
  "tempfile",
 ]

@@ -7,7 +7,7 @@ use easydoc_core::{DocxRow, Result};
 
 /// Fluent builder for streaming document reads.
 ///
-/// Created via [`EasyDoc::read()`].
+/// Created via the facade's `EasyDoc::read()` method.
 pub struct DocReadBuilder {
     path: PathBuf,
 }

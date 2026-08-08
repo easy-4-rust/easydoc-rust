@@ -40,6 +40,10 @@ mod easy_doc;
 pub use easy_doc::EasyDoc;
 pub use easydoc_core::*;
 pub use easydoc_derive::DocxRow;
+pub use easydoc_markdown::{
+    ConversionWarning, ExtractedAsset, MarkdownBuilder, MarkdownOptions, MarkdownResult,
+};
+pub use easydoc_ooxml::{AtomicFile, PackageLimits, PackageRewriter};
 pub use easydoc_reader::*;
 pub use easydoc_template::*;
 pub use easydoc_writer::*;
@@ -55,5 +59,6 @@ pub mod prelude {
         HorizontalAlignment, ParagraphStyle, Result, RowData, TableColumn, TableData, TableStyle,
     };
     pub use easydoc_derive::DocxRow as DocxRowDerive;
+    pub use easydoc_markdown::{MarkdownBuilder, MarkdownOptions, MarkdownResult};
     pub use easydoc_writer::{DocBuilder, Paragraph, Run, TableWriteBuilder};
 }

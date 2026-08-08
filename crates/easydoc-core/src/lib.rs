@@ -7,6 +7,7 @@
 #![deny(unsafe_code)]
 
 pub mod converter;
+pub mod document;
 pub mod error;
 pub mod metadata;
 pub mod style;
@@ -15,6 +16,10 @@ pub mod types;
 
 // Re-export the most commonly used items.
 pub use converter::ConverterRegistry;
+pub use document::{
+    DocumentBlock, DocumentContent, DocumentImage, DocumentList, DocumentListItem, DocumentTable,
+    DocumentTableCell, DocumentTableRow, DocumentTextRun,
+};
 pub use error::{DocError, Result};
 pub use metadata::{DocumentMeta, TableColumn};
 pub use style::{Color, FontConfig, ParagraphStyle, TableStyle};

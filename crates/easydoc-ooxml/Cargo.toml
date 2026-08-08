@@ -1,6 +1,6 @@
 [package]
-name = "easydoc-template"
-description = "DOCX template fill engine for easydoc-rust"
+name = "easydoc-ooxml"
+description = "Safe OOXML package primitives for easydoc-rust"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,14 +9,11 @@ repository.workspace = true
 
 [dependencies]
 easydoc-core = { path = "../easydoc-core" }
-easydoc-ooxml = { path = "../easydoc-ooxml" }
-easydoc-writer = { path = "../easydoc-writer" }
-serde.workspace = true
-serde_json.workspace = true
+tempfile.workspace = true
+zip.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
-zip.workspace = true
 
 [lints]
 workspace = true

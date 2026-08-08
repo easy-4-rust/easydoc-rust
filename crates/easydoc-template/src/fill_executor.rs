@@ -7,18 +7,11 @@
 //! 4. Writes a new ZIP preserving all other entries (styles, images, etc.)
 
 use std::collections::HashMap;
-use std::fs;
-use std::io::{Cursor, Read, Write};
 use std::path::Path;
 
 use crate::placeholder::Placeholder;
 use easydoc_core::{DocError, Result};
-
-/// Helper to convert zip errors to `DocError`.
-#[allow(clippy::needless_pass_by_value)]
-fn zip_err(e: zip::result::ZipError) -> DocError {
-    DocError::Zip(e.to_string())
-}
+use easydoc_ooxml::PackageRewriter;
 
 /// Builder for template fill operations.
 pub struct TemplateFillBuilder {
@@ -67,43 +60,14 @@ impl TemplateFillBuilder {
 ///
 /// Returns I/O or ZIP processing errors.
 pub fn fill_scalar(template: &Path, output: &Path, data: &HashMap<String, String>) -> Result<()> {
-    let template_bytes = fs::read(template)?;
-    let reader = Cursor::new(template_bytes);
-    let mut archive = zip::ZipArchive::new(reader)
-        .map_err(|e: zip::result::ZipError| DocError::Zip(e.to_string()))?;
-
-    // Build the output ZIP
-    let out_file = fs::File::create(output)?;
-    let mut out_zip = zip::ZipWriter::new(out_file);
-    let options = zip::write::SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated);
-
-    for i in 0..archive.len() {
-        let mut entry = archive.by_index(i).map_err(zip_err)?;
-        let name = entry.name().to_owned();
-
-        if entry.is_dir() {
-            out_zip.add_directory(name, options).map_err(zip_err)?;
-            continue;
+    PackageRewriter::default().rewrite(template, output, |name, content| {
+        if name != "word/document.xml" {
+            return Ok(None);
         }
-
-        let mut content = Vec::new();
-        entry.read_to_end(&mut content)?;
-        let content_str = String::from_utf8_lossy(&content).to_string();
-
-        // Only process word/document.xml for placeholder replacement
-        let modified = if name == "word/document.xml" {
-            replace_scalar_placeholders(&content_str, data)
-        } else {
-            content_str
-        };
-
-        out_zip.start_file(name, options).map_err(zip_err)?;
-        out_zip.write_all(modified.as_bytes())?;
-    }
-
-    out_zip.finish().map_err(zip_err)?;
-    Ok(())
+        let xml = std::str::from_utf8(content)
+            .map_err(|error| DocError::Format(format!("document.xml is not UTF-8: {error}")))?;
+        Ok(Some(replace_scalar_placeholders(xml, data).into_bytes()))
+    })
 }
 
 /// Fill list placeholders (`{.field}` / `{prefix.field}`) with collection expansion.
@@ -133,40 +97,16 @@ pub fn fill_list<T: serde::Serialize + std::fmt::Debug>(
         })
         .collect::<Result<Vec<_>>>()?;
 
-    let template_bytes = fs::read(template)?;
-    let reader = Cursor::new(template_bytes);
-    let mut archive = zip::ZipArchive::new(reader).map_err(zip_err)?;
-
-    let out_file = fs::File::create(output)?;
-    let mut out_zip = zip::ZipWriter::new(out_file);
-    let options = zip::write::SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated);
-
-    for i in 0..archive.len() {
-        let mut entry = archive.by_index(i).map_err(zip_err)?;
-        let name = entry.name().to_owned();
-
-        if entry.is_dir() {
-            out_zip.add_directory(name, options).map_err(zip_err)?;
-            continue;
+    PackageRewriter::default().rewrite(template, output, |name, content| {
+        if name != "word/document.xml" {
+            return Ok(None);
         }
-
-        let mut content = Vec::new();
-        entry.read_to_end(&mut content)?;
-        let content_str = String::from_utf8_lossy(&content).to_string();
-
-        let modified = if name == "word/document.xml" {
-            expand_collection_rows(&content_str, &items, list_field)?
-        } else {
-            content_str
-        };
-
-        out_zip.start_file(name, options).map_err(zip_err)?;
-        out_zip.write_all(modified.as_bytes())?;
-    }
-
-    out_zip.finish().map_err(zip_err)?;
-    Ok(())
+        let xml = std::str::from_utf8(content)
+            .map_err(|error| DocError::Format(format!("document.xml is not UTF-8: {error}")))?;
+        Ok(Some(
+            expand_collection_rows(xml, &items, list_field)?.into_bytes(),
+        ))
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -175,17 +115,71 @@ pub fn fill_list<T: serde::Serialize + std::fmt::Debug>(
 
 /// Replaces all `{key}` placeholders with values from the data map.
 fn replace_scalar_placeholders(xml: &str, data: &HashMap<String, String>) -> String {
-    let placeholders = Placeholder::find_all(xml);
     let mut result = xml.to_owned();
 
-    for placeholder in &placeholders {
-        if let Placeholder::Scalar { raw, key } = placeholder
-            && let Some(replacement) = data.get(key)
-        {
-            result = result.replace(raw.as_str(), replacement);
+    for (key, replacement) in data {
+        let placeholder = format!("{{{key}}}");
+        result = replace_across_text_nodes(&result, &placeholder, &escape_xml_text(replacement));
+    }
+
+    result
+}
+
+/// 替换可能被 Word 拆到多个 `w:t` 节点中的占位符。
+fn replace_across_text_nodes(xml: &str, placeholder: &str, replacement: &str) -> String {
+    let mut visible = String::new();
+    let mut nodes = Vec::new();
+    let mut search_from = 0;
+    let mut previous_close = 0;
+
+    while let Some(relative_start) = xml[search_from..].find("<w:t") {
+        let tag_start = search_from + relative_start;
+        if xml[previous_close..tag_start].contains("</w:p>") {
+            visible.push('\0');
+        }
+        let Some(tag_end_relative) = xml[tag_start..].find('>') else {
+            break;
+        };
+        let content_start = tag_start + tag_end_relative + 1;
+        let Some(close_relative) = xml[content_start..].find("</w:t>") else {
+            break;
+        };
+        let content_end = content_start + close_relative;
+        let visible_start = visible.len();
+        visible.push_str(&xml[content_start..content_end]);
+        let visible_end = visible.len();
+        nodes.push((content_start, content_end, visible_start, visible_end));
+        previous_close = content_end + "</w:t>".len();
+        search_from = previous_close;
+    }
+
+    let mut changes = Vec::new();
+    for (match_start, _) in visible.match_indices(placeholder) {
+        let match_end = match_start + placeholder.len();
+        let mut inserted = false;
+        for &(content_start, _content_end, visible_start, visible_end) in &nodes {
+            let overlap_start = match_start.max(visible_start);
+            let overlap_end = match_end.min(visible_end);
+            if overlap_start >= overlap_end {
+                continue;
+            }
+            let absolute_start = content_start + overlap_start - visible_start;
+            let absolute_end = content_start + overlap_end - visible_start;
+            let value = if inserted {
+                String::new()
+            } else {
+                inserted = true;
+                replacement.to_owned()
+            };
+            changes.push((absolute_start, absolute_end, value));
         }
     }
 
+    changes.sort_unstable_by_key(|change| std::cmp::Reverse(change.0));
+    let mut result = xml.to_owned();
+    for (start, end, value) in changes {
+        result.replace_range(start..end, &value);
+    }
     result
 }
 
@@ -237,7 +231,7 @@ fn try_expand_in_paragraphs(xml: &str, items: &[HashMap<String, String>]) -> Opt
                 let mut replica = template.clone();
                 for (key, value) in item {
                     let dot_key = format!("{{.{key}}}");
-                    replica = replica.replace(&dot_key, value);
+                    replica = replica.replace(&dot_key, &escape_xml_text(value));
                 }
                 expanded.push_str(&replica);
             }
@@ -294,17 +288,17 @@ fn try_expand_in_table_rows(xml: &str, items: &[HashMap<String, String>]) -> Res
         for (key, value) in item {
             // Try both {.field} and {prefix.field} patterns
             let dot_key = format!("{{.{key}}}");
-            row = row.replace(&dot_key, value);
+            row = row.replace(&dot_key, &escape_xml_text(value));
 
             // Also handle {prefix.field} — replace in the template row
             let placeholders = Placeholder::find_all(&row);
             for ph in &placeholders {
                 match ph {
                     Placeholder::NamedCollection { raw, field, .. } if field == key => {
-                        row = row.replace(raw.as_str(), value);
+                        row = row.replace(raw.as_str(), &escape_xml_text(value));
                     }
                     Placeholder::Collection { raw, field } if field == key => {
-                        row = row.replace(raw.as_str(), value);
+                        row = row.replace(raw.as_str(), &escape_xml_text(value));
                     }
                     _ => {}
                 }
@@ -346,6 +340,16 @@ fn to_string_map(value: &serde_json::Value) -> Result<HashMap<String, String>> {
             },
         )])),
     }
+}
+
+/// 转义写入 `w:t` 文本节点的动态内容，避免生成无效 XML。
+fn escape_xml_text(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
 }
 
 /// Finds the position of the matching closing tag for an XML element,

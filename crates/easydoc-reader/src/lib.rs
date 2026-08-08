@@ -7,7 +7,7 @@
 
 use std::path::Path;
 
-use easydoc_core::{DocxRow, Result};
+use easydoc_core::{DocumentContent, DocxRow, Result};
 
 mod builder;
 mod extractor;
@@ -35,4 +35,13 @@ pub fn read_text(path: &Path) -> Result<String> {
 /// Returns I/O, format, or conversion errors.
 pub fn read_tables<T: DocxRow>(path: &Path) -> Result<Vec<Vec<T>>> {
     extractor::table::extract_tables::<T>(path)
+}
+
+/// 读取 DOC 或 DOCX，并转换为不暴露底层解析器类型的语义文档。
+///
+/// # Errors
+///
+/// 文件无法打开或解析时返回错误。
+pub fn read_document(path: &Path) -> Result<DocumentContent> {
+    extractor::semantic::extract_document(path)
 }

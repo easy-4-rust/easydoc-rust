@@ -3,6 +3,8 @@ members = [
     "crates/easydoc",
     "crates/easydoc-core",
     "crates/easydoc-derive",
+    "crates/easydoc-markdown",
+    "crates/easydoc-ooxml",
     "crates/easydoc-reader",
     "crates/easydoc-template",
     "crates/easydoc-writer",
