@@ -1,6 +1,6 @@
 # easydoc-rust
 
-**Easy DOC/DOCX document operations in Rust.**  |  **Rust 快捷 DOC/DOCX 文档操作库。**
+**Easy DOC/DOCX document operations in Rust.**
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg)](https://www.rust-lang.org)
@@ -9,35 +9,46 @@
 
 ---
 
-## Features 功能
+## Format & Operation Support Matrix
 
-| Feature 功能 | Status |
-|:---|:---:|
-| **Write DOCX** — paragraphs, headings, tables, page breaks, styled runs | ✅ |
-| **Quick Table Write** — `Vec<Struct>` -> DOCX table in one line | ✅ |
-| **Template Fill** — `{key}` placeholder replacement with ZIP preservation | ✅ |
-| **Read DOCX/DOC** — text extraction, table extraction via office_oxide | ✅ |
-| **DOC/DOCX to Markdown** — headings, rich text, lists, tables, notes, code and images | ✅ |
-| **Safe OOXML Rewrite** — resource limits, binary fidelity, atomic output | ✅ |
-| **Format Auto-Detection** — DOCX (ZIP magic) vs DOC (OLE2 magic) | ✅ |
-| **`#[derive(DocxRow)]`** — compile-time struct-to-row mapping | ✅ |
-| **Style System** — FontConfig, ParagraphStyle, TableStyle, Color | ✅ |
-| **Extensible Converters** — custom `DocConverter<T>` registry | ✅ |
-| **Write Lifecycle Hooks** — `DocWriteHandler` at document/paragraph/table/cell level | ✅ |
-| **Streaming Read Listener** — `DocReadListener<T>` event-driven parsing | ✅ |
+| Format | Read | Create | Edit | Template Fill | Convert to MD | Status Evidence |
+|---|:---:|:---:|:---:|:---:|:---:|---|
+| DOCX (.docx) | ✅ | ✅ | ✅ | ✅ | ✅ | `writer_test.rs`, `markdown_conversion_test.rs` |
+| DOC (.doc) | ✅ | ❌ | ❌ | ❌ | ✅ | `office_oxide` IR; format auto-detection tested |
 
----
+Status legend: ✅ stable · ❌ not supported · read-only via backend
 
-## Quick Start 快速开始
+## Document Processing Pipeline
 
-Add to your `Cargo.toml`:
+```text
+Input file / template
+        │
+        ▼
+Format detection (ZIP magic / OLE2 magic)
+        │
+        ▼
+┌──────────────────────────────────────────────┐
+│ office_oxide IR    │  docx-rs / PackageRewriter│
+│ (read path)        │  (write / fill path)      │
+└────────┬───────────┴───────────┬──────────────┘
+         │                       │
+         ▼                       ▼
+    DocumentContent         AtomicFile::write()
+    (core semantic model)   (temp + persist)
+         │                       │
+         ├──► read_text()        ├──► out.docx
+         ├──► read_tables<T>()   └──► out.docx (filled)
+         └──► to_markdown() ──► Markdown + assets + warnings
+```
+
+## Quick Start
 
 ```toml
 [dependencies]
 easydoc = "0.1"
 ```
 
-### Write a table from struct data 表格写入
+### Write a table from struct data
 
 ```rust
 use easydoc::prelude::*;
@@ -65,7 +76,7 @@ EasyDoc::write_table("users.docx", &users)
     .do_write()?;
 ```
 
-### Build a full document 构建文档
+### Build a full document
 
 ```rust
 EasyDoc::document("report.docx")
@@ -84,7 +95,7 @@ EasyDoc::document("report.docx")
     .save()?;
 ```
 
-### Template fill 模板填充
+### Template fill
 
 ```rust
 use std::collections::HashMap;
@@ -96,7 +107,15 @@ data.insert("date".into(), "2026-07-21".into());
 EasyDoc::fill_template("template.docx", "output.docx", &data)?;
 ```
 
-### Read documents 读取文档
+Template capabilities:
+- `{key}` scalar replacement across split `<w:t>` runs
+- `{.field}` collection expansion in table rows
+- `{prefix.field}` named collection placeholders
+- XML special character escaping (`&`, `<`, `>`, `"`, `'`)
+- Binary ZIP entries preserved byte-for-byte
+- Atomic output (temp file + persist)
+
+### Read documents
 
 ```rust
 // Extract all text
@@ -105,97 +124,185 @@ let text = EasyDoc::read_text("document.docx")?;
 // Extract tables into typed structs
 let tables: Vec<Vec<User>> = EasyDoc::read_tables::<User>("document.docx")?;
 
-// Both DOCX and DOC are supported transparently
+// DOC and DOCX both supported transparently
 let text = EasyDoc::read_text("legacy.doc")?;
 ```
 
-### Convert to Markdown 转换 Markdown
+### Convert to Markdown
 
 ```rust
+// Quick conversion
 let markdown = EasyDoc::to_markdown("document.docx")?;
 
+// Full control: image extraction, front matter, atomic output
 let result = EasyDoc::markdown("document.docx")
     .image_directory("output/assets")
     .image_reference_prefix("assets")
     .include_front_matter(true)
     .write_to("output/document.md")?;
 
-for warning in result.warnings {
+for warning in &result.warnings {
     eprintln!("conversion fallback: {}", warning.message);
 }
 ```
 
+Markdown capabilities:
+- Headings (H1–H6 with bold text)
+- Rich text (bold, italic, strikethrough, hyperlinks)
+- GFM tables (pipe escaping, auto column width)
+- Merged cells → HTML `<table>` with warning
+- Ordered / unordered nested lists
+- Code blocks with language tag
+- Footnotes and endnotes
+- Image extraction with configurable directory and reference prefix
+- YAML front matter (title, author, subject, keywords)
+- Thematic breaks, page breaks, column breaks
+
+### Edit existing documents
+
+```rust
+EasyDoc::edit("input.docx")?
+    .replace_text("Old Company", "New Company")
+    .save_as("updated.docx")?;
+```
+
 ---
 
-## Architecture 架构
+## Workspace & Crate Architecture
 
 ```
 easydoc-rust/
-├── Cargo.toml                          workspace manifest
+├── Cargo.toml                        workspace manifest
 ├── crates/
-│   ├── easydoc/                        facade — EasyDoc static factory
-│   ├── easydoc-core/                   core types, traits, errors, styles
-│   ├── easydoc-derive/                 proc-macro #[derive(DocxRow)]
-│   ├── easydoc-ooxml/                  safe package rewrite, limits, atomic output
-│   ├── easydoc-writer/                 DOCX generation via docx-rs
-│   ├── easydoc-reader/                 DOCX/DOC reading via office_oxide
-│   ├── easydoc-template/               placeholder replacement, ZIP-preserving
-│   └── easydoc-markdown/               semantic DOC/DOCX to Markdown conversion
+│   ├── easydoc/                      facade — EasyDoc static factory
+│   ├── easydoc-core/                 backend-agnostic model, traits, errors, styles
+│   ├── easydoc-derive/               #[derive(DocxRow)] proc-macro
+│   ├── easydoc-ooxml/                safe OOXML rewrite, resource limits, atomic output
+│   ├── easydoc-reader/               DOC/DOCX reading via office_oxide
+│   ├── easydoc-writer/               DOCX creation via docx-rs
+│   ├── easydoc-template/             template placeholder fill
+│   └── easydoc-markdown/             DOC/DOCX → Markdown conversion
+├── docs/
+│   ├── easydoc-rust-Architecture.md           architecture (English)
+│   ├── easydoc-rust-Architecture.zh_CN.md     架构设计（中文）
+│   ├── usage-guide.md                usage guide
+│   └── roadmap.md                    roadmap
+├── README.md
+└── README_zh.md
 ```
 
-For detailed architecture, see [docs/architecture.md](docs/architecture.md).
+```mermaid
+flowchart TD
+    CORE["easydoc-core"]
+    DERIVE["easydoc-derive"]
+    OOXML["easydoc-ooxml"]
+    READER["easydoc-reader"]
+    WRITER["easydoc-writer"]
+    TEMPLATE["easydoc-template"]
+    MARKDOWN["easydoc-markdown"]
+    FACADE["easydoc"]
 
----
+    DERIVE --> CORE
+    OOXML --> CORE
+    READER --> CORE
+    WRITER --> CORE
+    WRITER --> OOXML
+    TEMPLATE --> CORE
+    TEMPLATE --> OOXML
+    MARKDOWN --> CORE
+    MARKDOWN --> READER
+    MARKDOWN --> OOXML
 
-## Backend Dependencies 后端依赖
+    FACADE --> CORE
+    FACADE --> DERIVE
+    FACADE --> READER
+    FACADE --> WRITER
+    FACADE --> TEMPLATE
+    FACADE --> MARKDOWN
+```
 
-| Function 功能 | Crate | Version |
-|:---|:---|:---|
-| DOCX Write | [`docx-rs`](https://crates.io/crates/docx-rs) | 0.4.20 |
-| DOCX/DOC Read | [`office_oxide`](https://crates.io/crates/office_oxide) | 0.1.7 |
+## Round-trip Fidelity & Unknown Content
 
----
+| Content | Read | Modify | Round-trip Preserve | Verification |
+|---|:---:|:---:|:---:|---|
+| Known text / cells / objects | ✅ | ✅ | ✅ | structural assert |
+| Styles and themes | ✅ | partial | partial | XML diff |
+| Unknown extension nodes | transparent | ❌ | ✅ | golden fixture [设计目标] |
+| Binary resources (images) | ✅ | — | ✅ | byte-for-byte test |
+| Macros / scripts | reject | ❌ | by policy | security test [设计目标] |
 
-## Design Principles 设计原则
+## Template Fill Semantics
 
-| # | Principle 原则 | Inherited From 继承自 |
-|:---|:---|:---|
-| 1 | **Static Factory** — `EasyDoc` is the single entry point | easyexcel-rust `EasyExcel` |
-| 2 | **Fluent Builder** — `mut self -> Self` with `#[must_use]` | easyexcel-rust builder pattern |
-| 3 | **Trait Extension** — `DocxRow`, `DocConverter`, `DocWriteHandler`, `DocReadListener` | easyexcel-rust traits |
-| 4 | **Proc-Macro Code Gen** — `#[derive(DocxRow)]` at compile time | easyexcel-rust `#[derive(ExcelRow)]` |
-| 5 | **Backend Agnostic** — unified API, swappable engines | easyexcel-rust multi-format |
-| 6 | **Single Error Type** — `DocError` enum with `thiserror` | easyexcel-rust `ExcelError` |
-| 7 | **Zero Unsafe** — `#![forbid(unsafe_code)]` in every crate | easyexcel-rust safety policy |
+| Dimension | Definition |
+|---|---|
+| Placeholder syntax | `{key}`, `{.field}`, `{prefix.field}` |
+| Scope | `word/document.xml` only |
+| Expansion direction | vertical (table row duplication) |
+| Style inheritance | preserved from template row |
+| XML escaping | automatic for all dynamic values |
+| Cross-run support | placeholders split across `<w:t>` nodes |
+| Error behavior | unchanged target on failure |
 
----
+## Security & Resource Limits
 
-## Testing 测试
+| Limit | Default |
+|---|---|
+| Max ZIP entries | 10,000 |
+| Max single entry size | 256 MB |
+| Max total expanded size | 1 GB |
+| Max compression ratio | 1,000:1 |
+| Output strategy | atomic (temp + persist) |
+
+```mermaid
+flowchart LR
+    Input["Untrusted document"] --> Limits["Size and recursion limits"]
+    Limits --> Parse["Safe parser"]
+    Parse --> Model["Validated model"]
+    Model --> Output["Atomic output"]
+    Parse --> Reject["Stable error + no partial overwrite"]
+```
+
+## Backend Dependencies
+
+| Function | Crate | Version | License |
+|---|---|---|---|
+| DOCX write | [`docx-rs`](https://crates.io/crates/docx-rs) | 0.4 | MIT |
+| DOCX/DOC read | [`office_oxide`](https://crates.io/crates/office_oxide) | 0.1 | MIT |
+| ZIP operations | [`zip`](https://crates.io/crates/zip) | 8.6 | MIT |
+| Error types | [`thiserror`](https://crates.io/crates/thiserror) | 2.0 | MIT/Apache-2.0 |
+
+## Testing
 
 ```bash
-# Run all tests
+# Format check
+cargo fmt --all -- --check
+
+# Lint
+cargo clippy --workspace --all-targets -- -D warnings
+
+# All tests
 cargo test --workspace
+
+# Docs (strict)
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 ```
 
-Tests cover: write/read round trips, Markdown conversion, GFM/merged tables, image extraction, OOXML binary fidelity and limits, atomic failure safety, template XML escaping, format detection, styles, converters and lifecycle hooks.
+Current status: 31 tests pass, 0 failures, 8 ignored.
 
----
+## Roadmap
 
-## Documentation 文档
+| Phase | Scope | Status |
+|---|---|---|
+| Phase 1: Infrastructure | 8-crate workspace, OOXML base, atomic output | ✅ Done |
+| Phase 2: Semantic Model | `DocumentContent`, reader conversion, Markdown | 🔧 In Progress |
+| Phase 3: Event Chain | `DocumentEvent`, `EventSink`, `DocumentReader` trait | Planned |
+| Phase 4: Advanced | equations, comments, revisions, conditional templates | Planned |
+| Phase 5: Ecosystem | CLI, MCP, Web adapter, benchmarks, fuzz | Planned |
 
-| Document | Description |
-|:---|:---|
-| [Usage Guide 使用指南](docs/usage-guide.md) | Comprehensive guide with real-world examples and API reference |
-| [Architecture Design 架构设计](docs/architecture.md) | Full architecture, data flow, design decisions |
-| [API Reference 接口速查](#10-api-reference-接口速查) | Quick-reference in the Usage Guide |
+## Related Projects
 
----
+- [`easyexcel-rust`](https://github.com/easy-4-rust/easyexcel-rust) — Excel counterpart
 
 ## License
 
 Apache-2.0 — see [LICENSE](LICENSE) for details.
-
-## Related Projects 相关项目
-
-- [`easyexcel-rust`](https://github.com/easy-4-rust/easyexcel-rust) — the Excel counterpart
-- [`easypdf-rs`](https://github.com/hiwepy/easypdf-rs) — PDF document operations

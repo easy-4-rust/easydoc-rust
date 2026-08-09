@@ -23,22 +23,28 @@
    - [5.1 Scalar Replacement 标量替换](#51-scalar-replacement-标量替换)
    - [5.2 Collection Expansion 集合展开](#52-collection-expansion-集合展开)
    - [5.3 Fill Configuration 填充配置](#53-fill-configuration-填充配置)
-6. [Style System 样式系统](#6-style-system-样式系统)
-   - [6.1 FontConfig 字体配置](#61-fontconfig-字体配置)
-   - [6.2 ParagraphStyle 段落样式](#62-paragraphstyle-段落样式)
-   - [6.3 TableStyle 表格样式](#63-tablestyle-表格样式)
-   - [6.4 Color 颜色](#64-color-颜色)
-7. [Advanced Features 高级特性](#7-advanced-features-高级特性)
-   - [7.1 #[derive(DocxRow)] 派生宏](#71-derivedocxrow-派生宏)
-   - [7.2 Custom Converters 自定义转换器](#72-custom-converters-自定义转换器)
-   - [7.3 Write Lifecycle Hooks 写入生命周期钩子](#73-write-lifecycle-hooks-写入生命周期钩子)
-   - [7.4 Read Listeners 读取监听器](#74-read-listeners-读取监听器)
-8. [Error Handling 错误处理](#8-error-handling-错误处理)
-9. [Real-World Examples 实战案例](#9-real-world-examples-实战案例)
-10. [API Reference 接口速查](#10-api-reference-接口速查)
-
----
-
+6. [Convert to Markdown 转换 Markdown](#6-convert-to-markdown-转换-markdown)
+   - [6.1 Quick Conversion 快速转换](#61-quick-conversion-快速转换)
+   - [6.2 Full Conversion with Options 完整转换](#62-full-conversion-with-options-完整转换)
+   - [6.3 MarkdownBuilder API](#63-markdownbuilder-api)
+   - [6.4 Supported Markdown Elements](#64-supported-markdown-elements)
+   - [6.5 MarkdownResult](#65-markdownresult)
+7. [Semantic Document Reading 语义文档读取](#7-semantic-document-reading-语义文档读取)
+   - [7.1 Read as DocumentContent](#71-read-as-documentcontent)
+   - [7.2 DocumentContent Model](#72-documentcontent-model)
+8. [Style System 样式系统](#8-style-system-样式系统)
+   - [8.1 FontConfig 字体配置](#81-fontconfig-字体配置)
+   - [8.2 ParagraphStyle 段落样式](#82-paragraphstyle-段落样式)
+   - [8.3 TableStyle 表格样式](#83-tablestyle-表格样式)
+   - [8.4 Color 颜色](#84-color-颜色)
+9. [Advanced Features 高级特性](#9-advanced-features-高级特性)
+   - [9.1 #[derive(DocxRow)] 派生宏](#91-derivedocxrow-派生宏)
+   - [9.2 Custom Converters 自定义转换器](#92-custom-converters-自定义转换器)
+   - [9.3 Write Lifecycle Hooks 写入生命周期钩子](#93-write-lifecycle-hooks-写入生命周期钩子)
+   - [9.4 Read Listeners 读取监听器](#94-read-listeners-读取监听器)
+10. [Error Handling 错误处理](#10-error-handling-错误处理)
+11. [Real-World Examples 实战案例](#11-real-world-examples-实战案例)
+12. [API Reference 接口速查](#12-api-reference-接口速查)
 ## 1. Installation 安装
 
 Add to your `Cargo.toml`:
@@ -439,9 +445,161 @@ let config = FillConfig::new()
 
 ---
 
-## 6. Style System 样式系统
+## 6. Convert to Markdown 转换 Markdown
 
-### 6.1 FontConfig 字体配置
+### 6.1 Quick Conversion 快速转换
+
+```rust
+// Convert DOCX/DOC to Markdown string
+let markdown = EasyDoc::to_markdown("document.docx")?;
+```
+
+### 6.2 Full Conversion with Options 完整转换
+
+```rust
+use easydoc::prelude::*;
+
+let result = EasyDoc::markdown("document.docx")
+    .image_directory("output/assets")     // extract images here
+    .image_reference_prefix("assets")     // Markdown image path prefix
+    .include_front_matter(true)           // YAML front matter
+    .write_to("output/document.md")?;    // atomic write
+
+println!("Markdown: {} chars", result.markdown.len());
+println!("Images extracted: {}", result.assets.len());
+
+for warning in &result.warnings {
+    eprintln!("Conversion fallback: {}", warning.message);
+}
+```
+
+### 6.3 MarkdownBuilder API
+
+```rust
+MarkdownBuilder::new(path)              // source DOCX/DOC
+    .image_directory(dir)               // image output directory
+    .image_reference_prefix(prefix)     // image reference prefix in Markdown
+    .include_front_matter(bool)         // YAML front matter (title/author/subject/keywords)
+    .do_convert()                       // -> Result<MarkdownResult>
+    .write_to(output)                   // -> Result<MarkdownResult> (atomic write)
+```
+
+### 6.4 Supported Markdown Elements
+
+| Element | Output Format | Notes |
+|---|---|---|
+| Headings H1–H6 | `## **text**` | Bold text in headings |
+| Bold | `**text**` | |
+| Italic | `*text*` | |
+| Strikethrough | `~~text~~` | |
+| Hyperlinks | `[text](url)` | |
+| GFM tables | `\| col \|` | Auto column width |
+| Merged cells | HTML `<table>` | + warning |
+| Nested lists | `1. item` / `- item` | With start number |
+| Code blocks | ` ```lang ``` ` | |
+| Footnotes | `[^id]: text` | |
+| Endnotes | `[^endnote-id]: text` | |
+| Images | `![alt](path)` | With extraction |
+| Thematic break | `---` | |
+| Page break | `<!-- page-break -->` | |
+| Column break | `<!-- column-break -->` | |
+| Front matter | `---\ntitle: '...'` | YAML |
+
+### 6.5 MarkdownResult
+
+```rust
+pub struct MarkdownResult {
+    pub markdown: String,           // Generated Markdown text
+    pub assets: Vec<ExtractedAsset>, // Extracted images
+    pub warnings: Vec<ConversionWarning>, // Degradation warnings
+}
+
+pub struct ExtractedAsset {
+    pub path: PathBuf,      // File path on disk
+    pub reference: String,  // Reference used in Markdown
+}
+
+pub struct ConversionWarning {
+    pub message: String,    // Human-readable fallback description
+}
+```
+
+---
+
+## 7. Semantic Document Reading 语义文档读取
+
+### 7.1 Read as DocumentContent
+
+```rust
+use easydoc::easydoc_reader::read_document;
+
+let doc = read_document(std::path::Path::new("document.docx"))?;
+
+// Access metadata
+println!("Title: {:?}", doc.metadata.title);
+println!("Author: {:?}", doc.metadata.author);
+
+// Iterate blocks
+for block in &doc.blocks {
+    match block {
+        DocumentBlock::Heading { level, runs } => {
+            println!("H{}: {}", level, runs.iter().map(|r| r.text.as_str()).collect::<String>());
+        }
+        DocumentBlock::Paragraph(runs) => {
+            println!("{}", runs.iter().map(|r| r.text.as_str()).collect::<String>());
+        }
+        DocumentBlock::Table(table) => {
+            println!("Table: {} rows", table.rows.len());
+        }
+        DocumentBlock::List(list) => {
+            println!("List: {} items, ordered={}", list.items.len(), list.ordered);
+        }
+        DocumentBlock::Image(image) => {
+            println!("Image: {:?}, {} bytes", image.alt_text, image.data.as_ref().map_or(0, |d| d.len()));
+        }
+        _ => {}
+    }
+}
+```
+
+### 7.2 DocumentContent Model
+
+```rust
+pub struct DocumentContent {
+    pub metadata: DocumentMeta,
+    pub blocks: Vec<DocumentBlock>,
+}
+
+pub enum DocumentBlock {
+    Heading { level: u8, runs: Vec<DocumentTextRun> },
+    Paragraph(Vec<DocumentTextRun>),
+    Table(DocumentTable),
+    List(DocumentList),
+    Image(DocumentImage),
+    ThematicBreak,
+    PageBreak,
+    ColumnBreak,
+    CodeBlock { language: Option<String>, code: String },
+    TextBox(Vec<DocumentBlock>),
+    Footnote { id: u32, blocks: Vec<DocumentBlock> },
+    Endnote { id: u32, blocks: Vec<DocumentBlock> },
+}
+
+pub struct DocumentTextRun {
+    pub text: String,
+    pub bold: bool,
+    pub italic: bool,
+    pub strikethrough: bool,
+    pub hyperlink: Option<String>,
+}
+```
+
+---
+
+## 8. Style System 样式系统
+
+
+### 8.1 FontConfig 字体配置
 
 ```rust
 use easydoc::{FontConfig, Color};
@@ -463,7 +621,7 @@ let custom_font = FontConfig::new()
     .color(Color::RED);
 ```
 
-### 6.2 ParagraphStyle 段落样式
+### 8.2 ParagraphStyle 段落样式
 
 ```rust
 use easydoc::{ParagraphStyle, HorizontalAlignment};
@@ -482,7 +640,7 @@ let style = ParagraphStyle::new()
 | `HorizontalAlignment::Right` | Right-aligned |
 | `HorizontalAlignment::Both` | Justified |
 
-### 6.3 TableStyle 表格样式
+### 8.3 TableStyle 表格样式
 
 ```rust
 let style = TableStyle::new()
@@ -496,7 +654,7 @@ let header_style = TableStyle::header();   // bold white text on blue
 let simple_style = TableStyle::simple();   // no borders, no banding
 ```
 
-### 6.4 Color 颜色
+### 8.4 Color 颜色
 
 ```rust
 use easydoc::Color;
@@ -519,9 +677,9 @@ let hex: u32 = orange.to_hex();  // 0xFF8C00
 
 ---
 
-## 7. Advanced Features 高级特性
+## 9. Advanced Features 高级特性
 
-### 7.1 #[derive(DocxRow)] 派生宏
+### 9.1 #[derive(DocxRow)] 派生宏
 
 ```rust
 #[derive(DocxRow)]
@@ -567,7 +725,7 @@ What the derive generates:
 - `from_row(&RowData)` — row-to-struct deserialization
 - `to_row(&self)` — struct-to-row serialization
 
-### 7.2 Custom Converters 自定义转换器
+### 9.2 Custom Converters 自定义转换器
 
 Register custom type converters for specialized formatting:
 
@@ -607,7 +765,7 @@ let mut registry = ConverterRegistry::new();
 registry.register::<String, PhoneConverter>(PhoneConverter);
 ```
 
-### 7.3 Write Lifecycle Hooks 写入生命周期钩子
+### 9.3 Write Lifecycle Hooks 写入生命周期钩子
 
 Intercept and modify the write process at any level:
 
@@ -650,7 +808,7 @@ Hook levels:
 - `before_table` / `after_table` — once per table
 - `before_cell` / `after_cell` — once per table cell
 
-### 7.4 Read Listeners 读取监听器
+### 9.4 Read Listeners 读取监听器
 
 For streaming reads of large documents:
 
@@ -697,7 +855,7 @@ impl DocReadListener<String> for ProgressListener {
 
 ---
 
-## 8. Error Handling 错误处理
+## 10. Error Handling 错误处理
 
 All operations return `easydoc::Result<T>` (alias for `Result<T, DocError>`):
 
@@ -734,9 +892,9 @@ match EasyDoc::read_text("file.docx") {
 
 ---
 
-## 9. Real-World Examples 实战案例
+## 11. Real-World Examples 实战案例
 
-### 9.1 Business Report Generator
+### 11.1 Business Report Generator
 
 ```rust
 #[derive(DocxRow)]
@@ -779,7 +937,7 @@ fn generate_sales_report(path: &str, records: &[SalesRecord]) -> easydoc::Result
 }
 ```
 
-### 9.2 Template-Based Invoice
+### 11.2 Template-Based Invoice
 
 ```rust
 fn generate_invoice(
@@ -805,7 +963,7 @@ fn generate_invoice(
 }
 ```
 
-### 9.3 Document Analyzer
+### 11.3 Document Analyzer
 
 ```rust
 fn analyze_document(path: &str) -> easydoc::Result<DocumentInfo> {
@@ -827,18 +985,33 @@ fn analyze_document(path: &str) -> easydoc::Result<DocumentInfo> {
 
 ---
 
-## 10. API Reference 接口速查
+## 12. API Reference 接口速查
+
+## 12. API Reference 接口速查
 
 ### EasyDoc Static Factory
 
 ```rust
+// Write
 EasyDoc::document(path) -> DocBuilder
 EasyDoc::write_table(path, &[T]) -> TableWriteBuilder<T>
-EasyDoc::fill_template(tpl, out, &HashMap<K,V>) -> Result<()>
-EasyDoc::fill_template_list(tpl, out, &[T], field) -> Result<()>
+
+// Read
 EasyDoc::read(path) -> DocReadBuilder
 EasyDoc::read_text(path) -> Result<String>
 EasyDoc::read_tables::<T>(path) -> Result<Vec<Vec<T>>>
+
+// Template
+EasyDoc::fill_template(tpl, out, &HashMap<K,V>) -> Result<()>
+EasyDoc::fill_template_list(tpl, out, &[T], field) -> Result<()>
+
+// Edit
+EasyDoc::edit(path) -> Result<DocEditor>
+
+// Markdown
+EasyDoc::markdown(path) -> MarkdownBuilder
+EasyDoc::to_markdown(path) -> Result<String>
+EasyDoc::write_markdown(source, output) -> Result<MarkdownResult>
 ```
 
 ### DocBuilder
@@ -853,6 +1026,8 @@ EasyDoc::read_tables::<T>(path) -> Result<Vec<Vec<T>>>
 .add_page_break() -> Self
 .build() -> Result<DocWriteExecutor>
 .save() -> Result<()>
+.save_to_bytes() -> Result<Vec<u8>>
+.save_to_writer(W: Write+Seek) -> Result<()>
 ```
 
 ### TableWriteBuilder<T>
@@ -863,18 +1038,35 @@ EasyDoc::read_tables::<T>(path) -> Result<Vec<Vec<T>>>
 .header_style(TableStyle) -> Self
 .banded_rows(bool) -> Self
 .do_write() -> Result<()>
+.do_write_to_bytes() -> Result<Vec<u8>>
+.do_write_to_writer(W: Write+Seek) -> Result<()>
 ```
 
-### DocReadBuilder
+### MarkdownBuilder
 
 ```rust
-.do_read::<T>() -> Result<Vec<T>>
+.image_directory(dir) -> Self
+.image_reference_prefix(prefix) -> Self
+.include_front_matter(bool) -> Self
+.options(MarkdownOptions) -> Self
+.do_convert() -> Result<MarkdownResult>
+.write_to(output) -> Result<MarkdownResult>
+```
+
+### DocEditor
+
+```rust
+.replace_text(old, new) -> Self
+.save() -> Result<()>
+.save_as(path) -> Result<()>
 ```
 
 ### Standalone Functions
 
 ```rust
 detect_format(path) -> Option<DocumentFormat>
+read_document(path) -> Result<DocumentContent>
+render_document(&DocumentContent, MarkdownOptions) -> Result<MarkdownResult>
 ```
 
 ---
