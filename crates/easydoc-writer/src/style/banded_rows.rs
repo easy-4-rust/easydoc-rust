@@ -37,3 +37,45 @@ impl BandedRowsStrategy {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_strategy() {
+        let s = BandedRowsStrategy::default();
+        assert_eq!(s.even_color, Color::rgb(242, 242, 242));
+        assert!(s.odd_color.is_none());
+    }
+
+    #[test]
+    fn new_equals_default() {
+        let s = BandedRowsStrategy::new();
+        assert_eq!(s.even_color, BandedRowsStrategy::default().even_color);
+    }
+
+    #[test]
+    fn even_rows_use_even_color() {
+        let s = BandedRowsStrategy::new();
+        assert_eq!(s.color_for_row(0), Some(Color::rgb(242, 242, 242)));
+        assert_eq!(s.color_for_row(2), Some(Color::rgb(242, 242, 242)));
+        assert_eq!(s.color_for_row(4), Some(Color::rgb(242, 242, 242)));
+    }
+
+    #[test]
+    fn odd_rows_use_odd_color() {
+        let s = BandedRowsStrategy::new();
+        assert_eq!(s.color_for_row(1), None);
+        assert_eq!(s.color_for_row(3), None);
+    }
+
+    #[test]
+    fn custom_odd_color() {
+        let s = BandedRowsStrategy {
+            odd_color: Some(Color::WHITE),
+            ..Default::default()
+        };
+        assert_eq!(s.color_for_row(1), Some(Color::WHITE));
+    }
+}

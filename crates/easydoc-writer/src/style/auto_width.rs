@@ -29,3 +29,60 @@ impl AutoWidthStrategy {
         width.clamp(self.min_width, self.max_width)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_strategy() {
+        let s = AutoWidthStrategy::default();
+        assert_eq!(s.min_width, 0);
+        assert_eq!(s.max_width, 0);
+    }
+
+    #[test]
+    fn new_has_correct_defaults() {
+        let s = AutoWidthStrategy::new();
+        assert_eq!(s.min_width, 240);
+        assert_eq!(s.max_width, 9600);
+    }
+
+    #[test]
+    fn calculate_width_short_content() {
+        let s = AutoWidthStrategy::new();
+        let w = s.calculate_width(1);
+        assert_eq!(w, 240); // clamped to min
+    }
+
+    #[test]
+    fn calculate_width_medium_content() {
+        let s = AutoWidthStrategy::new();
+        let w = s.calculate_width(10);
+        assert_eq!(w, 2400); // 10 * 240
+    }
+
+    #[test]
+    fn calculate_width_long_content() {
+        let s = AutoWidthStrategy::new();
+        let w = s.calculate_width(100);
+        assert_eq!(w, 9600); // clamped to max
+    }
+
+    #[test]
+    fn calculate_width_zero_content() {
+        let s = AutoWidthStrategy::new();
+        let w = s.calculate_width(0);
+        assert_eq!(w, 240); // clamped to min
+    }
+
+    #[test]
+    fn custom_min_max() {
+        let s = AutoWidthStrategy {
+            min_width: 100,
+            max_width: 5000,
+        };
+        assert_eq!(s.calculate_width(0), 100);
+        assert_eq!(s.calculate_width(100), 5000);
+    }
+}

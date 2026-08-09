@@ -49,3 +49,69 @@ impl Default for Color {
         Self::BLACK
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rgb_constructor() {
+        let c = Color::rgb(10, 20, 30);
+        assert_eq!(c.r, 10);
+        assert_eq!(c.g, 20);
+        assert_eq!(c.b, 30);
+    }
+
+    #[test]
+    fn from_hex_red() {
+        let c = Color::from_hex(0xFF0000);
+        assert_eq!(c, Color::rgb(255, 0, 0));
+    }
+
+    #[test]
+    fn from_hex_green() {
+        let c = Color::from_hex(0x00FF00);
+        assert_eq!(c, Color::rgb(0, 255, 0));
+    }
+
+    #[test]
+    fn from_hex_blue() {
+        let c = Color::from_hex(0x0000FF);
+        assert_eq!(c, Color::rgb(0, 0, 255));
+    }
+
+    #[test]
+    fn to_hex_roundtrip() {
+        let c = Color::rgb(0x44, 0x72, 0xC4);
+        assert_eq!(c.to_hex(), 0x4472C4);
+    }
+
+    #[test]
+    fn from_hex_to_hex_roundtrip() {
+        let hex = 0xAABBCC;
+        let c = Color::from_hex(hex);
+        assert_eq!(c.to_hex(), hex);
+    }
+
+    #[test]
+    fn constants() {
+        assert_eq!(Color::BLACK, Color::rgb(0, 0, 0));
+        assert_eq!(Color::WHITE, Color::rgb(255, 255, 255));
+        assert_eq!(Color::RED, Color::from_hex(0xFF0000));
+        assert_eq!(Color::DARK_GRAY, Color::rgb(64, 64, 64));
+        assert_eq!(Color::HEADER_BLUE, Color::from_hex(0x4472C4));
+    }
+
+    #[test]
+    fn default_is_black() {
+        let c = Color::default();
+        assert_eq!(c, Color::BLACK);
+    }
+
+    #[test]
+    fn copy_and_eq() {
+        let a = Color::rgb(1, 2, 3);
+        let b = a;
+        assert_eq!(a, b);
+    }
+}

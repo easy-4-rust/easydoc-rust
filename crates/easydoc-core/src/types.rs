@@ -244,3 +244,149 @@ impl<T: Into<DocValue>> From<Option<T>> for DocValue {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{TimeZone, Utc};
+
+    #[test]
+    fn doc_value_from_string() {
+        let v: DocValue = "hello".into();
+        assert!(matches!(v, DocValue::String(s) if s == "hello"));
+    }
+
+    #[test]
+    fn doc_value_from_owned_string() {
+        let v: DocValue = String::from("world").into();
+        assert!(matches!(v, DocValue::String(s) if s == "world"));
+    }
+
+    #[test]
+    fn doc_value_from_bool() {
+        let v: DocValue = true.into();
+        assert!(matches!(v, DocValue::Bool(true)));
+    }
+
+    #[test]
+    fn doc_value_from_i64() {
+        let v: DocValue = 42i64.into();
+        assert!(matches!(v, DocValue::Int(42)));
+    }
+
+    #[test]
+    fn doc_value_from_i32() {
+        let v: DocValue = 7i32.into();
+        assert!(matches!(v, DocValue::Int(7)));
+    }
+
+    #[test]
+    fn doc_value_from_u32() {
+        let v: DocValue = 99u32.into();
+        assert!(matches!(v, DocValue::Int(99)));
+    }
+
+    #[test]
+    fn doc_value_from_f64() {
+        let v: DocValue = 3.14f64.into();
+        assert!(matches!(v, DocValue::Float(f) if (f - 3.14).abs() < f64::EPSILON));
+    }
+
+    #[test]
+    fn doc_value_from_datetime_utc() {
+        let dt = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+        let v: DocValue = dt.into();
+        assert!(matches!(v, DocValue::DateTime(_)));
+    }
+
+    #[test]
+    fn doc_value_from_naive_date() {
+        let d = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+        let v: DocValue = d.into();
+        assert!(matches!(v, DocValue::Date(_)));
+    }
+
+    #[test]
+    fn doc_value_from_naive_datetime() {
+        let ndt = NaiveDate::from_ymd_opt(2024, 6, 1)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap();
+        let v: DocValue = ndt.into();
+        assert!(matches!(v, DocValue::NaiveDateTime(_)));
+    }
+
+    #[test]
+    fn doc_value_from_option_some() {
+        let v: DocValue = Some("test").into();
+        assert!(matches!(v, DocValue::String(s) if s == "test"));
+    }
+
+    #[test]
+    fn doc_value_from_option_none() {
+        let v: DocValue = Option::<String>::None.into();
+        assert!(matches!(v, DocValue::Empty));
+    }
+
+    #[test]
+    fn cell_data_new_and_alignment() {
+        let cell = CellData::new("hello").alignment(HorizontalAlignment::Center);
+        assert!(matches!(cell.value, DocValue::String(_)));
+        assert_eq!(cell.alignment, Some(HorizontalAlignment::Center));
+        assert_eq!(cell.col_span, 1);
+        assert_eq!(cell.row_span, 1);
+    }
+
+    #[test]
+    fn row_data_new() {
+        let cells = vec![CellData::new("a"), CellData::new("b")];
+        let row = RowData::new(cells);
+        assert_eq!(row.cells.len(), 2);
+        assert!(row.height.is_none());
+    }
+
+    #[test]
+    fn horizontal_alignment_debug_and_eq() {
+        assert_eq!(HorizontalAlignment::Left, HorizontalAlignment::Left);
+        assert_ne!(HorizontalAlignment::Left, HorizontalAlignment::Right);
+        let _ = format!("{:?}", HorizontalAlignment::Both);
+    }
+
+    #[test]
+    fn heading_level_variants() {
+        assert_ne!(HeadingLevel::H1, HeadingLevel::H2);
+        assert_ne!(HeadingLevel::H3, HeadingLevel::H6);
+    }
+
+    #[test]
+    fn error_action_variants() {
+        assert_eq!(ErrorAction::Continue, ErrorAction::Continue);
+        assert_ne!(ErrorAction::Stop, ErrorAction::Skip);
+    }
+
+    #[test]
+    fn rich_run_debug() {
+        let run = RichRun {
+            text: "hi".into(),
+            bold: true,
+            italic: false,
+            size: Some(24),
+            color: Some(0xFF0000),
+            font: Some("Arial".into()),
+        };
+        let dbg = format!("{:?}", run);
+        assert!(dbg.contains("hi"));
+    }
+
+    #[test]
+    fn image_data_debug() {
+        let img = ImageData {
+            bytes: vec![0x89, 0x50],
+            extension: "png".into(),
+            width: Some(100),
+            height: Some(200),
+            alt_text: Some("test".into()),
+        };
+        assert!(format!("{:?}", img).contains("png"));
+    }
+}

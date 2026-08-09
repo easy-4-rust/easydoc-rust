@@ -54,3 +54,36 @@ impl ParagraphStyle {
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_paragraph_style() {
+        let s = ParagraphStyle::default();
+        assert!(s.alignment.is_none());
+        assert!(s.first_line_indent.is_none());
+        assert!(s.space_after.is_none());
+        assert!(s.line_spacing.is_none());
+    }
+
+    #[test]
+    fn new_equals_default() {
+        let s = ParagraphStyle::new();
+        assert!(s.alignment.is_none());
+    }
+
+    #[test]
+    fn builder_chain() {
+        let s = ParagraphStyle::new()
+            .alignment(HorizontalAlignment::Center)
+            .first_line_indent(480)
+            .space_after(200)
+            .line_spacing(360);
+        assert_eq!(s.alignment, Some(HorizontalAlignment::Center));
+        assert_eq!(s.first_line_indent, Some(480));
+        assert_eq!(s.space_after, Some(200));
+        assert_eq!(s.line_spacing, Some(360));
+    }
+}

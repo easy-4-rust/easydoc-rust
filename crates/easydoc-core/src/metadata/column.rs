@@ -71,3 +71,35 @@ impl TableColumn {
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn column_new() {
+        let c = TableColumn::new("Name", "name", 0);
+        assert_eq!(c.name, "Name");
+        assert_eq!(c.field_name, "name");
+        assert_eq!(c.index, 0);
+        assert_eq!(c.order, 0);
+        assert!(c.width.is_none());
+        assert!(c.format.is_none());
+        assert!(!c.ignored);
+    }
+
+    #[test]
+    fn column_builder_chain() {
+        let c = TableColumn::new("Age", "age", 1)
+            .name("User Age")
+            .order(5)
+            .width(0.3)
+            .format("%Y-%m-%d")
+            .ignore();
+        assert_eq!(c.name, "User Age");
+        assert_eq!(c.order, 5);
+        assert_eq!(c.width, Some(0.3));
+        assert_eq!(c.format.as_deref(), Some("%Y-%m-%d"));
+        assert!(c.ignored);
+    }
+}

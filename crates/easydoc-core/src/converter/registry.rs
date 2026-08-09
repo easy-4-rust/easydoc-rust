@@ -468,3 +468,244 @@ fn fallback_from_doc_value<V: 'static>(value: &DocValue, column: &TableColumn) -
         ))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::ImageData;
+    use chrono::{TimeZone, Utc};
+
+    fn test_column() -> TableColumn {
+        TableColumn::new("Test", "test", 0)
+    }
+
+    #[test]
+    fn empty_registry() {
+        let r = ConverterRegistry::new();
+        assert!(!r.contains::<String>());
+        let dbg = format!("{:?}", r);
+        assert!(dbg.contains("count: 0"));
+    }
+
+    #[test]
+    fn fallback_string_from_string_value() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::String("hello".into());
+        let result: String = r.from_doc_value(&v, &test_column()).unwrap();
+        assert_eq!(result, "hello");
+    }
+
+    #[test]
+    fn fallback_string_from_int_value() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Int(42);
+        let result: String = r.from_doc_value(&v, &test_column()).unwrap();
+        assert_eq!(result, "42");
+    }
+
+    #[test]
+    fn fallback_string_from_float_value() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Float(3.14);
+        let result: String = r.from_doc_value(&v, &test_column()).unwrap();
+        assert_eq!(result, "3.14");
+    }
+
+    #[test]
+    fn fallback_string_from_bool_value() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Bool(true);
+        let result: String = r.from_doc_value(&v, &test_column()).unwrap();
+        assert_eq!(result, "true");
+    }
+
+    #[test]
+    fn fallback_string_from_empty() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Empty;
+        let result: String = r.from_doc_value(&v, &test_column()).unwrap();
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn fallback_string_from_image_fails() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Image(ImageData {
+            bytes: vec![],
+            extension: "png".into(),
+            width: None,
+            height: None,
+            alt_text: None,
+        });
+        let result: std::result::Result<String, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_i64_from_int() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Int(100);
+        let result: i64 = r.from_doc_value(&v, &test_column()).unwrap();
+        assert_eq!(result, 100);
+    }
+
+    #[test]
+    fn fallback_i64_from_string_parse() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::String("256".into());
+        let result: i64 = r.from_doc_value(&v, &test_column()).unwrap();
+        assert_eq!(result, 256);
+    }
+
+    #[test]
+    fn fallback_i64_from_invalid_string() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::String("abc".into());
+        let result: std::result::Result<i64, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_f64_from_float() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Float(2.5);
+        let result: f64 = r.from_doc_value(&v, &test_column()).unwrap();
+        assert!((result - 2.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn fallback_f64_from_string_parse() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::String("1.5".into());
+        let result: f64 = r.from_doc_value(&v, &test_column()).unwrap();
+        assert!((result - 1.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn fallback_bool_from_bool() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Bool(false);
+        let result: bool = r.from_doc_value(&v, &test_column()).unwrap();
+        assert!(!result);
+    }
+
+    #[test]
+    fn fallback_to_doc_value_string() {
+        let r = ConverterRegistry::new();
+        let val = String::from("test");
+        let result = r.to_doc_value(&val, &test_column()).unwrap();
+        assert!(matches!(result, DocValue::String(s) if s == "test"));
+    }
+
+    #[test]
+    fn fallback_to_doc_value_i64() {
+        let r = ConverterRegistry::new();
+        let val: i64 = 42;
+        let result = r.to_doc_value(&val, &test_column()).unwrap();
+        assert!(matches!(result, DocValue::Int(42)));
+    }
+
+    #[test]
+    fn fallback_to_doc_value_i32() {
+        let r = ConverterRegistry::new();
+        let val: i32 = 7;
+        let result = r.to_doc_value(&val, &test_column()).unwrap();
+        assert!(matches!(result, DocValue::Int(7)));
+    }
+
+    #[test]
+    fn fallback_to_doc_value_u32() {
+        let r = ConverterRegistry::new();
+        let val: u32 = 99;
+        let result = r.to_doc_value(&val, &test_column()).unwrap();
+        assert!(matches!(result, DocValue::Int(99)));
+    }
+
+    #[test]
+    fn fallback_to_doc_value_f64() {
+        let r = ConverterRegistry::new();
+        let val: f64 = 1.5;
+        let result = r.to_doc_value(&val, &test_column()).unwrap();
+        assert!(matches!(result, DocValue::Float(f) if (f - 1.5).abs() < f64::EPSILON));
+    }
+
+    #[test]
+    fn fallback_to_doc_value_bool() {
+        let r = ConverterRegistry::new();
+        let val = true;
+        let result = r.to_doc_value(&val, &test_column()).unwrap();
+        assert!(matches!(result, DocValue::Bool(true)));
+    }
+
+    #[test]
+    fn fallback_to_doc_value_datetime() {
+        let r = ConverterRegistry::new();
+        let val = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+        let result = r.to_doc_value(&val, &test_column()).unwrap();
+        assert!(matches!(result, DocValue::DateTime(_)));
+    }
+
+    #[test]
+    fn fallback_to_doc_value_naive_date() {
+        let r = ConverterRegistry::new();
+        let val = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+        let result = r.to_doc_value(&val, &test_column()).unwrap();
+        assert!(matches!(result, DocValue::Date(_)));
+    }
+
+    #[test]
+    fn fallback_to_doc_value_naive_datetime() {
+        let r = ConverterRegistry::new();
+        let val = NaiveDate::from_ymd_opt(2024, 6, 1)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap();
+        let result = r.to_doc_value(&val, &test_column()).unwrap();
+        assert!(matches!(result, DocValue::NaiveDateTime(_)));
+    }
+
+    #[test]
+    fn fallback_i32_roundtrip() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Int(42);
+        let result: i32 = r.from_doc_value(&v, &test_column()).unwrap();
+        assert_eq!(result, 42);
+    }
+
+    #[test]
+    fn fallback_u32_roundtrip() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Int(42);
+        let result: u32 = r.from_doc_value(&v, &test_column()).unwrap();
+        assert_eq!(result, 42);
+    }
+
+    #[test]
+    fn fallback_datetime_from_string() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::DateTime(Utc.timestamp_opt(1_700_000_000, 0).unwrap());
+        let result: DateTime<Utc> = r.from_doc_value(&v, &test_column()).unwrap();
+        assert_eq!(result.timestamp(), 1_700_000_000);
+    }
+
+    #[test]
+    fn fallback_naive_date_from_date() {
+        let r = ConverterRegistry::new();
+        let d = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+        let v = DocValue::Date(d);
+        let result: NaiveDate = r.from_doc_value(&v, &test_column()).unwrap();
+        assert_eq!(result, d);
+    }
+
+    #[test]
+    fn fallback_naive_datetime_from_ndt() {
+        let r = ConverterRegistry::new();
+        let ndt = NaiveDate::from_ymd_opt(2024, 6, 1)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap();
+        let v = DocValue::NaiveDateTime(ndt);
+        let result: NaiveDateTime = r.from_doc_value(&v, &test_column()).unwrap();
+        assert_eq!(result, ndt);
+    }
+}

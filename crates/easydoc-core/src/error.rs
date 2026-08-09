@@ -59,3 +59,83 @@ impl From<zip::result::ZipError> for DocError {
         Self::Zip(e.to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn error_display_io() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "missing");
+        let err = DocError::Io(io_err);
+        assert!(format!("{}", err).contains("I/O error"));
+    }
+
+    #[test]
+    fn error_display_zip() {
+        let err = DocError::Zip("corrupt".into());
+        assert!(format!("{}", err).contains("ZIP error"));
+    }
+
+    #[test]
+    fn error_display_format() {
+        let err = DocError::Format("bad xml".into());
+        assert!(format!("{}", err).contains("Format error"));
+    }
+
+    #[test]
+    fn error_display_template() {
+        let err = DocError::Template {
+            placeholder: "name".into(),
+            message: "not found".into(),
+        };
+        let s = format!("{}", err);
+        assert!(s.contains("name"));
+        assert!(s.contains("not found"));
+    }
+
+    #[test]
+    fn error_display_conversion() {
+        let err = DocError::Conversion {
+            field: "age".into(),
+            value: "abc".into(),
+            message: "not a number".into(),
+        };
+        let s = format!("{}", err);
+        assert!(s.contains("age"));
+        assert!(s.contains("abc"));
+    }
+
+    #[test]
+    fn error_display_unsupported() {
+        let err = DocError::Unsupported("macro".into());
+        assert!(format!("{}", err).contains("Unsupported operation"));
+    }
+
+    #[test]
+    fn error_display_document() {
+        let err = DocError::Document("corrupted".into());
+        assert!(format!("{}", err).contains("Document error"));
+    }
+
+    #[test]
+    fn error_from_zip_error() {
+        let zip_err = zip::result::ZipError::FileNotFound;
+        let err: DocError = zip_err.into();
+        assert!(matches!(err, DocError::Zip(_)));
+    }
+
+    #[test]
+    fn error_from_io_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied");
+        let err: DocError = io_err.into();
+        assert!(matches!(err, DocError::Io(_)));
+    }
+
+    #[test]
+    fn error_debug() {
+        let err = DocError::Document("test".into());
+        let dbg = format!("{:?}", err);
+        assert!(dbg.contains("Document"));
+    }
+}

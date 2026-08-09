@@ -89,3 +89,51 @@ impl TableStyle {
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_table_style() {
+        let s = TableStyle::default();
+        assert!(s.borders);
+        assert!(!s.banded_rows);
+        assert!(!s.auto_width);
+        assert_eq!(s.header_background, Some(Color::HEADER_BLUE));
+    }
+
+    #[test]
+    fn new_equals_default() {
+        let s = TableStyle::new();
+        assert!(s.borders);
+    }
+
+    #[test]
+    fn header_style() {
+        let s = TableStyle::header();
+        assert!(s.borders);
+        assert_eq!(s.header_background, Some(Color::HEADER_BLUE));
+    }
+
+    #[test]
+    fn simple_style() {
+        let s = TableStyle::simple();
+        assert!(!s.borders);
+        assert!(s.header_background.is_none());
+        assert!(s.header_font.bold);
+    }
+
+    #[test]
+    fn builder_chain() {
+        let s = TableStyle::new()
+            .banded_rows(true)
+            .auto_width(true)
+            .borders(false)
+            .header_background(Color::RED);
+        assert!(s.banded_rows);
+        assert!(s.auto_width);
+        assert!(!s.borders);
+        assert_eq!(s.header_background, Some(Color::RED));
+    }
+}

@@ -101,3 +101,56 @@ impl FontConfig {
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_font_config() {
+        let f = FontConfig::default();
+        assert!(!f.bold);
+        assert!(!f.italic);
+        assert!(!f.underline);
+        assert_eq!(f.size, Some(22));
+        assert_eq!(f.color, Some(Color::BLACK));
+        assert!(f.name.is_none());
+    }
+
+    #[test]
+    fn new_equals_default() {
+        assert_eq!(FontConfig::new().size, FontConfig::default().size);
+    }
+
+    #[test]
+    fn bold_font() {
+        let f = FontConfig::bold();
+        assert!(f.bold);
+        assert!(!f.italic);
+    }
+
+    #[test]
+    fn header_font() {
+        let f = FontConfig::header();
+        assert!(f.bold);
+        assert_eq!(f.color, Some(Color::WHITE));
+        assert_eq!(f.size, Some(22));
+    }
+
+    #[test]
+    fn builder_chain() {
+        let f = FontConfig::new()
+            .name("Arial")
+            .size(28)
+            .with_bold(true)
+            .with_italic(true)
+            .with_underline(true)
+            .color(Color::RED);
+        assert_eq!(f.name.as_deref(), Some("Arial"));
+        assert_eq!(f.size, Some(28));
+        assert!(f.bold);
+        assert!(f.italic);
+        assert!(f.underline);
+        assert_eq!(f.color, Some(Color::RED));
+    }
+}
