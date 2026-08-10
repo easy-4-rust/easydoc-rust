@@ -666,3 +666,211 @@ fn test_write_table_to_writer() {
     let read = std::io::Cursor::new(buf);
     zip::ZipArchive::new(read).expect("valid ZIP");
 }
+
+// =========================================================================
+// 语义模型 Read → Modify → Write 闭环测试
+// =========================================================================
+
+#[test]
+fn test_write_content_creates_valid_docx() {
+    use easydoc_core::{DocumentBlock, DocumentContent, DocumentTextRun};
+
+    let dir = TempDir::new().unwrap();
+    let out = dir.path().join("from_content.docx");
+
+    let content = DocumentContent {
+        metadata: DocumentMeta::default().title("Semantic Write Test"),
+        blocks: vec![
+            DocumentBlock::Heading {
+                level: 1,
+                runs: vec![DocumentTextRun {
+                    text: "Hello Semantic".into(),
+                    bold: true,
+                    ..Default::default()
+                }],
+            },
+            DocumentBlock::Paragraph(vec![DocumentTextRun {
+                text: "This paragraph was written via the core semantic model.".into(),
+                ..Default::default()
+            }]),
+        ],
+    };
+
+    EasyDoc::write_content(&content, &out).expect("write_content should succeed");
+    assert!(out.exists(), "output file should exist");
+
+    // Verify it's a valid ZIP
+    let bytes = fs::read(&out).unwrap();
+    zip::ZipArchive::new(std::io::Cursor::new(bytes)).expect("valid ZIP");
+}
+
+#[test]
+fn test_write_content_to_bytes() {
+    use easydoc_core::{DocumentBlock, DocumentContent, DocumentTextRun};
+
+    let content = DocumentContent {
+        blocks: vec![DocumentBlock::Paragraph(vec![DocumentTextRun {
+            text: "bytes test".into(),
+            ..Default::default()
+        }])],
+        ..Default::default()
+    };
+
+    let bytes = EasyDoc::write_content_to_bytes(&content).expect("should produce bytes");
+    assert!(!bytes.is_empty());
+    zip::ZipArchive::new(std::io::Cursor::new(bytes)).expect("valid ZIP");
+}
+
+#[test]
+fn test_load_modify_write_round_trip() {
+    // Step 1: Create a document with the fluent builder
+    let dir = TempDir::new().unwrap();
+    let original = dir.path().join("original.docx");
+
+    EasyDoc::document(&original)
+        .title("Round Trip Test")
+        .add_heading("Original Title", HeadingLevel::H1)
+        .add_paragraph(Paragraph::new().add_text("Original paragraph content."))
+        .save()
+        .expect("initial write");
+
+    // Step 2: Load as semantic model
+    let mut content = EasyDoc::load(&original).expect("load should succeed");
+    assert!(!content.blocks.is_empty(), "should have blocks");
+
+    // Step 3: Verify we can read text from the original
+    let text = EasyDoc::read_text(&original).expect("read_text");
+    assert!(text.contains("Original Title") || text.contains("Original paragraph"));
+
+    // Step 4: Modify the semantic model
+    content
+        .blocks
+        .push(easydoc_core::DocumentBlock::Paragraph(vec![
+            easydoc_core::DocumentTextRun {
+                text: "Added by round-trip modification.".into(),
+                ..Default::default()
+            },
+        ]));
+
+    // Step 5: Write back
+    let modified = dir.path().join("modified.docx");
+    EasyDoc::write_content(&content, &modified).expect("write_content after modify");
+    assert!(modified.exists());
+
+    // Step 6: Read back and verify the modification persisted
+    let modified_text = EasyDoc::read_text(&modified).expect("read modified");
+    assert!(
+        modified_text.contains("Added by round-trip") || modified_text.contains("round-trip"),
+        "modified text should contain added content, got: {}",
+        modified_text
+    );
+}
+
+#[test]
+fn test_content_renderer_with_table() {
+    use easydoc_core::{
+        DocumentBlock, DocumentContent, DocumentTable, DocumentTableCell, DocumentTableRow,
+        DocumentTextRun,
+    };
+
+    let dir = TempDir::new().unwrap();
+    let out = dir.path().join("table.docx");
+
+    let content = DocumentContent {
+        blocks: vec![DocumentBlock::Table(DocumentTable {
+            rows: vec![
+                DocumentTableRow {
+                    cells: vec![
+                        DocumentTableCell {
+                            blocks: vec![DocumentBlock::Paragraph(vec![DocumentTextRun {
+                                text: "Header 1".into(),
+                                bold: true,
+                                ..Default::default()
+                            }])],
+                            column_span: 1,
+                            row_span: 1,
+                        },
+                        DocumentTableCell {
+                            blocks: vec![DocumentBlock::Paragraph(vec![DocumentTextRun {
+                                text: "Header 2".into(),
+                                bold: true,
+                                ..Default::default()
+                            }])],
+                            column_span: 1,
+                            row_span: 1,
+                        },
+                    ],
+                    is_header: true,
+                },
+                DocumentTableRow {
+                    cells: vec![
+                        DocumentTableCell {
+                            blocks: vec![DocumentBlock::Paragraph(vec![DocumentTextRun {
+                                text: "Cell A".into(),
+                                ..Default::default()
+                            }])],
+                            column_span: 1,
+                            row_span: 1,
+                        },
+                        DocumentTableCell {
+                            blocks: vec![DocumentBlock::Paragraph(vec![DocumentTextRun {
+                                text: "Cell B".into(),
+                                ..Default::default()
+                            }])],
+                            column_span: 1,
+                            row_span: 1,
+                        },
+                    ],
+                    is_header: false,
+                },
+            ],
+        })],
+        ..Default::default()
+    };
+
+    EasyDoc::write_content(&content, &out).expect("table write");
+    assert!(out.exists());
+
+    let text = EasyDoc::read_text(&out).expect("read table");
+    assert!(text.contains("Header 1") || text.contains("Cell A"));
+}
+
+#[test]
+fn test_content_renderer_with_list() {
+    use easydoc_core::{
+        DocumentBlock, DocumentContent, DocumentList, DocumentListItem, DocumentTextRun,
+    };
+
+    let dir = TempDir::new().unwrap();
+    let out = dir.path().join("list.docx");
+
+    let content = DocumentContent {
+        blocks: vec![DocumentBlock::List(DocumentList {
+            ordered: false,
+            start_number: None,
+            items: vec![
+                DocumentListItem {
+                    blocks: vec![DocumentBlock::Paragraph(vec![DocumentTextRun {
+                        text: "Item 1".into(),
+                        ..Default::default()
+                    }])],
+                    nested: None,
+                },
+                DocumentListItem {
+                    blocks: vec![DocumentBlock::Paragraph(vec![DocumentTextRun {
+                        text: "Item 2".into(),
+                        ..Default::default()
+                    }])],
+                    nested: None,
+                },
+            ],
+        })],
+        ..Default::default()
+    };
+
+    EasyDoc::write_content(&content, &out).expect("list write");
+    assert!(out.exists());
+
+    let text = EasyDoc::read_text(&out).expect("read list");
+    assert!(text.contains("Item 1") || text.contains("Item 2"));
+}

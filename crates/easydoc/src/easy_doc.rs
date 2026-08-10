@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use easydoc_core::{DocxRow, Result};
+use easydoc_core::{DocumentContent, DocxRow, Result};
 use easydoc_markdown::{MarkdownBuilder, MarkdownResult};
 use easydoc_reader::DocReadBuilder;
 use easydoc_writer::{DocBuilder, DocEditor, TableWriteBuilder};
@@ -174,5 +174,53 @@ impl EasyDoc {
         output: impl AsRef<Path>,
     ) -> Result<MarkdownResult> {
         MarkdownBuilder::new(source).write_to(output)
+    }
+
+    // ========================================================================
+    // 语义模型 API — Read → Modify → Write 闭环
+    // ========================================================================
+
+    /// 读取 DOC/DOCX 文件，返回语义文档模型。
+    ///
+    /// 这是 Read → Modify → Write 闭环的读取端。
+    /// 返回的  可以被修改后通过 [] 写回。
+    ///
+    /// # Errors
+    ///
+    /// 文件无法打开或解析时返回错误。
+    pub fn load(path: impl AsRef<Path>) -> Result<DocumentContent> {
+        easydoc_reader::read_document(path.as_ref())
+    }
+
+    /// 将语义文档模型写入 DOCX 文件。
+    ///
+    /// 这是 Read → Modify → Write 闭环的写入端。
+    /// 接受由 [] 或程序构造的 。
+    ///
+    /// # Errors
+    ///
+    /// ZIP 或 I/O 错误时返回错误。
+    pub fn write_content(content: &DocumentContent, output: impl AsRef<Path>) -> Result<()> {
+        let docx = easydoc_writer::content_renderer::render_document_content(content)?;
+        easydoc_ooxml::AtomicFile::write(output.as_ref(), |file| {
+            docx.build()
+                .pack(file)
+                .map_err(|e| easydoc_core::DocError::Zip(e.to_string()))
+        })
+    }
+
+    /// 将语义文档模型写入内存字节。
+    ///
+    /// # Errors
+    ///
+    /// ZIP 错误时返回错误。
+    pub fn write_content_to_bytes(content: &DocumentContent) -> Result<Vec<u8>> {
+        let docx = easydoc_writer::content_renderer::render_document_content(content)?;
+        let mut buf = Vec::new();
+        let cursor = std::io::Cursor::new(&mut buf);
+        docx.build()
+            .pack(cursor)
+            .map_err(|e| easydoc_core::DocError::Zip(e.to_string()))?;
+        Ok(buf)
     }
 }

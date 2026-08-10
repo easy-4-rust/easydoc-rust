@@ -6,6 +6,7 @@
 #![deny(unsafe_code)]
 
 mod builder;
+pub mod content_renderer;
 mod doc_editor;
 mod executor;
 mod handler;
@@ -24,7 +25,8 @@ use std::path::PathBuf;
 
 // Re-export key types for the facade
 pub use easydoc_core::{
-    CellData, Color, DocValue, DocxRow, FontConfig, HorizontalAlignment, ParagraphStyle, TableStyle,
+    CellData, Color, DocValue, DocumentBlock, DocumentContent, DocumentTextRun, DocxRow,
+    FontConfig, HorizontalAlignment, ParagraphStyle, TableStyle,
 };
 
 // ---------------------------------------------------------------------------
