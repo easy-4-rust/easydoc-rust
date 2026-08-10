@@ -246,3 +246,63 @@ fn heading_style_name(level: u8) -> &'static str {
 fn heading_outline_level(level: u8) -> usize {
     (level.saturating_sub(1)) as usize
 }
+
+// ---------------------------------------------------------------------------
+// DocWriteHandler 集成 — 在渲染过程中触发生命周期回调
+// ---------------------------------------------------------------------------
+
+/// 将语义模型渲染为 docx-rs 的 Docx 实例，并在渲染过程中触发 handler 回调。
+///
+/// 支持 `DocWriteHandler` trait 的 before/after 回调：
+/// - `before_document` / `after_document`
+/// - `before_paragraph` / `after_paragraph`
+/// - `before_table` / `after_table`
+///
+/// # 参数
+/// - `content`: 完整的语义文档模型。
+/// - `handlers`: 可变引用的 handler 切片，按 order 排序。
+///
+/// # 返回
+pub fn render_with_handler<H: easydoc_core::traits::DocWriteHandler>(
+    content: &DocumentContent,
+    handler: &mut H,
+) -> Result<Docx> {
+    let ctx = easydoc_core::traits::DocWriteContext {
+        path: String::new(),
+    };
+
+    handler.before_document(&ctx)?;
+
+    let mut docx = Docx::new();
+    let mut para_index: usize = 0;
+    let mut table_index: usize = 0;
+
+    for block in &content.blocks {
+        match block {
+            DocumentBlock::Heading { .. } | DocumentBlock::Paragraph(_) => {
+                let p_ctx = easydoc_core::traits::ParagraphContext { index: para_index };
+                handler.before_paragraph(&p_ctx)?;
+                docx = render_block(docx, block)?;
+                handler.after_paragraph(&p_ctx)?;
+                para_index += 1;
+            }
+            DocumentBlock::Table(table) => {
+                let t_ctx = easydoc_core::traits::TableWriteContext {
+                    index: table_index,
+                    row_count: table.rows.len(),
+                };
+                handler.before_table(&t_ctx)?;
+                docx = render_block(docx, block)?;
+                handler.after_table(&t_ctx)?;
+                table_index += 1;
+            }
+            _ => {
+                docx = render_block(docx, block)?;
+            }
+        }
+    }
+
+    handler.after_document(&ctx)?;
+
+    Ok(docx)
+}

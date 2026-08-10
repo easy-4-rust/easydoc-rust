@@ -277,3 +277,158 @@ impl DocImage {
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn paragraph_new_is_empty() {
+        let p = Paragraph::new();
+        assert!(p.runs.is_empty());
+        assert!(p.style.is_none());
+    }
+
+    #[test]
+    fn paragraph_add_text() {
+        let p = Paragraph::new().add_text("hello");
+        assert_eq!(p.runs.len(), 1);
+        assert_eq!(p.runs[0].run_text(), "hello");
+    }
+
+    #[test]
+    fn paragraph_add_run() {
+        let run = Run::new("bold").bold();
+        let p = Paragraph::new().add_run(run);
+        assert_eq!(p.runs.len(), 1);
+        assert!(p.runs[0].font_config().unwrap().bold);
+    }
+
+    #[test]
+    fn paragraph_alignment() {
+        let p = Paragraph::new().alignment(HorizontalAlignment::Center);
+        assert!(p.paragraph_style().is_some());
+        assert_eq!(
+            p.paragraph_style().unwrap().alignment,
+            Some(HorizontalAlignment::Center)
+        );
+    }
+
+    #[test]
+    fn run_text_constructor() {
+        let r = Run::text("test");
+        assert_eq!(r.run_text(), "test");
+        assert!(r.font_config().is_none());
+    }
+
+    #[test]
+    fn run_builder_chain() {
+        let r = Run::new("styled")
+            .bold()
+            .italic()
+            .size(28)
+            .color(0xFF0000)
+            .font("Arial")
+            .underline();
+        let font = r.font_config().unwrap();
+        assert!(font.bold);
+        assert!(font.italic);
+        assert_eq!(font.size, Some(28));
+        assert_eq!(font.color, Some(Color::from_hex(0xFF0000)));
+        assert_eq!(font.name.as_deref(), Some("Arial"));
+        assert!(font.underline);
+    }
+
+    #[test]
+    fn table_from_data_empty() {
+        let users: Vec<TestUser> = vec![];
+        let t = Table::from_data(&users);
+        assert!(t.rows().is_empty());
+        assert!(!t.headers().is_empty());
+    }
+
+    #[test]
+    fn table_from_data_with_rows() {
+        let users = vec![
+            TestUser {
+                name: "Alice".into(),
+                age: 30,
+                email: "a@b.com".into(),
+            },
+            TestUser {
+                name: "Bob".into(),
+                age: 25,
+                email: "b@c.com".into(),
+            },
+        ];
+        let t = Table::from_data(&users);
+        assert_eq!(t.rows().len(), 2);
+        assert_eq!(t.headers().len(), 3);
+    }
+
+    #[test]
+    fn table_builder_methods() {
+        let t = Table::from_data::<TestUser>(&[])
+            .banded_rows(true)
+            .auto_width();
+        assert!(t.style.is_some());
+        assert!(t.style.as_ref().unwrap().banded_rows);
+        assert!(t.style.as_ref().unwrap().auto_width);
+    }
+
+    #[test]
+    fn doc_image_builder() {
+        let img = DocImage::new("/tmp/test.png")
+            .width(100)
+            .height(200)
+            .alt_text("test image");
+        assert_eq!(img.path, std::path::PathBuf::from("/tmp/test.png"));
+        assert_eq!(img.width, Some(100));
+        assert_eq!(img.height, Some(200));
+    }
+
+    // Helper struct for table tests
+    #[derive(Debug, Clone)]
+    struct TestUser {
+        name: String,
+        age: u32,
+        email: String,
+    }
+
+    impl DocxRow for TestUser {
+        fn schema() -> &'static [easydoc_core::metadata::TableColumn] {
+            static SCHEMA: std::sync::LazyLock<Vec<easydoc_core::metadata::TableColumn>> =
+                std::sync::LazyLock::new(|| {
+                    vec![
+                        easydoc_core::metadata::TableColumn::new("Name", "name", 0),
+                        easydoc_core::metadata::TableColumn::new("Age", "age", 1),
+                        easydoc_core::metadata::TableColumn::new("Email", "email", 2),
+                    ]
+                });
+            &SCHEMA
+        }
+
+        fn from_row(_row: &easydoc_core::RowData) -> easydoc_core::Result<Self> {
+            unimplemented!()
+        }
+        fn from_row_with_converters(
+            _row: &easydoc_core::RowData,
+            _registry: &easydoc_core::ConverterRegistry,
+        ) -> easydoc_core::Result<Self> {
+            unimplemented!()
+        }
+        fn to_row(&self) -> easydoc_core::Result<Vec<easydoc_core::CellData>> {
+            Ok(vec![
+                easydoc_core::CellData::new(self.name.clone()),
+                easydoc_core::CellData::new(self.age as i64),
+                easydoc_core::CellData::new(self.email.clone()),
+            ])
+        }
+        fn to_row_with_converters(
+            &self,
+            _registry: &easydoc_core::ConverterRegistry,
+        ) -> easydoc_core::Result<Vec<easydoc_core::CellData>> {
+            self.to_row()
+        }
+    }
+}
