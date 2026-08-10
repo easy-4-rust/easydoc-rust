@@ -874,3 +874,286 @@ fn test_content_renderer_with_list() {
     let text = EasyDoc::read_text(&out).expect("read list");
     assert!(text.contains("Item 1") || text.contains("Item 2"));
 }
+
+// =========================================================================
+// 覆盖率提升：content_renderer 全路径测试
+// =========================================================================
+
+#[test]
+fn test_content_renderer_code_block() {
+    use easydoc_core::{DocumentBlock, DocumentContent, DocumentTextRun};
+
+    let dir = TempDir::new().unwrap();
+    let out = dir.path().join("code.docx");
+    let content = DocumentContent {
+        blocks: vec![DocumentBlock::CodeBlock {
+            language: Some("rust".into()),
+            code: "fn main() { println!(\"hi\"); }".into(),
+        }],
+        ..Default::default()
+    };
+    EasyDoc::write_content(&content, &out).expect("code block write");
+    let text = EasyDoc::read_text(&out).unwrap();
+    assert!(text.contains("fn main") || text.contains("println"));
+}
+
+#[test]
+fn test_content_renderer_thematic_break() {
+    use easydoc_core::{DocumentBlock, DocumentContent, DocumentTextRun};
+
+    let dir = TempDir::new().unwrap();
+    let out = dir.path().join("thematic.docx");
+    let content = DocumentContent {
+        blocks: vec![
+            DocumentBlock::Paragraph(vec![DocumentTextRun {
+                text: "Before".into(),
+                ..Default::default()
+            }]),
+            DocumentBlock::ThematicBreak,
+            DocumentBlock::Paragraph(vec![DocumentTextRun {
+                text: "After".into(),
+                ..Default::default()
+            }]),
+        ],
+        ..Default::default()
+    };
+    EasyDoc::write_content(&content, &out).expect("thematic break write");
+    assert!(out.exists());
+}
+
+#[test]
+fn test_content_renderer_page_break() {
+    use easydoc_core::{DocumentBlock, DocumentContent, DocumentTextRun};
+
+    let dir = TempDir::new().unwrap();
+    let out = dir.path().join("pagebreak.docx");
+    let content = DocumentContent {
+        blocks: vec![DocumentBlock::PageBreak, DocumentBlock::ColumnBreak],
+        ..Default::default()
+    };
+    EasyDoc::write_content(&content, &out).expect("page break write");
+    assert!(out.exists());
+}
+
+#[test]
+fn test_content_renderer_heading_levels() {
+    use easydoc_core::{DocumentBlock, DocumentContent, DocumentTextRun};
+
+    let dir = TempDir::new().unwrap();
+    let out = dir.path().join("headings.docx");
+    let blocks: Vec<DocumentBlock> = (1..=6u8)
+        .map(|level| DocumentBlock::Heading {
+            level,
+            runs: vec![DocumentTextRun {
+                text: format!("Heading {level}"),
+                bold: true,
+                ..Default::default()
+            }],
+        })
+        .collect();
+    let content = DocumentContent {
+        blocks,
+        ..Default::default()
+    };
+    EasyDoc::write_content(&content, &out).expect("all heading levels");
+    let text = EasyDoc::read_text(&out).unwrap();
+    assert!(text.contains("Heading 1") || text.contains("Heading 6"));
+}
+
+#[test]
+fn test_content_renderer_empty_document() {
+    use easydoc_core::DocumentContent;
+    let dir = TempDir::new().unwrap();
+    let out = dir.path().join("empty.docx");
+    let content = DocumentContent::default();
+    EasyDoc::write_content(&content, &out).expect("empty doc write");
+    assert!(out.exists());
+}
+
+#[test]
+fn test_content_renderer_image_without_data() {
+    use easydoc_core::{DocumentBlock, DocumentContent, DocumentImage};
+
+    let dir = TempDir::new().unwrap();
+    let out = dir.path().join("img_nodata.docx");
+    let content = DocumentContent {
+        blocks: vec![DocumentBlock::Image(DocumentImage {
+            alt_text: Some("missing".into()),
+            data: None,
+            extension: None,
+        })],
+        ..Default::default()
+    };
+    EasyDoc::write_content(&content, &out).expect("image without data should skip");
+    assert!(out.exists());
+}
+
+#[test]
+fn test_content_renderer_table_with_spans() {
+    use easydoc_core::{
+        DocumentBlock, DocumentContent, DocumentTable, DocumentTableCell, DocumentTableRow,
+        DocumentTextRun,
+    };
+
+    let dir = TempDir::new().unwrap();
+    let out = dir.path().join("spans.docx");
+    let content = DocumentContent {
+        blocks: vec![DocumentBlock::Table(DocumentTable {
+            rows: vec![DocumentTableRow {
+                cells: vec![
+                    DocumentTableCell {
+                        blocks: vec![DocumentBlock::Paragraph(vec![DocumentTextRun {
+                            text: "Merged".into(),
+                            ..Default::default()
+                        }])],
+                        column_span: 2,
+                        row_span: 1,
+                    },
+                    DocumentTableCell {
+                        blocks: vec![DocumentBlock::Paragraph(vec![DocumentTextRun {
+                            text: "Normal".into(),
+                            ..Default::default()
+                        }])],
+                        column_span: 1,
+                        row_span: 1,
+                    },
+                ],
+                is_header: false,
+            }],
+        })],
+        ..Default::default()
+    };
+    EasyDoc::write_content(&content, &out).expect("table with spans");
+    assert!(out.exists());
+}
+
+#[test]
+fn test_render_with_handler_fires_callbacks() {
+    use easydoc_core::{
+        DocumentBlock, DocumentContent, DocumentTable, DocumentTableCell, DocumentTableRow,
+        DocumentTextRun,
+    };
+    use easydoc_writer::content_renderer::render_with_handler;
+
+    struct TestHandler {
+        document_before: bool,
+        document_after: bool,
+        para_count: usize,
+        table_count: usize,
+    }
+
+    impl easydoc_core::traits::DocWriteHandler for TestHandler {
+        fn before_document(
+            &mut self,
+            _ctx: &easydoc_core::traits::DocWriteContext,
+        ) -> easydoc_core::Result<()> {
+            self.document_before = true;
+            Ok(())
+        }
+        fn after_document(
+            &mut self,
+            _ctx: &easydoc_core::traits::DocWriteContext,
+        ) -> easydoc_core::Result<()> {
+            self.document_after = true;
+            Ok(())
+        }
+        fn before_paragraph(
+            &mut self,
+            _ctx: &easydoc_core::traits::ParagraphContext,
+        ) -> easydoc_core::Result<()> {
+            self.para_count += 1;
+            Ok(())
+        }
+        fn before_table(
+            &mut self,
+            _ctx: &easydoc_core::traits::TableWriteContext,
+        ) -> easydoc_core::Result<()> {
+            self.table_count += 1;
+            Ok(())
+        }
+    }
+
+    let content = DocumentContent {
+        blocks: vec![
+            DocumentBlock::Paragraph(vec![DocumentTextRun {
+                text: "P1".into(),
+                ..Default::default()
+            }]),
+            DocumentBlock::Table(DocumentTable { rows: vec![] }),
+            DocumentBlock::Heading {
+                level: 1,
+                runs: vec![DocumentTextRun {
+                    text: "H1".into(),
+                    ..Default::default()
+                }],
+            },
+        ],
+        ..Default::default()
+    };
+
+    let mut handler = TestHandler {
+        document_before: false,
+        document_after: false,
+        para_count: 0,
+        table_count: 0,
+    };
+
+    let docx = render_with_handler(&content, &mut handler).expect("render with handler");
+    assert!(handler.document_before);
+    assert!(handler.document_after);
+    assert_eq!(handler.para_count, 2); // Paragraph + Heading
+    assert_eq!(handler.table_count, 1);
+}
+
+// =========================================================================
+// 覆盖率提升：DocBuilder save_to_writer + save_to_bytes 路径
+// =========================================================================
+
+#[test]
+fn test_doc_builder_save_to_writer() {
+    let mut buf = Vec::new();
+    let cursor = std::io::Cursor::new(&mut buf);
+
+    EasyDoc::document("test.docx")
+        .add_heading("Title", HeadingLevel::H1)
+        .add_paragraph(Paragraph::new().add_text("Content"))
+        .save_to_writer(cursor)
+        .expect("save to writer");
+
+    assert!(!buf.is_empty());
+    zip::ZipArchive::new(std::io::Cursor::new(buf)).expect("valid ZIP");
+}
+
+#[test]
+fn test_doc_builder_all_element_types() {
+    let dir = TempDir::new().unwrap();
+    let out = dir.path().join("all_elements.docx");
+
+    EasyDoc::document(&out)
+        .title("All Elements")
+        .author("Test")
+        .add_heading("H1", HeadingLevel::H1)
+        .add_heading("H2", HeadingLevel::H2)
+        .add_heading("H3", HeadingLevel::H3)
+        .add_paragraph(Paragraph::new().add_text("Plain"))
+        .add_paragraph(
+            Paragraph::new()
+                .add_run(Run::new("Bold").bold())
+                .add_run(Run::new("Italic").italic())
+                .add_run(
+                    Run::new("Styled")
+                        .size(28)
+                        .color(0xFF0000)
+                        .font("Arial")
+                        .underline(),
+                )
+                .alignment(HorizontalAlignment::Center),
+        )
+        .add_page_break()
+        .save()
+        .expect("all elements");
+
+    assert!(out.exists());
+    let text = EasyDoc::read_text(&out).unwrap();
+    assert!(text.contains("H1") || text.contains("Plain"));
+}
