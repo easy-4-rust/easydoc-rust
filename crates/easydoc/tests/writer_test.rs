@@ -335,7 +335,7 @@ fn test_image_insertion() {
 
     EasyDoc::document(&path)
         .add_paragraph(Paragraph::new().add_text("Before image"))
-        .add_image(DocImage::new(&img_path))
+        .add_image(easydoc::DocImage::new(&img_path))
         .add_paragraph(Paragraph::new().add_text("After image"))
         .save()
         .expect("save with image");
@@ -1156,4 +1156,202 @@ fn test_doc_builder_all_element_types() {
     assert!(out.exists());
     let text = EasyDoc::read_text(&out).unwrap();
     assert!(text.contains("H1") || text.contains("Plain"));
+}
+
+// =========================================================================
+// 覆盖率提升：write_executor 图片、字体、对齐分支
+// =========================================================================
+
+#[test]
+fn test_write_document_with_styled_table() {
+    let dir = TempDir::new().unwrap();
+    let out = dir.path().join("styled_table.docx");
+
+    EasyDoc::document(&out)
+        .add_heading("Styled Table", HeadingLevel::H1)
+        .add_table(
+            easydoc::Table::from_data(&vec![
+                TestUser {
+                    name: "Alice".into(),
+                    age: 30,
+                    email: "a@b.com".into(),
+                },
+                TestUser {
+                    name: "Bob".into(),
+                    age: 25,
+                    email: "b@c.com".into(),
+                },
+            ])
+            .header_style(easydoc::TableStyle::header())
+            .banded_rows(true)
+            .auto_width(),
+        )
+        .save()
+        .expect("styled table write");
+
+    assert!(out.exists());
+    let text = EasyDoc::read_text(&out).unwrap();
+    assert!(text.contains("Alice") || text.contains("Bob"));
+}
+
+#[test]
+fn test_write_table_no_header() {
+    let dir = TempDir::new().unwrap();
+    let out = dir.path().join("no_header.docx");
+
+    EasyDoc::write_table(
+        &out,
+        &vec![TestUser {
+            name: "X".into(),
+            age: 1,
+            email: "x@y.z".into(),
+        }],
+    )
+    .need_header(false)
+    .do_write()
+    .expect("no header write");
+
+    assert!(out.exists());
+}
+
+#[test]
+fn test_write_table_with_title_and_banded() {
+    let dir = TempDir::new().unwrap();
+    let out = dir.path().join("titled.docx");
+
+    EasyDoc::write_table(
+        &out,
+        &vec![TestUser {
+            name: "Y".into(),
+            age: 2,
+            email: "y@z.w".into(),
+        }],
+    )
+    .title("User Report")
+    .banded_rows(true)
+    .do_write()
+    .expect("titled write");
+
+    let text = EasyDoc::read_text(&out).unwrap();
+    assert!(text.contains("User Report") || text.contains("Y"));
+}
+
+#[test]
+fn test_write_table_to_bytes_v2() {
+    let bytes = EasyDoc::write_table_to_bytes(&vec![TestUser {
+        name: "Z".into(),
+        age: 3,
+        email: "z@w.v".into(),
+    }])
+    .expect("table to bytes");
+
+    assert!(!bytes.is_empty());
+    zip::ZipArchive::new(std::io::Cursor::new(bytes)).expect("valid ZIP");
+}
+
+#[test]
+fn test_doc_builder_with_image_file() {
+    let dir = TempDir::new().unwrap();
+    // Create a tiny valid PNG (1x1 pixel)
+    let img_path = dir.path().join("test.png");
+    let png_bytes: Vec<u8> = vec![
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
+        0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR chunk
+        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1
+        0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44,
+        0x41, 0x54, // IDAT
+        0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01, 0xE2, 0x21, 0xBC,
+        0x33, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, // IEND
+        0xAE, 0x42, 0x60, 0x82,
+    ];
+    std::fs::write(&img_path, &png_bytes).unwrap();
+
+    let out = dir.path().join("with_image.docx");
+    EasyDoc::document(&out)
+        .add_heading("Image Test", HeadingLevel::H1)
+        .add_image(
+            DocImage::new(&img_path)
+                .width(100)
+                .height(100)
+                .alt_text("test"),
+        )
+        .save()
+        .expect("image write");
+
+    assert!(out.exists());
+    let bytes = std::fs::read(&out).unwrap();
+    zip::ZipArchive::new(std::io::Cursor::new(bytes)).expect("valid ZIP");
+}
+
+#[test]
+fn test_content_renderer_with_image_data() {
+    use easydoc_core::{DocumentBlock, DocumentContent, DocumentImage};
+
+    let dir = TempDir::new().unwrap();
+    let out = dir.path().join("img_data.docx");
+    // Minimal PNG bytes
+    let png: Vec<u8> = vec![
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
+        0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90,
+        0x77, 0x53, 0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8,
+        0xCF, 0xC0, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01, 0xE2, 0x21, 0xBC, 0x33, 0x00, 0x00, 0x00,
+        0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+    ];
+    let content = DocumentContent {
+        blocks: vec![DocumentBlock::Image(DocumentImage {
+            alt_text: Some("logo".into()),
+            data: Some(png),
+            extension: Some("png".into()),
+        })],
+        ..Default::default()
+    };
+    EasyDoc::write_content(&content, &out).expect("image with data write");
+    assert!(out.exists());
+}
+
+#[test]
+fn test_write_document_all_font_styles() {
+    let dir = TempDir::new().unwrap();
+    let out = dir.path().join("fonts.docx");
+
+    EasyDoc::document(&out)
+        .add_paragraph(
+            Paragraph::new().add_run(
+                Run::new("Bold Red Arial 28pt Underline")
+                    .bold()
+                    .italic()
+                    .color(0xFF0000)
+                    .font("Arial")
+                    .size(28)
+                    .underline(),
+            ),
+        )
+        .add_paragraph(Paragraph::new().alignment(HorizontalAlignment::Right))
+        .save()
+        .expect("font styles write");
+
+    assert!(out.exists());
+}
+
+#[test]
+fn test_write_table_with_alignment() {
+    let dir = TempDir::new().unwrap();
+    let out = dir.path().join("aligned.docx");
+
+    EasyDoc::document(&out)
+        .add_heading("Alignment Test", HeadingLevel::H2)
+        .add_paragraph(
+            Paragraph::new()
+                .add_text("Centered paragraph")
+                .alignment(HorizontalAlignment::Center),
+        )
+        .add_paragraph(
+            Paragraph::new()
+                .add_text("Justified paragraph")
+                .alignment(HorizontalAlignment::Both),
+        )
+        .save()
+        .expect("alignment write");
+
+    assert!(out.exists());
 }
