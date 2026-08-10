@@ -397,3 +397,92 @@ fn find_matching_close(xml: &str, tag_start: usize, tag_name: &str) -> Result<us
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_replace_scalar_single_placeholder() {
+        let xml = r#"<w:p><w:r><w:t>Hello {name}!</w:t></w:r></w:p>"#;
+        let mut data = HashMap::new();
+        data.insert("name".to_string(), "World".to_string());
+        let result = replace_scalar_placeholders(xml, &data);
+        assert!(result.contains("World"));
+        assert!(!result.contains("{name}"));
+    }
+
+    #[test]
+    fn test_replace_scalar_multiple_placeholders() {
+        let xml = r#"<w:p><w:r><w:t>{greeting} {name}</w:t></w:r></w:p>"#;
+        let mut data = HashMap::new();
+        data.insert("greeting".to_string(), "Hi".to_string());
+        data.insert("name".to_string(), "Rust".to_string());
+        let result = replace_scalar_placeholders(xml, &data);
+        assert!(result.contains("Hi"));
+        assert!(result.contains("Rust"));
+    }
+
+    #[test]
+    fn test_replace_scalar_no_match() {
+        let xml = r#"<w:p><w:r><w:t>No placeholders here</w:t></w:r></w:p>"#;
+        let data = HashMap::new();
+        let result = replace_scalar_placeholders(xml, &data);
+        assert_eq!(result, xml);
+    }
+
+    #[test]
+    fn test_escape_xml_text_special_chars() {
+        assert_eq!(escape_xml_text("a&b"), "a&amp;b");
+        assert_eq!(escape_xml_text("a<b"), "a&lt;b");
+        assert_eq!(escape_xml_text("a>b"), "a&gt;b");
+        assert_eq!(escape_xml_text("a\"b"), "a&quot;b");
+        assert_eq!(escape_xml_text("a'b"), "a&apos;b");
+    }
+
+    #[test]
+    fn test_escape_xml_text_no_special() {
+        assert_eq!(escape_xml_text("hello"), "hello");
+    }
+
+    #[test]
+    fn test_to_string_map_simple() {
+        let value = serde_json::json!({"name": "Alice", "age": 30});
+        let map = to_string_map(&value).unwrap();
+        assert_eq!(map.get("name").unwrap(), "Alice");
+        assert_eq!(map.get("age").unwrap(), "30");
+    }
+
+    #[test]
+    fn test_to_string_map_nested_object() {
+        let value = serde_json::json!({"user": {"name": "Bob"}});
+        let map = to_string_map(&value).unwrap();
+        // nested objects are serialized as JSON strings
+        assert!(map.contains_key("user"));
+    }
+
+    #[test]
+    fn test_to_string_map_array() {
+        let value = serde_json::json!({"tags": ["a", "b"]});
+        let map = to_string_map(&value).unwrap();
+        // arrays are serialized as JSON strings
+        assert!(map.contains_key("tags"));
+    }
+
+    #[test]
+    fn test_replace_across_text_nodes_basic() {
+        let xml = r#"<w:p><w:r><w:t>{na</w:t></w:r><w:r><w:t>me}</w:t></w:r></w:p>"#;
+        let result = replace_across_text_nodes(xml, "{name}", "World");
+        assert!(result.contains("World"));
+        assert!(!result.contains("{name}"));
+    }
+
+    #[test]
+    fn test_find_matching_close_simple() {
+        let xml = "<w:p><w:r><w:t>text</w:t></w:r></w:p>";
+        let start = xml.find("<w:r>").unwrap();
+        let close = find_matching_close(xml, start, "w:r");
+        // Just verify it returns Ok — exact position depends on implementation
+        assert!(close.is_ok());
+    }
+}
