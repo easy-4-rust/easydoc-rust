@@ -1,8 +1,10 @@
 use super::color::Color;
 
-/// Font configuration for text runs.
+/// 文本片段的字体配置。
 ///
-/// Used by both paragraph text and table cell content.
+/// 用于段落文本和表格单元格内容。
+///
+/// 对应 Java: `com.alibaba.excel.write.metadata.style.WriteFont`
 #[derive(Debug, Clone)]
 pub struct FontConfig {
     /// Font family name (e.g. "Arial", "Times New Roman", "宋体").

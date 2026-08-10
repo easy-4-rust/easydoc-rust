@@ -8,6 +8,8 @@ use zip::write::SimpleFileOptions;
 use crate::{AtomicFile, PackageLimits};
 
 /// 在保留未修改二进制条目的前提下重写 OOXML ZIP 包。
+///
+/// 无直接 Java 对应，是 easydoc-rust 自创的 ZIP 重写基础设施。
 pub struct PackageRewriter {
     limits: PackageLimits,
 }

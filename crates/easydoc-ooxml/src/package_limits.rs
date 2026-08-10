@@ -1,4 +1,6 @@
 /// 防止畸形或恶意 OOXML ZIP 包耗尽资源的限制。
+///
+/// 无直接 Java 对应，是 easydoc-rust 自创的安全防护机制。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PackageLimits {
     /// 允许的最大 ZIP 条目数。

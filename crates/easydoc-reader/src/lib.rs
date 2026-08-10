@@ -1,47 +1,26 @@
-//! DOCX/DOC document reader for `easydoc-rust`.
+//! DOCX/DOC 文档读取器。
 //!
-//! Provides text extraction, table reading, and streaming document analysis,
-//! wrapping `office_oxide` for backend parsing.
+//! 提供文本提取、表格读取和流式文档分析，底层包装 `office_oxide` 解析器。
+//!
+//! 对应 Java: `com.alibaba.excel` (`EasyExcel` 读取层)
 
 #![deny(unsafe_code)]
 
-use std::path::Path;
-
-use easydoc_core::{DocumentContent, DocxRow, Result};
-
 mod builder;
-mod extractor;
+pub mod extractor;
 mod listener;
+mod read_document;
+mod read_tables;
+mod read_text;
+pub mod security;
+pub mod view;
 
 pub use builder::read_builder::DocReadBuilder;
+pub use extractor::numbering::Numbering;
+pub use extractor::sax::DocxSaxReader;
 pub use extractor::{DocumentFormat, detect_format};
 pub use listener::collect::CollectListener;
-
-/// Synchronously reads all plain text from a document.
-///
-/// Auto-detects DOCX/DOC format via `office_oxide`.
-///
-/// # Errors
-///
-/// Returns I/O or format errors if the file cannot be read.
-pub fn read_text(path: &Path) -> Result<String> {
-    extractor::text::extract_text(path)
-}
-
-/// Synchronously reads all tables from a document, deserialising each into `Vec<T>`.
-///
-/// # Errors
-///
-/// Returns I/O, format, or conversion errors.
-pub fn read_tables<T: DocxRow>(path: &Path) -> Result<Vec<Vec<T>>> {
-    extractor::table::extract_tables::<T>(path)
-}
-
-/// 读取 DOC 或 DOCX，并转换为不暴露底层解析器类型的语义文档。
-///
-/// # Errors
-///
-/// 文件无法打开或解析时返回错误。
-pub fn read_document(path: &Path) -> Result<DocumentContent> {
-    extractor::semantic::extract_document(path)
-}
+pub use read_document::read_document;
+pub use read_tables::read_tables;
+pub use read_text::read_text;
+pub use view::{ViewMode, render_view};

@@ -1,10 +1,12 @@
-//! Template fill executors — placeholder replacement and collection expansion.
+//! 模板填充执行器 -- 占位符替换和集合展开。
 //!
-//! DOCX files are ZIP archives containing XML. This module:
-//! 1. Opens the template as a ZIP
-//! 2. Modifies `word/document.xml` in-place (scalar replacement)
-//! 3. For collection expansion, replicates table rows containing `{.field}`
-//! 4. Writes a new ZIP preserving all other entries (styles, images, etc.)
+//! DOCX 文件是包含 XML 的 ZIP 归档。本模块：
+//! 1. 以 ZIP 打开模板
+//! 2. 就地修改 `word/document.xml`（标量替换）
+//! 3. 集合展开时，复制包含 `{.field}` 的表格行
+//! 4. 写入新 ZIP，保留所有其他条目（样式、图片等）
+//!
+//! 对应 Java: com.alibaba.excel (easyexcel-template) 的 `ExcelWriter.fill()` 实现
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -548,11 +550,9 @@ mod expanded_tests {
 
     #[test]
     fn escape_xml_text_all_special() {
-        fn escape_xml_text_all_special() {
-            assert_eq!(escape_xml_text("a&b"), "a&amp;b");
-            assert_eq!(escape_xml_text("a<b"), "a&lt;b");
-            assert_eq!(escape_xml_text("a>b"), "a&gt;b");
-        }
+        assert_eq!(escape_xml_text("a&b"), "a&amp;b");
+        assert_eq!(escape_xml_text("a<b"), "a&lt;b");
+        assert_eq!(escape_xml_text("a>b"), "a&gt;b");
         assert_eq!(escape_xml_text("a&b<c>d"), "a&amp;b&lt;c&gt;d");
     }
 
@@ -560,23 +560,23 @@ mod expanded_tests {
 
     #[test]
     fn replace_across_text_nodes_no_match() {
-        let xml = r#"<w:p><w:r><w:t>no match</w:t></w:r></w:p>"#;
+        let xml = r"<w:p><w:r><w:t>no match</w:t></w:r></w:p>";
         let result = replace_across_text_nodes(xml, "{name}", "World");
         assert_eq!(result, xml);
     }
 
     #[test]
     fn replace_across_text_nodes_empty_replacement() {
-        let xml = r#"<w:p><w:r><w:t>{name}</w:t></w:r></w:p>"#;
+        let xml = r"<w:p><w:r><w:t>{name}</w:t></w:r></w:p>";
         let result = replace_across_text_nodes(xml, "{name}", "");
         assert!(!result.contains("{name}"));
     }
 
     #[test]
     fn replace_across_text_nodes_multiple_nodes() {
-        let xml = r#"<w:p><w:r><w:t>{na</w:t></w:r><w:r><w:t>me} and {na</w:t></w:r><w:r><w:t>me}</w:t></w:r></w:p>"#;
+        let xml = r"<w:p><w:r><w:t>{na</w:t></w:r><w:r><w:t>me} and {na</w:t></w:r><w:r><w:t>me}</w:t></w:r></w:p>";
         let result = replace_across_text_nodes(xml, "{name}", "X");
-        assert!(result.contains("X"));
+        assert!(result.contains('X'));
     }
 
     // --- to_string_map edge cases ---
@@ -591,10 +591,10 @@ mod expanded_tests {
 
     #[test]
     fn to_string_map_number_types() {
-        let value = serde_json::json!({"int": 42, "float": 3.14, "bool": true, "null": null});
+        let value = serde_json::json!({"int": 42, "float": std::f64::consts::PI, "bool": true, "null": null});
         let map = to_string_map(&value).unwrap();
         assert_eq!(map.get("int").unwrap(), "42");
-        assert_eq!(map.get("float").unwrap(), "3.14");
+        assert_eq!(map.get("float").unwrap(), "3.141592653589793");
         assert_eq!(map.get("bool").unwrap(), "true");
         assert_eq!(map.get("null").unwrap(), "");
     }
@@ -603,7 +603,7 @@ mod expanded_tests {
 
     #[test]
     fn replace_scalar_xml_special_chars_in_value() {
-        let xml = r#"<w:p><w:r><w:t>{name}</w:t></w:r></w:p>"#;
+        let xml = r"<w:p><w:r><w:t>{name}</w:t></w:r></w:p>";
         let mut data = HashMap::new();
         data.insert("name".to_string(), "A&B <C>".to_string());
         let result = replace_scalar_placeholders(xml, &data);
@@ -613,14 +613,14 @@ mod expanded_tests {
 
     #[test]
     fn replace_scalar_multiple_different_placeholders() {
-        let xml = r#"<w:p><w:r><w:t>{a} and {b} and {c}</w:t></w:r></w:p>"#;
+        let xml = r"<w:p><w:r><w:t>{a} and {b} and {c}</w:t></w:r></w:p>";
         let mut data = HashMap::new();
         data.insert("a".to_string(), "1".to_string());
         data.insert("b".to_string(), "2".to_string());
         data.insert("c".to_string(), "3".to_string());
         let result = replace_scalar_placeholders(xml, &data);
-        assert!(result.contains("1"));
-        assert!(result.contains("2"));
-        assert!(result.contains("3"));
+        assert!(result.contains('1'));
+        assert!(result.contains('2'));
+        assert!(result.contains('3'));
     }
 }

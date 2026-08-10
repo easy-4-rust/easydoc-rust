@@ -1,19 +1,18 @@
-//! Document editor — open existing DOCX for modification.
+//! 文档编辑器 -- 打开已有 DOCX 进行修改。
 //!
-//! Corresponds to Hutool's `Word07Writer(File)` pattern:
-//! if the file exists, open it for editing rather than creating a new document.
+//! 对应 Hutool 的 `Word07Writer(File)` 模式：如果文件存在，打开编辑而非创建新文档。
 
 use std::path::{Path, PathBuf};
 
 use easydoc_core::{DocError, Result};
 use office_oxide::edit::EditableDocument;
 
-/// An open DOCX file ready for modification.
+/// 已打开的 DOCX 文件，准备进行修改。
 ///
-/// Created via the facade's `EasyDoc::edit()` method.
-/// Wraps `office_oxide`'s `EditableDocument` for text replacement and saving.
+/// 通过门面 `EasyDoc::edit()` 方法创建。包装 `office_oxide` 的 `EditableDocument`
+/// 以支持文本替换和保存。
 ///
-/// # Example
+/// # 示例
 ///
 /// ```ignore
 /// EasyDoc::edit("existing.docx")?

@@ -1,17 +1,19 @@
-//! Fill configuration for template expansion.
+//! 模板展开的填充配置。
+//!
+//! 对应 Java: `com.alibaba.excel.write.builder.ExcelWriterSheetBuilder` 中的填充配置
 
-/// Fill direction for collection expansion.
+/// 集合展开的填充方向。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FillDirection {
-    /// Expand collection items vertically (rows in a table).
+    /// 垂直展开集合项（表格中的行）。
     Vertical,
-    /// Expand collection items horizontally.
+    /// 水平展开集合项。
     Horizontal,
 }
 
-/// Configuration controlling template fill behaviour.
+/// 控制模板填充行为的配置。
 ///
-/// Analogous to `FillConfig` in `easyexcel-template`.
+/// 对应 Java: `com.alibaba.excel.write.builder.ExcelWriterSheetBuilder` 中的填充配置
 #[derive(Debug, Clone)]
 pub struct FillConfig {
     /// Direction for collection expansion.

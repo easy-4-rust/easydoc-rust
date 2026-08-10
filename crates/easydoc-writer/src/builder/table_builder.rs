@@ -1,4 +1,6 @@
-//! Quick table writer -- one-liner `Vec<Struct>` -> DOCX table.
+//! 快速表格写入器 -- 一行代码 `Vec<Struct>` -> DOCX 表格。
+//!
+//! 对应 Java: `EasyExcel.write(path).head(RowClass.class).sheet().doWrite(data)`
 
 use std::path::PathBuf;
 
@@ -8,11 +10,13 @@ use easydoc_core::style::TableStyle;
 
 use crate::executor::table_executor::TableWriteExecutor;
 
-/// Fluent builder for writing a typed `Vec<T>` as a DOCX table.
+/// 将类型化 `Vec<T>` 写入 DOCX 表格的 Fluent 构建器。
 ///
-/// Created via the facade's `EasyDoc::write_table()` method.
+/// 通过门面 `EasyDoc::write_table()` 方法创建。
 ///
-/// # Example
+/// 对应 Java: `EasyExcel.write(path).head(RowClass.class).sheet().doWrite(data)`
+///
+/// # 示例
 ///
 /// ```ignore
 /// EasyDoc::write_table("users.docx", &users)

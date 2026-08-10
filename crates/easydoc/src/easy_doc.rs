@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use easydoc_core::{DocumentContent, DocxRow, Result};
+use easydoc_core::{DocumentContent, DocxRow, EventSink, Result};
 use easydoc_markdown::{MarkdownBuilder, MarkdownResult};
 use easydoc_reader::DocReadBuilder;
 use easydoc_writer::{DocBuilder, DocEditor, TableWriteBuilder};
@@ -174,6 +174,46 @@ impl EasyDoc {
         output: impl AsRef<Path>,
     ) -> Result<MarkdownResult> {
         MarkdownBuilder::new(source).write_to(output)
+    }
+
+    // ========================================================================
+    // 流式读取 API — SAX 事件驱动
+    // ========================================================================
+
+    /// 流式读取 DOCX，将文档事件推给 `sink`。
+    ///
+    /// 内存占用 O(1)，与文档大小无关。适合处理大文档。
+    /// 对标 easyexcel-rust 的 SAX 流式读取能力。
+    ///
+    /// 事件类型包括：`DocumentStart`、`Heading`、`Paragraph`、`Table`、
+    /// `Image`、`PageBreak`、`DocumentEnd` 等。
+    ///
+    /// # Errors
+    ///
+    /// 文件无法打开或解析时返回错误。
+    pub fn read_events(path: impl AsRef<Path>, sink: &mut dyn EventSink) -> Result<()> {
+        let mut reader = easydoc_reader::DocxSaxReader::from_path(path.as_ref())?;
+        reader.read_events(sink)
+    }
+
+    // ========================================================================
+    // 视图渲染 API — ViewMode
+    // ========================================================================
+
+    /// 以指定视图模式读取文档并返回文本。
+    ///
+    /// 支持四种模式：
+    /// - `ViewMode::Plain` — 纯文本，段落以换行分隔
+    /// - `ViewMode::Annotated` — 带结构标注（如 `[段落 1]`、`[表格 1: 2行x3列]`）
+    /// - `ViewMode::Outline { max_level }` — 仅标题，Markdown 风格的 `#` / `##`
+    /// - `ViewMode::Stats` — 统计信息（段落数、表格数、字数等）
+    ///
+    /// # Errors
+    ///
+    /// 文件无法读取或渲染失败时返回错误。
+    pub fn view_as(path: impl AsRef<Path>, mode: &easydoc_reader::ViewMode) -> Result<String> {
+        let content = easydoc_reader::read_document(path.as_ref())?;
+        easydoc_reader::render_view(&content, mode)
     }
 
     // ========================================================================

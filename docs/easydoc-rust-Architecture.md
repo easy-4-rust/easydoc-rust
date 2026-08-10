@@ -455,21 +455,26 @@ easydoc-markdown/src/
 
 ## 12. easydoc Facade Design `[Implemented]`
 
-### 12.1 Current API
+### 12.1 Current API (18 methods)
 
 ```rust
 // Write
 EasyDoc::document("out.docx").add_heading(...).add_paragraph(...).save()?;
 EasyDoc::write_table("out.docx", &users).do_write()?;
+EasyDoc::document_to_bytes(|b| b.add_heading(...))?;  // in-memory
+EasyDoc::write_table_to_bytes(&users)?;               // in-memory
 
 // Read
 let text = EasyDoc::read_text("doc.docx")?;
 let tables: Vec<Vec<User>> = EasyDoc::read_tables::<User>("doc.docx")?;
+EasyDoc::read_events("large.docx", &mut MySink)?;     // SAX streaming (O(1) memory)
+let annotated = EasyDoc::view_as("doc.docx", &ViewMode::Annotated)?;  // LLM-friendly
 
 // Read-Modify-Write semantic model round-trip
 let mut content = EasyDoc::load("input.docx")?;
 // ... modify content.blocks ...
 EasyDoc::write_content(&content, "output.docx")?;
+EasyDoc::write_content_to_bytes(&content)?;           // in-memory
 
 // Template
 EasyDoc::fill_template("tpl.docx", "out.docx", &data)?;
@@ -559,22 +564,24 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 - [x] Template XML escaping + cross-run placeholders
 - [x] Atomic output
 
-### Phase 2 — Semantic Model 🔧 In Progress
+### Phase 2 -- Semantic Model & Markdown ✅ Done
 
-- [x] `DocumentContent` / `DocumentBlock` semantic model
-- [x] `read_document()` reader → `DocumentContent`
+- [x] `DocumentContent` / `DocumentBlock` backend-agnostic semantic model
+- [x] `read_document()` reader -> `DocumentContent`
 - [x] `easydoc-markdown` consumes `DocumentContent`
 - [x] Remove old `model.rs` (dead code eliminated)
 - [x] Writer uses `easydoc-core` semantic model (via `content_renderer`)
-- [x] Extend `DocumentBlock`: Section variant added (Equation/Comment/Revision deferred to Phase 4)
 
-### Phase 3 — Event Chain ✅ Done
+### Phase 3 -- Event Chain & Advanced Read ✅ Done
 
 - [x] `DocumentEvent` enum
-- [x] `EventSink` trait + `ContentCollector` implementation
+- [x] `EventSink` trait + SAX streaming read
 - [x] `DocWriteHandler` callback integration (`render_with_handler`)
 - [x] `DocumentReader` trait (`read_model()` + `read_events()`)
 - [x] Writer refactored to use `content_renderer` + core model
+- [x] `#[derive(DocxRow)]` proc-macro with full annotation support
+- [x] ViewMode rendering (Plain, Annotated, Outline, Stats)
+- [x] SAX content coverage (OMML, lists, hyperlinks, nested tables, merged cells, images)
 
 ### Phase 4 — Advanced Capabilities `[Design Goal]`
 

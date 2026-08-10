@@ -1,57 +1,76 @@
-//! Unified error type for easydoc-rust.
+//! easydoc-rust 统一错误类型。
 //!
-//! Mirrors the single-enum error pattern from `easyexcel-rust`.
+//! 对标 easyexcel-rust 的单枚举错误模式。
+//!
+//! 对应 Java: 各类 checked/unchecked exception 合并为单一 Rust 错误类型。
 
 use thiserror::Error;
 
-/// The single, flat error enum used by all `easydoc-rust` crates.
+/// 库统一错误枚举。
 ///
-/// Java `easyexcel` splits errors across seven `RuntimeException` subclasses;
-/// this enum collapses them into one idiomatic Rust type.
+/// Java `EasyExcel` 将错误分散在七个 `RuntimeException` 子类中；
+/// 本枚举将它们合并为一个惯用的 Rust 类型。
+///
+/// 对应 Java: `com.alibaba.excel.exception.ExcelAnalysisException`、
+/// `ExcelGenerateException`、`ExcelDataConvertException` 等
 #[derive(Debug, Error)]
 pub enum DocError {
-    /// I/O error wrapping `std::io::Error`.
+    /// I/O 错误，包装 `std::io::Error`。
+    ///
+    /// 对应 Java: `IOException`
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 
-    /// ZIP package error from docx-rs packaging.
+    /// ZIP 包错误（来自 docx-rs 打包）。
+    ///
+    /// 对应 Java: `ExcelAnalysisException` 中的 ZIP 相关错误
     #[error("ZIP error: {0}")]
     Zip(String),
 
-    /// Invalid or unsupported document format.
+    /// 无效或不支持的文档格式。
+    ///
+    /// 对应 Java: `ExcelAnalysisException("The supplied file was not supported")`
     #[error("Format error: {0}")]
     Format(String),
 
-    /// Template placeholder could not be resolved or processed.
+    /// 模板占位符无法解析或处理。
+    ///
+    /// 对应 Java: `ExcelAnalysisException` 中的模板相关错误（easyexcel-template）
     #[error("Template error at placeholder '{placeholder}': {message}")]
     Template {
-        /// The placeholder token that caused the error.
+        /// 导致错误的占位符标记。
         placeholder: String,
-        /// Human-readable description.
+        /// 人类可读的描述。
         message: String,
     },
 
-    /// A cell or field value could not be converted to/from the target type.
+    /// 单元格或字段值无法与目标类型互转。
+    ///
+    /// 对应 Java: `com.alibaba.excel.exception.ExcelDataConvertException`
     #[error("Conversion error: field '{field}', value '{value}': {message}")]
     Conversion {
-        /// The field or column name.
+        /// 字段或列名。
         field: String,
-        /// The value that failed conversion.
+        /// 转换失败的值。
         value: String,
-        /// Human-readable description.
+        /// 人类可读的描述。
         message: String,
     },
 
-    /// The requested operation is not supported for this format or configuration.
+    /// 请求的操作不被当前格式或配置支持。
+    ///
+    /// 对应 Java: `UnsupportedOperationException`
     #[error("Unsupported operation: {0}")]
     Unsupported(String),
 
-    /// Generic document-level error.
+    /// 通用文档级错误。
+    ///
+    /// 对应 Java: `ExcelAnalysisException` / `ExcelGenerateException`
     #[error("Document error: {0}")]
     Document(String),
 }
 
-/// The standard `Result` type alias used throughout `easydoc-rust`.
+/// easydoc-rust 标准 `Result` 类型别名。
 pub type Result<T> = std::result::Result<T, DocError>;
 
 impl From<zip::result::ZipError> for DocError {
@@ -68,19 +87,19 @@ mod tests {
     fn error_display_io() {
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "missing");
         let err = DocError::Io(io_err);
-        assert!(format!("{}", err).contains("I/O error"));
+        assert!(format!("{err}").contains("I/O error"));
     }
 
     #[test]
     fn error_display_zip() {
         let err = DocError::Zip("corrupt".into());
-        assert!(format!("{}", err).contains("ZIP error"));
+        assert!(format!("{err}").contains("ZIP error"));
     }
 
     #[test]
     fn error_display_format() {
         let err = DocError::Format("bad xml".into());
-        assert!(format!("{}", err).contains("Format error"));
+        assert!(format!("{err}").contains("Format error"));
     }
 
     #[test]
@@ -89,7 +108,7 @@ mod tests {
             placeholder: "name".into(),
             message: "not found".into(),
         };
-        let s = format!("{}", err);
+        let s = format!("{err}");
         assert!(s.contains("name"));
         assert!(s.contains("not found"));
     }
@@ -101,7 +120,7 @@ mod tests {
             value: "abc".into(),
             message: "not a number".into(),
         };
-        let s = format!("{}", err);
+        let s = format!("{err}");
         assert!(s.contains("age"));
         assert!(s.contains("abc"));
     }
@@ -109,13 +128,13 @@ mod tests {
     #[test]
     fn error_display_unsupported() {
         let err = DocError::Unsupported("macro".into());
-        assert!(format!("{}", err).contains("Unsupported operation"));
+        assert!(format!("{err}").contains("Unsupported operation"));
     }
 
     #[test]
     fn error_display_document() {
         let err = DocError::Document("corrupted".into());
-        assert!(format!("{}", err).contains("Document error"));
+        assert!(format!("{err}").contains("Document error"));
     }
 
     #[test]
@@ -135,7 +154,7 @@ mod tests {
     #[test]
     fn error_debug() {
         let err = DocError::Document("test".into());
-        let dbg = format!("{:?}", err);
+        let dbg = format!("{err:?}");
         assert!(dbg.contains("Document"));
     }
 }

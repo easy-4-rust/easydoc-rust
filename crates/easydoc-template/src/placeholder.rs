@@ -1,6 +1,8 @@
-//! Placeholder detection and parsing for `{key}` and `{.field}` tokens.
+//! DOCX 文档中 `{key}` 和 `{.field}` 标记的占位符检测与解析。
+//!
+//! 对应 Java: easyexcel-template 的占位符解析逻辑
 
-/// A detected placeholder in a DOCX document.
+/// 在 DOCX 文档中检测到的占位符。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Placeholder {
     /// Scalar placeholder: `{name}`, `{date}`, etc.

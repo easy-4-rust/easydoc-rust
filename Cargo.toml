@@ -4,6 +4,7 @@ members = [
     "crates/easydoc-core",
     "crates/easydoc-derive",
     "crates/easydoc-markdown",
+    "crates/easydoc-mcp",
     "crates/easydoc-ooxml",
     "crates/easydoc-reader",
     "crates/easydoc-template",
@@ -12,7 +13,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 edition = "2024"
 rust-version = "1.88"
 license = "Apache-2.0"
@@ -32,6 +33,9 @@ tempfile = "3.27.0"
 thiserror = "2.0.18"
 uuid = { version = "1.24.0", features = ["v4"] }
 zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+quick-xml = "0.41"
+anyhow = "1"
+tracing = "0.1"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -50,3 +54,22 @@ no_effect_underscore_binding = "allow"
 unnecessary_wraps = "allow"
 wrong_self_convention = "allow"
 missing_errors_doc = "allow"
+
+[package]
+name = "easydoc-examples"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dev-dependencies]
+easydoc = { path = "crates/easydoc" }
+easydoc-core = { path = "crates/easydoc-core" }
+chrono = { version = "0.4.45", default-features = false, features = ["std", "serde"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+tempfile = "3.27.0"
+
+[lints]
+workspace = true

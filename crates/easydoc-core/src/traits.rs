@@ -1,8 +1,10 @@
-//! Core extension traits for `easydoc-rust`.
+//! 核心扩展 trait 体系。
 //!
-//! These four traits form the backbone of the extensibility system,
-//! mirroring `ExcelRow`, `Converter<T>`, `ReadListener<T>`, and
-//! `WriteHandler` from `easyexcel-rust`.
+//! 这些 trait 构成 easydoc-rust 扩展性的骨干，对标 easyexcel-rust 的
+//! `ExcelRow`、`Converter<T>`、`ReadListener<T>`、`WriteHandler`。
+//! 新增 trait 必须放在本文件，按"模型-转换-读-写-事件"分组。
+//!
+//! 对应 Java: `com.alibaba.excel` (`EasyExcel` 4.0.3) 的核心扩展点
 
 use crate::converter::ConverterRegistry;
 use crate::error::Result;
@@ -13,42 +15,53 @@ use crate::types::{CellData, DocValue, ErrorAction, RowData, TableData};
 // DocxRow — struct ↔ table row mapping
 // ============================================================================
 
-/// Maps a Rust struct to/from a DOCX table row.
+/// 结构体与 DOCX 表格行的双向映射。
 ///
-/// Analogous to `ExcelRow` in `easyexcel-rust`.
-/// Generated automatically by `#[derive(DocxRow)]`.
+/// 类似 easyexcel-rust 的 `ExcelRow`。通过 `#[derive(DocxRow)]` 自动生成实现。
 ///
-/// # Example
+/// 对应 Java: `com.alibaba.excel.annotation.ExcelProperty` + 反射机制
+///
+/// # 示例
 ///
 /// ```ignore
 /// #[derive(DocxRow)]
 /// struct User {
-///     #[docx(name = "Name", order = 0)]
+///     #[docx(name = "姓名", order = 0)]
 ///     name: String,
-///     #[docx(name = "Age", order = 1)]
+///     #[docx(name = "年龄", order = 1)]
 ///     age: u32,
 /// }
 /// ```
 pub trait DocxRow {
-    /// Returns the column schema: header names, indices, and format hints.
+    /// 返回列 schema：表头名称、索引和格式提示。
+    ///
+    /// 对应 Java: `ExcelProperty` 注解的 `value()` / `order()` / `format()` 等属性
     fn schema() -> &'static [TableColumn]
     where
         Self: Sized;
 
-    /// Deserialises a row from raw cell values using default converters.
+    /// 从原始单元格值反序列化为结构体（使用默认转换器）。
+    ///
+    /// 对应 Java: `EasyExcel` 内部通过反射将 `ReadCellData` 映射到字段
     fn from_row(row: &RowData) -> Result<Self>
     where
         Self: Sized;
 
-    /// Deserialises a row using a custom converter registry.
+    /// 使用自定义转换器注册表从原始单元格值反序列化为结构体。
+    ///
+    /// 对应 Java: `ConverterRegistry` + `ExcelProperty(converter = ...)`
     fn from_row_with_converters(row: &RowData, registry: &ConverterRegistry) -> Result<Self>
     where
         Self: Sized;
 
-    /// Serialises self into a row of cell values using default converters.
+    /// 将自身序列化为单元格值列表（使用默认转换器）。
+    ///
+    /// 对应 Java: `EasyExcel` 内部通过反射将字段值转为 `WriteCellData`
     fn to_row(&self) -> Result<Vec<CellData>>;
 
-    /// Serialises self into a row of cell values using a custom converter registry.
+    /// 使用自定义转换器注册表将自身序列化为单元格值列表。
+    ///
+    /// 对应 Java: `ConverterRegistry` + `ExcelProperty(converter = ...)`
     fn to_row_with_converters(&self, registry: &ConverterRegistry) -> Result<Vec<CellData>>;
 }
 
@@ -56,28 +69,35 @@ pub trait DocxRow {
 // DocConverter — bidirectional type conversion
 // ============================================================================
 
-/// Converts between a Rust type `T` and a [`DocValue`].
+/// Rust 类型 `T` 与 [`DocValue`] 之间的双向转换。
 ///
-/// Analogous to `Converter<T>` in `easyexcel-rust`. Register custom converters
-/// via [`ConverterRegistry`] or the builder's `register_converter` method.
+/// 对应 Java: `com.alibaba.excel.converters.Converter<T>`
+///
+/// 通过 [`ConverterRegistry`] 或 builder 的 `register_converter` 方法注册自定义转换器。
 pub trait DocConverter<T> {
-    /// Returns the `TypeId` this converter handles.
+    /// 返回此转换器处理的 `TypeId`。
+    ///
+    /// 对应 Java: `Converter#supportJavaTypeKey`
     fn support_type() -> std::any::TypeId
     where
         Self: Sized;
 
-    /// Converts a Rust value into a document value for writing.
+    /// 将 Rust 值转换为文档值（用于写入）。
+    ///
+    /// 对应 Java: `Converter#convertToExcelData`
     ///
     /// # Errors
     ///
-    /// Returns [`crate::DocError::Conversion`] if the value cannot be converted.
+    /// 值无法转换时返回 [`crate::DocError::Conversion`]。
     fn to_doc_value(&self, value: &T, column: &TableColumn) -> Result<DocValue>;
 
-    /// Converts a document value back into a Rust value for reading.
+    /// 将文档值转换回 Rust 值（用于读取）。
+    ///
+    /// 对应 Java: `Converter#convertToJavaData`
     ///
     /// # Errors
     ///
-    /// Returns [`crate::DocError::Conversion`] if the value cannot be converted.
+    /// 值无法转换时返回 [`crate::DocError::Conversion`]。
     fn from_doc_value(&self, value: &DocValue, column: &TableColumn) -> Result<T>;
 }
 
@@ -85,40 +105,47 @@ pub trait DocConverter<T> {
 // DocReadListener — streaming read callbacks
 // ============================================================================
 
-/// Context passed to read listener callbacks.
+/// 读取监听器回调的上下文信息。
 #[derive(Debug, Clone)]
 pub struct DocReadContext {
-    /// Current document path.
+    /// 当前文档路径。
     pub path: String,
-    /// Current paragraph or table index (0-based).
+    /// 当前段落或表格索引（从零开始）。
     pub index: usize,
 }
 
-/// Receives parsed content during streaming document reads.
+/// 流式读取过程中接收已解析内容的监听器。
 ///
-/// Analogous to `ReadListener<T>` in `easyexcel-rust`.
+/// 对应 Java: `com.alibaba.excel.read.listener.ReadListener<T>`
 pub trait DocReadListener<T> {
-    /// Called for each parsed data item (paragraph text or row).
+    /// 每解析一个数据项（段落文本或表格行）时调用。
+    ///
+    /// 对应 Java: `ReadListener#invoke`
     ///
     /// # Errors
     ///
-    /// Return an error to stop reading; use `ErrorAction` via `on_error`
-    /// for recoverable errors.
+    /// 返回错误将停止读取；可恢复错误请通过 `on_error` 返回 `ErrorAction`。
     fn invoke(&mut self, data: T, context: &DocReadContext) -> Result<()>;
 
-    /// Called when a complete table is encountered.
+    /// 遇到完整表格时调用。
+    ///
+    /// 对应 Java: `ReadListener#invokeHead`（表头行场景）
     fn invoke_table(&mut self, table: &TableData, context: &DocReadContext) -> Result<()> {
         let _ = (table, context);
         Ok(())
     }
 
-    /// Called after all content has been parsed.
+    /// 所有内容解析完成后调用。
+    ///
+    /// 对应 Java: `ReadListener#doAfterAllAnalysed`
     fn on_complete(&mut self, _context: &DocReadContext) {}
 
-    /// Called when a non-fatal error occurs during reading.
+    /// 读取过程中发生非致命错误时调用。
     ///
-    /// Return [`ErrorAction::Stop`] to propagate the error, or
-    /// [`ErrorAction::Skip`] / [`ErrorAction::Continue`] to proceed.
+    /// 对应 Java: `ReadListener#onException`
+    ///
+    /// 返回 [`ErrorAction::Stop`] 以传播错误，或
+    /// [`ErrorAction::Skip`] / [`ErrorAction::Continue`] 以继续。
     fn on_error(
         &mut self,
         _error: &crate::error::DocError,
@@ -127,8 +154,9 @@ pub trait DocReadListener<T> {
         ErrorAction::Stop
     }
 
-    /// Called before processing each item to check whether reading should continue.
-    /// Return `false` to stop early.
+    /// 处理每个数据项前检查是否应继续读取。返回 `false` 可提前终止。
+    ///
+    /// 对应 Java: `ReadListener#hasNext`
     fn has_next(&self, _context: &DocReadContext) -> bool {
         true
     }
@@ -138,87 +166,102 @@ pub trait DocReadListener<T> {
 // DocWriteHandler — write lifecycle hooks
 // ============================================================================
 
-/// Context for document-level write events.
+/// 文档级写入事件的上下文。
 #[derive(Debug, Clone)]
 pub struct DocWriteContext {
-    /// Output path.
+    /// 输出路径。
     pub path: String,
 }
 
-/// Context for paragraph-level write events.
+/// 段落级写入事件的上下文。
 #[derive(Debug, Clone)]
 pub struct ParagraphContext {
-    /// Paragraph index (0-based).
+    /// 段落索引（从零开始）。
     pub index: usize,
 }
 
-/// Context for table-level write events.
+/// 表格级写入事件的上下文。
 #[derive(Debug, Clone)]
 pub struct TableWriteContext {
-    /// Table index (0-based).
+    /// 表格索引（从零开始）。
     pub index: usize,
-    /// Number of rows in the table.
+    /// 表格行数。
     pub row_count: usize,
 }
 
-/// Context for cell-level write events.
+/// 单元格级写入事件的上下文。
 #[derive(Debug, Clone)]
 pub struct CellContext {
-    /// Row index (0-based).
+    /// 行索引（从零开始）。
     pub row: usize,
-    /// Column index (0-based).
+    /// 列索引（从零开始）。
     pub column: usize,
-    /// Cell value.
+    /// 单元格值。
     pub value: DocValue,
 }
 
-/// Write lifecycle interceptor — hooks at document, paragraph, table, and cell level.
+/// 写入生命周期拦截器 -- 在文档、段落、表格和单元格级别提供钩子。
 ///
-/// Analogous to `WriteHandler` in `easyexcel-rust`. All methods have no-op defaults;
-/// override only the hooks you need.
+/// 对应 Java: `com.alibaba.excel.write.handler.WriteHandler`
+///
+/// 所有方法均有空默认实现；只需覆盖需要的钩子。
 pub trait DocWriteHandler {
-    /// Execution order (lower values execute first).
+    /// 执行顺序（值越小越先执行）。
+    ///
+    /// 对应 Java: `WriteHandler` 的 `order` 属性
     #[must_use]
     fn order() -> i32 {
         0
     }
 
-    /// Called before the document is created.
+    /// 文档创建前调用。
+    ///
+    /// 对应 Java: `WorkbookWriteHandler#beforeWorkbookCreate`
     fn before_document(&mut self, _ctx: &DocWriteContext) -> Result<()> {
         Ok(())
     }
 
-    /// Called after the document is finalised.
+    /// 文档完成后调用。
+    ///
+    /// 对应 Java: `WorkbookWriteHandler#afterWorkbookWrite`
     fn after_document(&mut self, _ctx: &DocWriteContext) -> Result<()> {
         Ok(())
     }
 
-    /// Called before a paragraph is written.
+    /// 段落写入前调用。
     fn before_paragraph(&mut self, _ctx: &ParagraphContext) -> Result<()> {
         Ok(())
     }
 
-    /// Called after a paragraph is written.
+    /// 段落写入后调用。
     fn after_paragraph(&mut self, _ctx: &ParagraphContext) -> Result<()> {
         Ok(())
     }
 
-    /// Called before a table is written.
+    /// 表格写入前调用。
+    ///
+    /// 对应 Java: `SheetWriteHandler#beforeSheetCreate`
     fn before_table(&mut self, _ctx: &TableWriteContext) -> Result<()> {
         Ok(())
     }
 
-    /// Called after a table is written.
+    /// 表格写入后调用。
+    ///
+    /// 对应 Java: `SheetWriteHandler#afterSheetWrite`
     fn after_table(&mut self, _ctx: &TableWriteContext) -> Result<()> {
         Ok(())
     }
 
-    /// Called before a cell is written.
+    /// 单元格写入前调用。
+    ///
+    /// 对应 Java: `CellWriteHandler#beforeCellCreate`
     fn before_cell(&mut self, _ctx: &CellContext) -> Result<()> {
         Ok(())
     }
 
-    /// Called after a cell is written.
+    /// 单元格写入后调用。
+    ///
+    /// 对应 Java: `CellWriteHandler#afterCellWrite`
     fn after_cell(&mut self, _ctx: &CellContext) -> Result<()> {
         Ok(())
     }
@@ -231,6 +274,7 @@ pub trait DocWriteHandler {
 /// 统一的文档读取接口。
 ///
 /// 后端实现（如 `office_oxide`）实现此 trait 即可接入 easydoc 读取体系。
+/// 无直接 Java 对应（Java `EasyExcel` 不提供统一读取抽象），是 easydoc-rust 自创。
 pub trait DocumentReader {
     /// 读取文件并返回语义文档模型。
     ///
@@ -298,6 +342,7 @@ pub enum DocumentEvent {
 /// 事件消费回调接口。
 ///
 /// 实现此 trait 以处理流式读取过程中产生的文档事件。
+/// 类比 Java: `ReadListener<T>` 的回调方法（`invoke` / `doAfterAllAnalysed`）。
 pub trait EventSink {
     /// 处理一个文档事件。
     ///
@@ -310,6 +355,8 @@ pub trait EventSink {
 }
 
 /// 将事件流收集为 `DocumentContent` 的默认实现。
+///
+/// 类比 Java: `ReadListener` 的默认收集行为。
 pub struct ContentCollector {
     blocks: Vec<crate::DocumentBlock>,
 }
@@ -390,7 +437,7 @@ mod event_tests {
     #[test]
     fn document_event_debug() {
         let event = DocumentEvent::DocumentStart;
-        assert_eq!(format!("{:?}", event), "DocumentStart");
+        assert_eq!(format!("{event:?}"), "DocumentStart");
     }
 
     #[test]
@@ -594,7 +641,7 @@ mod trait_coverage_tests {
         c.on_event(&DocumentEvent::ColumnBreak).unwrap();
         c.on_event(&DocumentEvent::CodeBlock {
             language: None,
-            code: "".into(),
+            code: String::new(),
         })
         .unwrap();
         c.on_event(&DocumentEvent::Section { section_type: None })
@@ -620,7 +667,7 @@ mod trait_coverage_tests {
         };
         let ctx2 = ctx.clone();
         assert_eq!(ctx2.index, 5);
-        assert!(format!("{:?}", ctx).contains("test"));
+        assert!(format!("{ctx:?}").contains("test"));
     }
 
     #[test]
@@ -630,7 +677,7 @@ mod trait_coverage_tests {
         };
         let ctx2 = ctx.clone();
         assert_eq!(ctx2.path, "out.docx");
-        assert!(format!("{:?}", ctx).contains("out.docx"));
+        assert!(format!("{ctx:?}").contains("out.docx"));
     }
 
     #[test]
@@ -638,7 +685,7 @@ mod trait_coverage_tests {
         let ctx = ParagraphContext { index: 3 };
         let ctx2 = ctx.clone();
         assert_eq!(ctx2.index, 3);
-        assert!(format!("{:?}", ctx).contains("3"));
+        assert!(format!("{ctx:?}").contains('3'));
     }
 
     #[test]
@@ -650,7 +697,7 @@ mod trait_coverage_tests {
         let ctx2 = ctx.clone();
         assert_eq!(ctx2.index, 1);
         assert_eq!(ctx2.row_count, 10);
-        assert!(format!("{:?}", ctx).contains("10"));
+        assert!(format!("{ctx:?}").contains("10"));
     }
 
     #[test]
@@ -662,7 +709,7 @@ mod trait_coverage_tests {
         };
         let ctx2 = ctx.clone();
         assert_eq!(ctx2.row, 2);
-        assert!(format!("{:?}", ctx).contains("42"));
+        assert!(format!("{ctx:?}").contains("42"));
     }
 
     #[test]
@@ -680,12 +727,12 @@ mod trait_coverage_tests {
             DocumentEvent::Section { section_type: None },
             DocumentEvent::CodeBlock {
                 language: None,
-                code: "".into(),
+                code: String::new(),
             },
         ];
         for event in &events {
             let _clone = event.clone();
-            let _debug = format!("{:?}", event);
+            let _debug = format!("{event:?}");
         }
     }
 }

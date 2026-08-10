@@ -1,0 +1,27 @@
+[package]
+name = "easydoc-mcp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "MCP (Model Context Protocol) server exposing EasyDoc capabilities to LLM agents"
+repository.workspace = true
+
+[dependencies]
+easydoc = { path = "../easydoc", version = "0.1.0-alpha.1" }
+easydoc-core = { path = "../easydoc-core", version = "0.1.0-alpha.1" }
+easydoc-reader = { path = "../easydoc-reader", version = "0.1.0-alpha.1" }
+easydoc-markdown = { path = "../easydoc-markdown", version = "0.1.0-alpha.1" }
+easydoc-writer = { path = "../easydoc-writer", version = "0.1.0-alpha.1" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+zip = { workspace = true }
+quick-xml = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

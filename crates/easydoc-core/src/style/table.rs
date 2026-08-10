@@ -1,7 +1,9 @@
 use super::color::Color;
 use super::font::FontConfig;
 
-/// Table-level formatting configuration.
+/// 表格级格式化配置。
+///
+/// 对应 Java: `com.alibaba.excel.write.metadata.style.WriteCellStyle` 的表格级属性
 #[derive(Debug, Clone)]
 pub struct TableStyle {
     /// Style for the header row.

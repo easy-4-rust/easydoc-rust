@@ -3,11 +3,150 @@
 //! 这是打通 Read → Modify → Write 闭环的关键桥梁。
 //! Reader 输出 `DocumentContent`，本渲染器将其渲染为 DOCX。
 
-use docx_rs::{BreakType, Docx, Pic, RunFonts};
+use docx_rs::{
+    AbstractNumbering, BreakType, Docx, Hyperlink, HyperlinkType, IndentLevel, Level, LevelJc,
+    LevelText, NumberFormat, Numbering, NumberingId, Pic, RunFonts, SpecialIndentType, Start,
+};
 use easydoc_core::{
     DocumentBlock, DocumentContent, DocumentImage, DocumentList, DocumentTable, DocumentTextRun,
     HeadingLevel, Result,
 };
+
+/// Bullet list numbering ID (references `numbering.xml` abstractNum 0).
+const BULLET_NUM_ID: usize = 10;
+/// Ordered (decimal) list numbering ID (references `numbering.xml` abstractNum 1).
+const DECIMAL_NUM_ID: usize = 11;
+
+/// Adds predefined bullet and decimal numbering definitions to the `Docx` instance.
+///
+/// This populates `word/numbering.xml` with two abstract numbering definitions:
+/// - abstractNum 0: bullet list (multi-level with `•`, `◦`, `▪`)
+/// - abstractNum 1: decimal list (multi-level with `1.`, `a.`, `i.`)
+fn add_list_numberings(docx: Docx) -> Docx {
+    // --- Bullet list (abstractNum 0) ---
+    let mut bullet_abstract = AbstractNumbering::new(0);
+    bullet_abstract.multi_level_type = Some("hybridMultilevel".to_string());
+    let bullet_abstract = bullet_abstract
+        .add_level(
+            Level::new(
+                0,
+                Start::new(1),
+                NumberFormat::new("bullet"),
+                LevelText::new("\u{2022}"), // •
+                LevelJc::new("left"),
+            )
+            .indent(Some(720), Some(SpecialIndentType::Hanging(360)), None, None),
+        )
+        .add_level(
+            Level::new(
+                1,
+                Start::new(1),
+                NumberFormat::new("bullet"),
+                LevelText::new("\u{25E6}"), // ◦
+                LevelJc::new("left"),
+            )
+            .indent(
+                Some(1080),
+                Some(SpecialIndentType::Hanging(360)),
+                None,
+                None,
+            ),
+        )
+        .add_level(
+            Level::new(
+                2,
+                Start::new(1),
+                NumberFormat::new("bullet"),
+                LevelText::new("\u{25AA}"), // ▪
+                LevelJc::new("left"),
+            )
+            .indent(
+                Some(1440),
+                Some(SpecialIndentType::Hanging(360)),
+                None,
+                None,
+            ),
+        );
+
+    // --- Decimal list (abstractNum 1) ---
+    let mut decimal_abstract = AbstractNumbering::new(1);
+    decimal_abstract.multi_level_type = Some("hybridMultilevel".to_string());
+    let decimal_abstract = decimal_abstract
+        .add_level(
+            Level::new(
+                0,
+                Start::new(1),
+                NumberFormat::new("decimal"),
+                LevelText::new("%1."),
+                LevelJc::new("left"),
+            )
+            .indent(Some(720), Some(SpecialIndentType::Hanging(360)), None, None),
+        )
+        .add_level(
+            Level::new(
+                1,
+                Start::new(1),
+                NumberFormat::new("lowerLetter"),
+                LevelText::new("%2."),
+                LevelJc::new("left"),
+            )
+            .indent(
+                Some(1080),
+                Some(SpecialIndentType::Hanging(360)),
+                None,
+                None,
+            ),
+        )
+        .add_level(
+            Level::new(
+                2,
+                Start::new(1),
+                NumberFormat::new("lowerRoman"),
+                LevelText::new("%3."),
+                LevelJc::new("left"),
+            )
+            .indent(
+                Some(1440),
+                Some(SpecialIndentType::Hanging(360)),
+                None,
+                None,
+            ),
+        );
+
+    docx.add_abstract_numbering(bullet_abstract)
+        .add_abstract_numbering(decimal_abstract)
+        .add_numbering(Numbering::new(BULLET_NUM_ID, 0))
+        .add_numbering(Numbering::new(DECIMAL_NUM_ID, 1))
+}
+
+/// Wraps a set of runs into a paragraph, grouping consecutive hyperlink runs
+/// into `<w:hyperlink>` elements.
+///
+/// Runs sharing the same non-empty `hyperlink` URL are grouped into a single
+/// `Hyperlink` element.  Runs without a hyperlink are added as plain `Run` children.
+fn add_runs_with_hyperlinks(
+    p: docx_rs::Paragraph,
+    runs: &[DocumentTextRun],
+    bold: bool,
+) -> docx_rs::Paragraph {
+    let mut p = p;
+    let mut i = 0;
+    while i < runs.len() {
+        if let Some(ref url) = runs[i].hyperlink {
+            // Group consecutive runs with the same hyperlink URL.
+            let mut link = Hyperlink::new(url.as_str(), HyperlinkType::External);
+            while i < runs.len() && runs[i].hyperlink.as_deref() == Some(url.as_str()) {
+                link = link.add_run(text_run_to_docx_run(&runs[i], bold));
+                i += 1;
+            }
+            p = p.add_hyperlink(link);
+        } else {
+            p = p.add_run(text_run_to_docx_run(&runs[i], bold));
+            i += 1;
+        }
+    }
+    p
+}
 
 /// 将核心语义模型渲染为 docx-rs 的 `Docx` 实例。
 ///
@@ -18,6 +157,10 @@ use easydoc_core::{
 /// 构建好的 `Docx` 实例，可进一步 `pack()` 为 DOCX 文件。
 pub fn render_document_content(content: &DocumentContent) -> Result<Docx> {
     let mut docx = Docx::new();
+
+    // Pre-register bullet/decimal numbering definitions so that list paragraphs
+    // can reference them via `<w:numPr>`.
+    docx = add_list_numberings(docx);
 
     for block in &content.blocks {
         docx = render_block(docx, block)?;
@@ -31,21 +174,15 @@ fn render_block(mut docx: Docx, block: &DocumentBlock) -> Result<Docx> {
     match block {
         DocumentBlock::Heading { level, runs } => {
             let _heading_level = u8_to_heading_level(*level);
-            let mut p = docx_rs::Paragraph::new()
+            let p = docx_rs::Paragraph::new()
                 .style(heading_style_name(*level))
                 .outline_lvl(heading_outline_level(*level));
-            for run in runs {
-                let r = text_run_to_docx_run(run, true);
-                p = p.add_run(r);
-            }
+            let p = add_runs_with_hyperlinks(p, runs, true);
             docx = docx.add_paragraph(p);
         }
         DocumentBlock::Paragraph(runs) => {
-            let mut p = docx_rs::Paragraph::new();
-            for run in runs {
-                let r = text_run_to_docx_run(run, false);
-                p = p.add_run(r);
-            }
+            let p = docx_rs::Paragraph::new();
+            let p = add_runs_with_hyperlinks(p, runs, false);
             docx = docx.add_paragraph(p);
         }
         DocumentBlock::Table(table) => {
@@ -159,18 +296,28 @@ fn render_table(mut docx: Docx, table: &DocumentTable) -> Result<Docx> {
 fn render_block_to_paragraph(block: &DocumentBlock) -> Result<docx_rs::Paragraph> {
     match block {
         DocumentBlock::Heading { level: _, runs } => {
-            let mut p = docx_rs::Paragraph::new();
-            for run in runs {
-                let r = text_run_to_docx_run(run, true);
-                p = p.add_run(r);
-            }
-            Ok(p)
+            let p = docx_rs::Paragraph::new();
+            Ok(add_runs_with_hyperlinks(p, runs, true))
         }
         DocumentBlock::Paragraph(runs) => {
+            let p = docx_rs::Paragraph::new();
+            Ok(add_runs_with_hyperlinks(p, runs, false))
+        }
+        DocumentBlock::List(list) => {
+            // Render list inside a table cell with numbering properties.
             let mut p = docx_rs::Paragraph::new();
-            for run in runs {
-                let r = text_run_to_docx_run(run, false);
-                p = p.add_run(r);
+            let num_id = if list.ordered {
+                DECIMAL_NUM_ID
+            } else {
+                BULLET_NUM_ID
+            };
+            p = p.numbering(NumberingId::new(num_id), IndentLevel::new(0));
+            for item in &list.items {
+                for inner_block in &item.blocks {
+                    if let DocumentBlock::Paragraph(runs) = inner_block {
+                        p = add_runs_with_hyperlinks(p, runs, false);
+                    }
+                }
             }
             Ok(p)
         }
@@ -187,34 +334,50 @@ fn render_block_to_paragraph(block: &DocumentBlock) -> Result<docx_rs::Paragraph
     }
 }
 
-/// 渲染语义列表。
+/// Renders a semantic list as OOXML paragraphs with `<w:numPr>` numbering properties.
+///
+/// Each list item becomes a paragraph tagged with the appropriate `numId` and `ilvl`.
+/// Nested lists recurse with an incremented indent level (max depth 3).
 fn render_list(mut docx: Docx, list: &DocumentList) -> Result<Docx> {
-    for (i, item) in list.items.iter().enumerate() {
-        let bullet = if list.ordered {
-            let start = list.start_number.unwrap_or(1);
-            format!("{}. ", start + i as u32)
-        } else {
-            "• ".to_string()
-        };
+    docx = render_list_at_level(docx, list, 0)?;
+    Ok(docx)
+}
 
-        let mut p = docx_rs::Paragraph::new();
-        let bullet_run = docx_rs::Run::new().add_text(&bullet);
-        p = p.add_run(bullet_run);
+/// Recursively renders list items at a given indent level.
+fn render_list_at_level(mut docx: Docx, list: &DocumentList, level: usize) -> Result<Docx> {
+    let num_id = if list.ordered {
+        DECIMAL_NUM_ID
+    } else {
+        BULLET_NUM_ID
+    };
+    // Clamp level to the 3 levels we defined (0, 1, 2).
+    let ilvl = level.min(2);
 
+    for item in &list.items {
+        let mut p =
+            docx_rs::Paragraph::new().numbering(NumberingId::new(num_id), IndentLevel::new(ilvl));
+
+        // Add content from each block inside the list item.
         for block in &item.blocks {
-            if let DocumentBlock::Paragraph(runs) = block {
-                for run in runs {
-                    let r = text_run_to_docx_run(run, false);
-                    p = p.add_run(r);
+            match block {
+                DocumentBlock::Paragraph(runs) => {
+                    p = add_runs_with_hyperlinks(p, runs, false);
+                }
+                DocumentBlock::Heading { runs, .. } => {
+                    p = add_runs_with_hyperlinks(p, runs, true);
+                }
+                _ => {
+                    // Other block types inside list items are rendered as-is
+                    // (best-effort; they become additional runs).
                 }
             }
         }
 
         docx = docx.add_paragraph(p);
 
-        // 递归渲染嵌套列表
+        // Recursively render nested list at the next indent level.
         if let Some(nested) = &item.nested {
-            docx = render_list(docx, nested)?;
+            docx = render_list_at_level(docx, nested, level + 1)?;
         }
     }
     Ok(docx)
@@ -283,6 +446,7 @@ pub fn render_with_handler<H: easydoc_core::traits::DocWriteHandler>(
     handler.before_document(&ctx)?;
 
     let mut docx = Docx::new();
+    docx = add_list_numberings(docx);
     let mut para_index: usize = 0;
     let mut table_index: usize = 0;
 
@@ -319,7 +483,10 @@ pub fn render_with_handler<H: easydoc_core::traits::DocWriteHandler>(
 #[cfg(test)]
 mod coverage_tests {
     use super::*;
-    use easydoc_core::*;
+    use easydoc_core::{
+        CellContext, DocWriteContext, DocWriteHandler, DocumentListItem, DocumentTableCell,
+        DocumentTableRow, ParagraphContext, TableWriteContext,
+    };
 
     fn make_text_run(text: &str) -> DocumentTextRun {
         DocumentTextRun {
@@ -539,28 +706,6 @@ mod coverage_tests {
 
     #[test]
     fn render_with_handler_all_blocks() {
-        let content = DocumentContent {
-            blocks: vec![
-                DocumentBlock::Heading {
-                    level: 1,
-                    runs: vec![make_text_run("H1")],
-                },
-                DocumentBlock::Paragraph(vec![make_text_run("P")]),
-                DocumentBlock::Table(DocumentTable { rows: vec![] }),
-                DocumentBlock::CodeBlock {
-                    language: None,
-                    code: "x".into(),
-                },
-                DocumentBlock::ThematicBreak,
-                DocumentBlock::PageBreak,
-                DocumentBlock::ColumnBreak,
-                DocumentBlock::Section {
-                    blocks: vec![],
-                    section_type: None,
-                },
-            ],
-            ..Default::default()
-        };
         struct TestHandler;
         impl DocWriteHandler for TestHandler {
             fn order() -> i32 {
@@ -591,6 +736,28 @@ mod coverage_tests {
                 Ok(())
             }
         }
+        let content = DocumentContent {
+            blocks: vec![
+                DocumentBlock::Heading {
+                    level: 1,
+                    runs: vec![make_text_run("H1")],
+                },
+                DocumentBlock::Paragraph(vec![make_text_run("P")]),
+                DocumentBlock::Table(DocumentTable { rows: vec![] }),
+                DocumentBlock::CodeBlock {
+                    language: None,
+                    code: "x".into(),
+                },
+                DocumentBlock::ThematicBreak,
+                DocumentBlock::PageBreak,
+                DocumentBlock::ColumnBreak,
+                DocumentBlock::Section {
+                    blocks: vec![],
+                    section_type: None,
+                },
+            ],
+            ..Default::default()
+        };
         let mut handler = TestHandler;
         let docx = render_with_handler(&content, &mut handler).unwrap();
         let _ = docx;

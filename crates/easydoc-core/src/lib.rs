@@ -1,4 +1,6 @@
-//! Core data model and extension points for `easydoc-rust`.
+//! easydoc-rust 核心数据模型与扩展点。
+//!
+//! 对应 Java: `com.alibaba.excel` (`EasyExcel` 4.0.3 核心层)
 
 #![deny(unsafe_code)]
 
@@ -6,11 +8,13 @@ pub mod converter;
 pub mod document;
 pub mod error;
 pub mod metadata;
+#[cfg(feature = "serde")]
+pub mod serde_bridge;
 pub mod style;
 pub mod traits;
 pub mod types;
 
-pub use converter::ConverterRegistry;
+pub use converter::{ConverterRegistry, ErasedConverter};
 pub use document::{
     DocumentBlock, DocumentContent, DocumentImage, DocumentList, DocumentListItem, DocumentTable,
     DocumentTableCell, DocumentTableRow, DocumentTextRun,

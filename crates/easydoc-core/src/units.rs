@@ -1,50 +1,54 @@
-//! Strongly typed user-facing measurement units.
+//! 面向用户的强类型度量单位。
 
-/// A physical length stored internally in twentieths of a point (twips).
+/// 以二十分之一磅（twips）内部存储的物理长度。
+///
+/// 对应 OOXML 中的长度单位（如 `w:pgSz` 页面尺寸）。
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Length(i32);
 
 impl Length {
-    /// Creates a length from a raw twip value.
+    /// 从原始 twip 值创建长度。
     #[must_use]
     pub const fn from_twips(value: i32) -> Self {
         Self(value)
     }
 
-    /// Creates a length from millimetres.
+    /// 从毫米创建长度。
     #[must_use]
     #[allow(clippy::cast_possible_truncation)]
     pub fn mm(value: f32) -> Self {
         Self((value * 1440.0 / 25.4).round() as i32)
     }
 
-    /// Creates a length from points.
+    /// 从磅创建长度。
     #[must_use]
     #[allow(clippy::cast_possible_truncation)]
     pub fn pt(value: f32) -> Self {
         Self((value * 20.0).round() as i32)
     }
 
-    /// Creates a length from inches.
+    /// 从英寸创建长度。
     #[must_use]
     #[allow(clippy::cast_possible_truncation)]
     pub fn inches(value: f32) -> Self {
         Self((value * 1440.0).round() as i32)
     }
 
-    /// Returns the underlying twip value.
+    /// 返回底层 twip 值。
     #[must_use]
     pub const fn twips(self) -> i32 {
         self.0
     }
 }
 
-/// A font size expressed in points.
+/// 以磅为单位的字号。
+///
+/// 对应 OOXML `<w:sz w:val="..."/>` 中的半磅值。
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct Pt(pub f32);
 
 impl Pt {
-    /// Converts the size to OOXML half-points.
+    /// 将字号转换为 OOXML 半磅值。
     #[must_use]
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     pub fn half_points(self) -> usize {
@@ -58,12 +62,14 @@ impl Default for Pt {
     }
 }
 
-/// An image dimension expressed in CSS-style pixels.
+/// 以 CSS 风格像素表示的图片尺寸。
+///
+/// 对应 OOXML `<a:ext cx="..." cy="..."/>` 中的 EMU 单位。
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Px(pub u32);
 
 impl Px {
-    /// Converts pixels to English Metric Units at 96 DPI.
+    /// 在 96 DPI 下将像素转换为 EMU（English Metric Units）。
     #[must_use]
     pub const fn emu(self) -> u32 {
         self.0.saturating_mul(9_525)

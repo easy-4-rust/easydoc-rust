@@ -1,9 +1,9 @@
-//! Implementation of the `#[derive(DocxRow)]` proc-macro.
+//! `#[derive(DocxRow)]` 过程宏的实现。
 //!
-//! Generates an `impl DocxRow for YourStruct` block with:
-//! - `schema()` — returns `&'static [TableColumn]`
-//! - `from_row()` / `from_row_with_converters()` — row → struct
-//! - `to_row()` / `to_row_with_converters()` — struct → row
+//! 生成 `impl DocxRow for YourStruct` 代码块，包含：
+//! - `schema()` -- 返回 `&'static [TableColumn]`
+//! - `from_row()` / `from_row_with_converters()` -- 行 -> 结构体
+//! - `to_row()` / `to_row_with_converters()` -- 结构体 -> 行
 
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -15,8 +15,11 @@ struct FieldConfig {
     name: String,
     index: usize,
     order: u32,
-    width: Option<f64>,
+    width: Option<String>,
     format: Option<String>,
+    align: Option<String>,
+    converter: Option<String>,
+    wrap: bool,
     ignored: bool,
     ty: Type,
 }
@@ -52,13 +55,27 @@ pub(crate) fn expand_docx_row_tokens(input: TokenStream) -> syn::Result<TokenStr
         let field_name = f.ident.to_string();
         let index = f.index;
         let order = f.order;
+
         let width = f
             .width
-            .map_or_else(|| quote! { None }, |w| quote! { Some(#w) });
+            .as_ref()
+            .map_or_else(|| quote! { None }, |w| quote! { Some(#w.to_owned()) });
         let format = f
             .format
             .as_ref()
             .map_or_else(|| quote! { None }, |fmt| quote! { Some(#fmt.to_owned()) });
+        let align = f.align.as_ref().map_or_else(
+            || quote! { None },
+            |a| {
+                let variant = align_variant_token(a);
+                quote! { Some(easydoc_core::HorizontalAlignment::#variant) }
+            },
+        );
+        let converter = f
+            .converter
+            .as_ref()
+            .map_or_else(|| quote! { None }, |c| quote! { Some(#c.to_owned()) });
+        let wrap = f.wrap;
 
         quote! {
             easydoc_core::TableColumn {
@@ -68,28 +85,30 @@ pub(crate) fn expand_docx_row_tokens(input: TokenStream) -> syn::Result<TokenStr
                 order: #order,
                 width: #width,
                 format: #format,
+                align: #align,
+                converter: #converter,
+                wrap: #wrap,
                 ignored: false,
             }
         }
     });
 
-    // Generate to_row body
+    // Generate to_row body — attach alignment from schema when available
     let to_row_cells = fields.iter().filter(|f| !f.ignored).map(|f| {
         let ident = &f.ident;
+        let align_expr = f.align.as_ref().map_or_else(
+            || quote! { None },
+            |a| {
+                let variant = align_variant_token(a);
+                quote! { Some(easydoc_core::HorizontalAlignment::#variant) }
+            },
+        );
 
-        match &f.format {
-            Some(fmt_str) => {
-                quote! {
-                    {
-                        let formatted = format!("{}", #fmt_str); // simple format hint
-                        easydoc_core::CellData::new(self.#ident.to_string())
-                    }
-                }
-            }
-            None => {
-                quote! {
-                    easydoc_core::CellData::new(self.#ident.clone())
-                }
+        quote! {
+            {
+                let mut cell = easydoc_core::CellData::new(self.#ident.clone());
+                cell.alignment = #align_expr;
+                cell
             }
         }
     });
@@ -164,10 +183,75 @@ pub(crate) fn expand_docx_row_tokens(input: TokenStream) -> syn::Result<TokenStr
             }
         });
 
-    let from_row_self = fields.iter().filter(|f| !f.ignored).map(|f| {
-        let ident = &f.ident;
-        quote! { #ident }
-    });
+    let from_row_self: Vec<TokenStream> = fields
+        .iter()
+        .map(|f| {
+            let ident = &f.ident;
+            if f.ignored {
+                quote! { #ident: Default::default() }
+            } else {
+                quote! { #ident }
+            }
+        })
+        .collect();
+
+    // Generate converter-aware from_row bindings.
+    // For each non-ignored field, generate code that uses registry.from_doc_value
+    // which dispatches to registered converters or built-in fallback.
+    let from_row_converter_bindings =
+        fields
+            .iter()
+            .filter(|f| !f.ignored)
+            .enumerate()
+            .map(|(i, f)| {
+                let ident = &f.ident;
+                let idx = syn::Index::from(i);
+                let ty = &f.ty;
+                let field_name = f.ident.to_string();
+
+                quote! {
+                    let #ident: #ty = {
+                        let __cell = &row.cells[#idx];
+                        registry.from_doc_value::<#ty>(&__cell.value, &__schema[#idx])
+                            .map_err(|__err| easydoc_core::DocError::Conversion {
+                                field: #field_name.to_owned(),
+                                value: format!("{:?}", __cell.value),
+                                message: format!("converter error: {}", __err),
+                            })?
+                    };
+                }
+            });
+
+    // Generate converter-aware to_row body.
+    // For each non-ignored field, use registry.to_doc_value which dispatches
+    // to registered converters or built-in fallback, then wrap in CellData.
+    let to_row_converter_cells = fields
+        .iter()
+        .filter(|f| !f.ignored)
+        .enumerate()
+        .map(|(i, f)| {
+            let ident = &f.ident;
+            let idx = syn::Index::from(i);
+            let align_expr = f.align.as_ref().map_or_else(
+                || quote! { None },
+                |a| {
+                    let variant = align_variant_token(a);
+                    quote! { Some(easydoc_core::HorizontalAlignment::#variant) }
+                },
+            );
+
+            quote! {
+                {
+                    let __doc_val = registry.to_doc_value(&self.#ident, &__schema[#idx])?;
+                    easydoc_core::CellData {
+                        value: __doc_val,
+                        alignment: #align_expr,
+                        col_span: 1,
+                        row_span: 1,
+                    }
+                }
+            }
+        });
 
     let _banded_rows = struct_config.banded_rows;
     let _auto_width = struct_config.auto_width;
@@ -200,9 +284,20 @@ pub(crate) fn expand_docx_row_tokens(input: TokenStream) -> syn::Result<TokenStr
 
             fn from_row_with_converters(
                 row: &easydoc_core::RowData,
-                _registry: &easydoc_core::ConverterRegistry,
+                registry: &easydoc_core::ConverterRegistry,
             ) -> easydoc_core::Result<Self> {
-                Self::from_row(row)
+                let __schema = Self::schema();
+                if row.cells.len() < #field_count {
+                    return Err(easydoc_core::DocError::Conversion {
+                        field: #struct_name_str.to_owned(),
+                        value: format!("{} cells, expected {}", row.cells.len(), #field_count),
+                        message: "not enough cells in row".to_owned(),
+                    });
+                }
+                #(#from_row_converter_bindings)*
+                Ok(Self {
+                    #(#from_row_self,)*
+                })
             }
 
             fn to_row(&self) -> easydoc_core::Result<Vec<easydoc_core::CellData>> {
@@ -213,9 +308,12 @@ pub(crate) fn expand_docx_row_tokens(input: TokenStream) -> syn::Result<TokenStr
 
             fn to_row_with_converters(
                 &self,
-                _registry: &easydoc_core::ConverterRegistry,
+                registry: &easydoc_core::ConverterRegistry,
             ) -> easydoc_core::Result<Vec<easydoc_core::CellData>> {
-                self.to_row()
+                let __schema = Self::schema();
+                Ok(vec![
+                    #(#to_row_converter_cells,)*
+                ])
             }
         }
     };
@@ -282,6 +380,9 @@ fn collect_fields(fields: &syn::Fields) -> syn::Result<Vec<FieldConfig>> {
         let mut order = i as u32;
         let mut width = None;
         let mut format = None;
+        let mut align = None;
+        let mut converter = None;
+        let mut wrap = false;
         let mut ignored = false;
 
         for attr in &field.attrs {
@@ -326,10 +427,9 @@ fn collect_fields(fields: &syn::Fields) -> syn::Result<Vec<FieldConfig>> {
                         }
                         "width" => {
                             if let syn::Expr::Lit(lit) = &nv.value
-                                && let syn::Lit::Float(n) = &lit.lit
-                                && let Ok(v) = n.base10_parse::<f64>()
+                                && let syn::Lit::Str(s) = &lit.lit
                             {
-                                width = Some(v);
+                                width = Some(s.value());
                             }
                         }
                         "format" => {
@@ -337,6 +437,35 @@ fn collect_fields(fields: &syn::Fields) -> syn::Result<Vec<FieldConfig>> {
                                 && let syn::Lit::Str(s) = &lit.lit
                             {
                                 format = Some(s.value());
+                            }
+                        }
+                        "align" => {
+                            if let syn::Expr::Lit(lit) = &nv.value
+                                && let syn::Lit::Str(s) = &lit.lit
+                            {
+                                let v = s.value();
+                                validate_align(&v, s.span())?;
+                                align = Some(v);
+                            }
+                        }
+                        "converter" => {
+                            // converter = TypePath — parsed as a path expression
+                            if let syn::Expr::Path(path) = &nv.value {
+                                let path_str = path
+                                    .path
+                                    .segments
+                                    .iter()
+                                    .map(|seg| seg.ident.to_string())
+                                    .collect::<Vec<_>>()
+                                    .join("::");
+                                converter = Some(path_str);
+                            }
+                        }
+                        "wrap" => {
+                            if let syn::Expr::Lit(lit) = &nv.value
+                                && let syn::Lit::Bool(b) = &lit.lit
+                            {
+                                wrap = b.value();
                             }
                         }
                         "ignore" => {
@@ -362,10 +491,43 @@ fn collect_fields(fields: &syn::Fields) -> syn::Result<Vec<FieldConfig>> {
             order,
             width,
             format,
+            align,
+            converter,
+            wrap,
             ignored,
             ty,
         });
     }
 
     Ok(result)
+}
+
+/// Validates an `align` attribute value and returns an error if it is not one
+/// of the accepted identifiers.
+fn validate_align(value: &str, span: proc_macro2::Span) -> syn::Result<()> {
+    match value {
+        "left" | "center" | "right" | "justify" | "both" => Ok(()),
+        _ => Err(syn::Error::new(
+            span,
+            format!(
+                "unknown align value '{value}', expected one of: left, center, right, justify, both"
+            ),
+        )),
+    }
+}
+
+/// Maps an `align` attribute string to the corresponding
+/// `HorizontalAlignment` variant identifier for code generation.
+///
+/// Note: `"justify"` maps to `Both` since they are semantically identical
+/// in OOXML (`<w:jc w:val="both"/>` renders as justified text).
+fn align_variant_token(value: &str) -> proc_macro2::Ident {
+    let variant = match value {
+        "left" => "Left",
+        "center" => "Center",
+        "right" => "Right",
+        "justify" | "both" => "Both",
+        _ => unreachable!("align value should be validated earlier"),
+    };
+    proc_macro2::Ident::new(variant, proc_macro2::Span::call_site())
 }

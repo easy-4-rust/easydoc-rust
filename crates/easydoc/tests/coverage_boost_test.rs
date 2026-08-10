@@ -2,11 +2,10 @@
 
 use easydoc::prelude::*;
 use easydoc_core::{
-    DocumentBlock, DocumentContent, DocumentImage, DocumentList, DocumentListItem, DocumentMeta,
-    DocumentTable, DocumentTableCell, DocumentTableRow, DocumentTextRun,
+    DocumentBlock, DocumentContent, DocumentList, DocumentListItem, DocumentMeta, DocumentTable,
+    DocumentTableCell, DocumentTableRow, DocumentTextRun,
 };
 use std::collections::HashMap;
-use std::io::Write;
 
 fn tr(text: &str) -> DocumentTextRun {
     DocumentTextRun {
@@ -208,9 +207,6 @@ fn easydoc_document_builder() {
 
 #[test]
 fn easydoc_write_table() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("table.docx");
-
     #[derive(Debug, Clone)]
     struct Item {
         name: String,
@@ -239,7 +235,7 @@ fn easydoc_write_table() {
         fn to_row(&self) -> easydoc_core::Result<Vec<easydoc_core::CellData>> {
             Ok(vec![
                 easydoc_core::CellData::new(self.name.clone()),
-                easydoc_core::CellData::new(self.value as i64),
+                easydoc_core::CellData::new(i64::from(self.value)),
             ])
         }
         fn to_row_with_converters(
@@ -249,6 +245,9 @@ fn easydoc_write_table() {
             self.to_row()
         }
     }
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("table.docx");
 
     let items = vec![
         Item {

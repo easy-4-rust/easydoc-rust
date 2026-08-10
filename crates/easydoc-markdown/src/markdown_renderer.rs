@@ -6,6 +6,7 @@ use easydoc_core::{
 };
 use easydoc_ooxml::AtomicFile;
 
+use crate::math;
 use crate::{ConversionWarning, ExtractedAsset, MarkdownOptions, MarkdownResult};
 
 /// 把 easydoc 语义文档渲染为 Markdown，并管理图片等伴随资源。
@@ -127,6 +128,30 @@ impl MarkdownRenderer {
                     section_type: _,
                 } => {
                     self.render_blocks(blocks, output)?;
+                }
+                DocumentBlock::Math {
+                    omml,
+                    latex,
+                    display,
+                } => {
+                    let resolved = latex.clone().unwrap_or_else(|| {
+                        omml.as_ref()
+                            .and_then(|xml| math::omml_to_latex::convert(xml).ok())
+                            .unwrap_or_default()
+                    });
+                    if resolved.is_empty() {
+                        self.warnings.push(ConversionWarning {
+                            message: "math formula could not be converted to LaTeX".to_owned(),
+                        });
+                    }
+                    if *display {
+                        use std::fmt::Write;
+                        writeln!(output, "$${resolved}$$\n")
+                            .expect("writing to String cannot fail");
+                    } else {
+                        use std::fmt::Write;
+                        write!(output, "${resolved}$").expect("writing to String cannot fail");
+                    }
                 }
                 _ => self.warnings.push(ConversionWarning {
                     message: "an unknown document block was omitted".to_owned(),
@@ -309,6 +334,14 @@ fn plain_blocks(blocks: &[DocumentBlock]) -> String {
             DocumentBlock::Section { blocks, .. } => {
                 output.push_str(&plain_blocks(blocks));
             }
+            DocumentBlock::Math { latex, omml, .. } => {
+                let resolved = latex.clone().unwrap_or_else(|| {
+                    omml.as_ref()
+                        .and_then(|xml| math::omml_to_latex::convert(xml).ok())
+                        .unwrap_or_default()
+                });
+                output.push_str(&resolved);
+            }
             _ => {}
         }
         output.push('\n');
@@ -346,7 +379,9 @@ fn html_escape(value: &str) -> String {
 #[cfg(test)]
 mod coverage_tests {
     use super::*;
-    use easydoc_core::*;
+    use easydoc_core::{
+        DocumentImage, DocumentListItem, DocumentMeta, DocumentTableCell, DocumentTableRow,
+    };
 
     fn tr(text: &str) -> DocumentTextRun {
         DocumentTextRun {
@@ -442,7 +477,7 @@ mod coverage_tests {
             ],
         })]);
         assert!(md.contains("H1"));
-        assert!(md.contains("H1") || md.contains("|")); // table rendered
+        assert!(md.contains("H1") || md.contains('|')); // table rendered
     }
 
     #[test]
@@ -626,7 +661,7 @@ mod coverage_tests {
                 is_header: false,
             }],
         })]);
-        assert!(md.contains("|"));
+        assert!(md.contains('|'));
     }
 
     #[test]
@@ -661,5 +696,84 @@ mod coverage_tests {
             .render(&content)
             .unwrap();
         assert!(!result.markdown.is_empty());
+    }
+
+    #[test]
+    fn render_display_math_block() {
+        let md = render_blocks(vec![DocumentBlock::Math {
+            omml: None,
+            latex: Some(r"\frac{1}{2}".into()),
+            display: true,
+        }]);
+        assert!(md.contains("$$"), "display math needs $$ delimiters: {md}");
+        assert!(md.contains(r"\frac{1}{2}"), "latex content missing: {md}");
+    }
+
+    #[test]
+    fn render_inline_math() {
+        let md = render_blocks(vec![
+            DocumentBlock::Paragraph(vec![tr("see ")]),
+            DocumentBlock::Math {
+                omml: None,
+                latex: Some("x^2".into()),
+                display: false,
+            },
+            DocumentBlock::Paragraph(vec![tr(" for details")]),
+        ]);
+        assert!(
+            md.contains("$x^2$"),
+            "inline math needs single $ delimiters: {md}"
+        );
+    }
+
+    #[test]
+    fn render_math_with_omml_fallback() {
+        // When latex is None but omml is provided, the renderer should attempt conversion.
+        let omml_xml = "<m:oMath xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\">\
+            <m:f><m:num><m:r><m:t>1</m:t></m:r></m:num>\
+            <m:den><m:r><m:t>2</m:t></m:r></m:den></m:f></m:oMath>";
+        let md = render_blocks(vec![DocumentBlock::Math {
+            omml: Some(omml_xml.into()),
+            latex: None,
+            display: true,
+        }]);
+        assert!(
+            md.contains(r"\frac"),
+            "OMML should be converted to LaTeX: {md}"
+        );
+    }
+
+    #[test]
+    fn render_math_empty_produces_warning() {
+        let content = DocumentContent {
+            blocks: vec![DocumentBlock::Math {
+                omml: None,
+                latex: Some(String::new()),
+                display: true,
+            }],
+            ..Default::default()
+        };
+        let result = MarkdownRenderer::new(MarkdownOptions::default())
+            .render(&content)
+            .unwrap();
+        assert!(
+            result.warnings.iter().any(|w| w.message.contains("math")),
+            "expected a warning about empty math: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn plain_blocks_extracts_math_latex() {
+        let blocks = vec![DocumentBlock::Math {
+            omml: None,
+            latex: Some(r"\alpha".into()),
+            display: false,
+        }];
+        let text = plain_blocks(&blocks);
+        assert!(
+            text.contains(r"\alpha"),
+            "plain text should include LaTeX: {text}"
+        );
     }
 }

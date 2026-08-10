@@ -1,6 +1,7 @@
-//! Write lifecycle handlers.
+//! 写入生命周期处理器。
 //!
-//! Re-exports [`DocWriteHandler`] from `easydoc-core` plus any
-//! writer-specific implementations.
+//! 从 `easydoc-core` 重导出 [`DocWriteHandler`] 及 writer 特定实现。
+//!
+//! 对应 Java: com.alibaba.excel.write.handler
 
 pub use easydoc_core::traits::DocWriteHandler;

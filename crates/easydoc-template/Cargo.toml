@@ -8,9 +8,9 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-easydoc-core = { path = "../easydoc-core" }
-easydoc-ooxml = { path = "../easydoc-ooxml" }
-easydoc-writer = { path = "../easydoc-writer" }
+easydoc-core = { path = "../easydoc-core", version = "0.1.0-alpha.1" }
+easydoc-ooxml = { path = "../easydoc-ooxml", version = "0.1.0-alpha.1" }
+easydoc-writer = { path = "../easydoc-writer", version = "0.1.0-alpha.1" }
 serde.workspace = true
 serde_json.workspace = true
 

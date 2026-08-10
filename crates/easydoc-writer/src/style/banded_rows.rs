@@ -1,8 +1,10 @@
-//! Zebra striping strategy for alternating row colors.
+//! 斑马条纹策略（交替行颜色）。
+//!
+//! 对应 Java: `com.alibaba.excel.write.metadata.style.WriteCellStyle#tableStyle`
 
 use easydoc_core::style::Color;
 
-/// Applies alternating row background colors to a table.
+/// 为表格应用交替行背景色。
 #[derive(Debug, Clone)]
 pub struct BandedRowsStrategy {
     /// Color for even-numbered rows (0, 2, 4…).

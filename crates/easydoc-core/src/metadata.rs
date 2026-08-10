@@ -1,7 +1,9 @@
-//! Metadata types for document structure and table schema.
+//! 文档结构与表格 schema 的元数据类型。
 //!
-//! These types describe the structure of tables and documents,
-//! analogous to `ExcelColumn` / `WriteSheet` / `ReadSheet` in `easyexcel-rust`.
+//! 这些类型描述表格和文档的结构，对标 easyexcel-rust 的
+//! `ExcelColumn` / `WriteSheet` / `ReadSheet`。
+//!
+//! 对应 Java: com.alibaba.excel.metadata
 
 /// Table column descriptor.
 pub mod column;

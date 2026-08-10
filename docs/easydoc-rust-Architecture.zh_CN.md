@@ -455,16 +455,20 @@ easydoc-markdown/src/
 
 ## 12. easydoc 门面设计 `[已实现]`
 
-### 12.1 当前 API
+### 12.1 当前 API（18 个方法）
 
 ```rust
 // 写入
 EasyDoc::document("out.docx").add_heading(...).add_paragraph(...).save()?;
 EasyDoc::write_table("out.docx", &users).do_write()?;
+EasyDoc::document_to_bytes(|b| b.add_heading(...))?;  // 内存输出
+EasyDoc::write_table_to_bytes(&users)?;               // 内存输出
 
 // 读取
 let text = EasyDoc::read_text("doc.docx")?;
 let tables: Vec<Vec<User>> = EasyDoc::read_tables::<User>("doc.docx")?;
+EasyDoc::read_events("large.docx", &mut MySink)?;     // SAX 流式（O(1) 内存）
+let annotated = EasyDoc::view_as("doc.docx", &ViewMode::Annotated)?;  // LLM 友好
 
 // 模板
 EasyDoc::fill_template("tpl.docx", "out.docx", &data)?;
@@ -476,6 +480,11 @@ EasyDoc::edit("doc.docx")?.replace_text("old", "new").save_as("new.docx")?;
 // Markdown
 let md = EasyDoc::to_markdown("doc.docx")?;
 EasyDoc::markdown("doc.docx").image_directory("assets").write_to("out.md")?;
+
+// 语义模型
+let content = EasyDoc::load("input.docx")?;
+EasyDoc::write_content(&content, "output.docx")?;
+EasyDoc::write_content_to_bytes(&content)?;
 ```
 
 ### 12.2 与规划的统一语法差距
@@ -535,12 +544,13 @@ cargo test --workspace
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 ```
 
-### 14.3 当前通过情况（2026-08-09）
+### 14.3 当前通过情况（2026-08-10）
 
-- 31 个测试通过，0 个失败，8 个 ignored
+- 174+ 个测试通过，0 个失败，8 个 ignored
 - `cargo clippy` 0 warnings
 - `cargo doc` 0 warnings
 - `cargo fmt` 无 diff
+- 行覆盖率 73%+，函数覆盖率 79%+
 
 ---
 
@@ -553,21 +563,22 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 - [x] 模板 XML 转义 + 跨 Run 占位符
 - [x] 原子输出
 
-### Phase 2 — 语义模型 🔧 进行中
+### Phase 2 — 语义模型与 Markdown ✅ 已完成
 
-- [x] `DocumentContent` / `DocumentBlock` 语义模型
+- [x] `DocumentContent` / `DocumentBlock` 后端无关语义模型
 - [x] `read_document()` reader → `DocumentContent`
 - [x] `easydoc-markdown` 消费 `DocumentContent`
 - [x] 移除旧 `model.rs`（死代码已清除）
-- [ ] Writer 使用 `easydoc-core` 语义模型
-- [ ] 扩展 `DocumentBlock`：Section、Equation、Comment、Revision
+- [x] Writer 使用 `easydoc-core` 语义模型（通过 `content_renderer`）
 
-### Phase 3 — Event 链 `[设计目标]`
+### Phase 3 — 事件链与高级读取 ✅ 已完成
 
 - [x] `DocumentEvent` 枚举
-- [x] `EventSink` trait + `ContentCollector` 实现
+- [x] `EventSink` trait + SAX 流式读取
 - [x] `DocumentReader` trait（`read_model()` + `read_events()`）
-- [ ] Writer refactored to use `DocxRenderer` + core model
+- [x] `DocWriteHandler` 回调集成（`render_with_handler`）
+- [x] Writer 重构为使用 `content_renderer` + core model
+- [x] `#[derive(DocxRow)]` 派生宏完整注解支持
 
 ### Phase 4 — 高级能力 `[设计目标]`
 

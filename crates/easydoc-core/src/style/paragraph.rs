@@ -1,6 +1,8 @@
 use crate::types::HorizontalAlignment;
 
-/// Paragraph-level formatting.
+/// 段落级格式化。
+///
+/// 对应 Java: `com.alibaba.excel.write.metadata.style.WriteCellStyle` 中的段落属性
 #[derive(Debug, Clone, Default)]
 pub struct ParagraphStyle {
     /// Horizontal text alignment.

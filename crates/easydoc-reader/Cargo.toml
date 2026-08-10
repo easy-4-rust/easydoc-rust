@@ -8,8 +8,10 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-easydoc-core = { path = "../easydoc-core" }
+easydoc-core = { path = "../easydoc-core", version = "0.1.0-alpha.1" }
 office_oxide.workspace = true
+quick-xml.workspace = true
+zip.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

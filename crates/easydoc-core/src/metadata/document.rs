@@ -1,4 +1,7 @@
-/// Document-level metadata for DOCX files.
+/// DOCX 文件的文档级元数据。
+///
+/// 对应 OOXML `docProps/core.xml` 中的 Dublin Core 元数据。
+/// 无直接 Java 对应（Java `EasyExcel` 的 `ReadSheet`/`WriteSheet` 仅描述表格级元数据）。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DocumentMeta {
     /// Document title (maps to `dc:title`).
@@ -18,41 +21,41 @@ pub struct DocumentMeta {
 }
 
 impl DocumentMeta {
-    /// Creates default document metadata.
+    /// 创建默认文档元数据。
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Sets the document title.
+    /// 设置文档标题。
     #[must_use]
     pub fn title(mut self, title: impl Into<String>) -> Self {
         self.title = Some(title.into());
         self
     }
 
-    /// Sets the author name.
+    /// 设置作者名称。
     #[must_use]
     pub fn author(mut self, author: impl Into<String>) -> Self {
         self.author = Some(author.into());
         self
     }
 
-    /// Sets the subject.
+    /// 设置主题。
     #[must_use]
     pub fn subject(mut self, subject: impl Into<String>) -> Self {
         self.subject = Some(subject.into());
         self
     }
 
-    /// Sets keywords.
+    /// 设置关键词。
     #[must_use]
     pub fn keywords(mut self, keywords: impl Into<String>) -> Self {
         self.keywords = Some(keywords.into());
         self
     }
 
-    /// Sets landscape orientation.
+    /// 设置横向页面方向。
     #[must_use]
     pub fn landscape(mut self, landscape: bool) -> Self {
         self.landscape = landscape;
@@ -101,7 +104,7 @@ mod tests {
     #[test]
     fn document_meta_debug() {
         let meta = DocumentMeta::new().title("Test");
-        let dbg = format!("{:?}", meta);
+        let dbg = format!("{meta:?}");
         assert!(dbg.contains("Test"));
     }
 

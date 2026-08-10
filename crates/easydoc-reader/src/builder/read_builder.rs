@@ -1,31 +1,35 @@
-//! Streaming document reader builder.
+//! 流式文档读取器构建器。
 
 use std::path::PathBuf;
 
 use crate::extractor;
 use easydoc_core::{DocxRow, Result};
 
-/// Fluent builder for streaming document reads.
+/// 流式文档读取的 Fluent 构建器。
 ///
-/// Created via the facade's `EasyDoc::read()` method.
+/// 通过门面 `EasyDoc::read()` 方法创建。
+///
+/// 对应 Java: `EasyExcel.read(path).head(RowClass.class)`
 pub struct DocReadBuilder {
     path: PathBuf,
 }
 
 impl DocReadBuilder {
-    /// Creates a new reader builder.
+    /// 创建新的读取器构建器。
     #[must_use]
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self { path: path.into() }
     }
 
-    /// Executes a sync read returning all tables flattened into a single `Vec<T>`.
+    /// 执行同步读取，返回所有表格展平后的 `Vec<T>`。
     ///
-    /// Uses `office_oxide` for backend parsing.
+    /// 使用 `office_oxide` 进行后端解析。
+    ///
+    /// 对应 Java: `EasyExcel.read(path).head(RowClass.class).sheet().doReadSync()`
     ///
     /// # Errors
     ///
-    /// Returns I/O, format, or conversion errors.
+    /// 返回 I/O、格式或转换错误。
     pub fn do_read<T: DocxRow>(self) -> Result<Vec<T>> {
         let tables: Vec<Vec<T>> = extractor::table::extract_tables::<T>(&self.path)?;
         Ok(tables.into_iter().flatten().collect())

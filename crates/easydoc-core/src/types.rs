@@ -1,88 +1,95 @@
-//! Core data types for document content.
+//! 文档内容的核心数据类型。
 //!
-//! These types form the universal intermediate representation between
-//! typed Rust values and document cell/paragraph content, analogous to
-//! `CellValue` in `easyexcel-rust`.
+//! 这些类型构成 Rust 类型值与文档单元格/段落内容之间的通用中间表示，
+//! 对标 easyexcel-rust 的 `CellValue`。
+//!
+//! 对应 Java: `com.alibaba.excel.metadata.data` (`ReadCellData` / `WriteCellData`)
 
 use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 
-/// Universal document value — the bridge between Rust types and DOCX content.
+/// 通用文档值 -- Rust 类型与 DOCX 内容之间的桥梁。
 ///
-/// Every `DocConverter` reads from or writes to this enum, exactly as
-/// `CellValue` mediates between Rust types and Excel cell data.
+/// 每个 `DocConverter` 都从此枚举读取或写入，正如 `CellValue` 在 Rust 类型与
+/// Excel 单元格数据之间充当中介。
+///
+/// 对应 Java: `com.alibaba.excel.metadata.data.CellValue` / `ReadCellData` / `WriteCellData`
 #[derive(Debug, Clone)]
 pub enum DocValue {
-    /// Plain text string.
+    /// 纯文本字符串。
     String(String),
-    /// Boolean value.
+    /// 布尔值。
     Bool(bool),
-    /// Signed 64-bit integer.
+    /// 64 位有符号整数。
     Int(i64),
-    /// 64-bit floating-point number.
+    /// 64 位浮点数。
     Float(f64),
-    /// UTC date-time.
+    /// UTC 日期时间。
     DateTime(DateTime<Utc>),
-    /// Date only (no time component).
+    /// 仅日期（无时间分量）。
     Date(NaiveDate),
-    /// Date and time without timezone.
+    /// 无时区的日期时间。
     NaiveDateTime(NaiveDateTime),
-    /// Empty / null value.
+    /// 空值 / null。
     Empty,
-    /// Rich text (formatted runs).
+    /// 富文本（格式化文本片段）。
     RichText(Vec<RichRun>),
-    /// Image data (raw bytes + metadata).
+    /// 图片数据（原始字节 + 元数据）。
     Image(ImageData),
 }
 
-/// A single formatted text run within a rich-text cell.
+/// 富文本单元格中的单个格式化文本片段。
+///
+/// 对应 Java: `com.alibaba.excel.metadata.data.RichTextString` 的运行片段
 #[derive(Debug, Clone)]
 pub struct RichRun {
-    /// The text content.
+    /// 文本内容。
     pub text: String,
-    /// Whether this run is bold.
+    /// 是否加粗。
     pub bold: bool,
-    /// Whether this run is italic.
+    /// 是否斜体。
     pub italic: bool,
-    /// Font size in half-points (e.g. 24 = 12pt).
+    /// 字号（半磅为单位，如 24 = 12pt）。
     pub size: Option<u32>,
-    /// RGB color (e.g. `0xFF0000` for red).
+    /// RGB 颜色（如 `0xFF0000` 表示红色）。
     pub color: Option<u32>,
-    /// Font family name.
+    /// 字体族名称。
     pub font: Option<String>,
 }
 
-/// Image payload with metadata.
+/// 图片载荷及元数据。
 #[derive(Debug, Clone)]
 pub struct ImageData {
-    /// Raw image bytes.
+    /// 原始图片字节。
     pub bytes: Vec<u8>,
-    /// File extension / MIME hint (e.g. "png", "jpg").
+    /// 文件扩展名 / MIME 提示（如 "png"、"jpg"）。
     pub extension: String,
-    /// Desired width in EMU (English Metric Units) or pixels.
+    /// 期望宽度（EMU 或像素）。
     pub width: Option<u32>,
-    /// Desired height in EMU or pixels.
+    /// 期望高度（EMU 或像素）。
     pub height: Option<u32>,
-    /// Alt-text description.
+    /// 替代文本描述。
     pub alt_text: Option<String>,
 }
 
-/// Data for a single table cell.
+/// 单个表格单元格的数据。
 ///
-/// Carries the converted value together with optional formatting overrides.
+/// 携带已转换的值及可选的格式覆盖。
+///
+/// 对应 Java: `com.alibaba.excel.metadata.data.WriteCellData` / `ReadCellData`
 #[derive(Debug, Clone)]
 pub struct CellData {
-    /// The cell's converted value.
+    /// 单元格的已转换值。
     pub value: DocValue,
-    /// Optional horizontal alignment override.
+    /// 可选的水平对齐覆盖。
     pub alignment: Option<HorizontalAlignment>,
-    /// Column span for merged cells (1 = normal).
+    /// 合并单元格的跨列数（1 = 正常）。
     pub col_span: u32,
-    /// Row span for merged cells (1 = normal).
+    /// 合并单元格的跨行数（1 = 正常）。
     pub row_span: u32,
 }
 
 impl CellData {
-    /// Creates a new cell from any value that can be converted into a [`DocValue`].
+    /// 从任何可转换为 [`DocValue`] 的值创建新单元格。
     pub fn new(value: impl Into<DocValue>) -> Self {
         Self {
             value: value.into(),
@@ -92,7 +99,7 @@ impl CellData {
         }
     }
 
-    /// Sets horizontal alignment for this cell.
+    /// 设置此单元格的水平对齐方式。
     #[must_use]
     pub fn alignment(mut self, alignment: HorizontalAlignment) -> Self {
         self.alignment = Some(alignment);
@@ -100,17 +107,17 @@ impl CellData {
     }
 }
 
-/// Data for a single table row.
+/// 单个表格行的数据。
 #[derive(Debug, Clone)]
 pub struct RowData {
-    /// Cells in the row, in column order.
+    /// 行内单元格，按列顺序排列。
     pub cells: Vec<CellData>,
-    /// Row height hint (in twips, 1/20 of a point).
+    /// 行高提示（twips 为单位，1/20 磅）。
     pub height: Option<u32>,
 }
 
 impl RowData {
-    /// Creates a row from cells.
+    /// 从单元格列表创建行。
     #[must_use]
     pub fn new(cells: Vec<CellData>) -> Self {
         Self {
@@ -120,55 +127,59 @@ impl RowData {
     }
 }
 
-/// Full table data extracted from a document during reading.
+/// 读取过程中从文档提取的完整表格数据。
 #[derive(Debug, Clone)]
 pub struct TableData {
-    /// Header row (if available).
+    /// 表头行（如有）。
     pub headers: Option<Vec<String>>,
-    /// Data rows.
+    /// 数据行。
     pub rows: Vec<Vec<String>>,
 }
 
-/// Paragraph alignment options.
+/// 段落对齐选项。
+///
+/// `Both` 对应 OOXML `<w:jc w:val="both"/>`，在大多数文档处理器中渲染为两端对齐。
+///
+/// 对应 Java: `com.alibaba.excel.write.metadata.style.WriteCellStyle#getHorizontalAlignment`
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HorizontalAlignment {
-    /// Align left.
+    /// 左对齐。
     Left,
-    /// Align center.
+    /// 居中对齐。
     Center,
-    /// Align right.
+    /// 右对齐。
     Right,
-    /// Align both / justify.
+    /// 两端对齐（OOXML `both`）。
     Both,
 }
 
-/// Heading level for structured documents.
+/// 结构化文档的标题级别。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HeadingLevel {
-    /// Heading 1 (largest).
+    /// 标题 1（最大）。
     H1,
-    /// Heading 2.
+    /// 标题 2。
     H2,
-    /// Heading 3.
+    /// 标题 3。
     H3,
-    /// Heading 4.
+    /// 标题 4。
     H4,
-    /// Heading 5.
+    /// 标题 5。
     H5,
-    /// Heading 6 (smallest).
+    /// 标题 6（最小）。
     H6,
 }
 
-/// Action to take when a read error occurs.
+/// 读取错误发生时的动作。
 ///
-/// Returned by [`DocReadListener::on_error`](crate::traits::DocReadListener::on_error).
+/// 由 [`DocReadListener::on_error`](crate::traits::DocReadListener::on_error) 返回。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorAction {
-    /// Skip the error and continue reading.
+    /// 跳过错误并继续读取。
     Continue,
-    /// Skip the current construct (paragraph / table row) and continue.
+    /// 跳过当前构造（段落 / 表格行）并继续。
     Skip,
-    /// Stop reading immediately.
+    /// 立即停止读取。
     Stop,
 }
 
@@ -288,8 +299,8 @@ mod tests {
 
     #[test]
     fn doc_value_from_f64() {
-        let v: DocValue = 3.14f64.into();
-        assert!(matches!(v, DocValue::Float(f) if (f - 3.14).abs() < f64::EPSILON));
+        let v: DocValue = std::f64::consts::PI.into();
+        assert!(matches!(v, DocValue::Float(f) if (f - std::f64::consts::PI).abs() < f64::EPSILON));
     }
 
     #[test]
@@ -374,7 +385,7 @@ mod tests {
             color: Some(0xFF0000),
             font: Some("Arial".into()),
         };
-        let dbg = format!("{:?}", run);
+        let dbg = format!("{run:?}");
         assert!(dbg.contains("hi"));
     }
 
@@ -387,6 +398,6 @@ mod tests {
             height: Some(200),
             alt_text: Some("test".into()),
         };
-        assert!(format!("{:?}", img).contains("png"));
+        assert!(format!("{img:?}").contains("png"));
     }
 }

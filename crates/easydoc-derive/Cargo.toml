@@ -17,7 +17,8 @@ quote.workspace = true
 syn.workspace = true
 
 [dev-dependencies]
-easydoc-core = { path = "../easydoc-core" }
+easydoc-core = { path = "../easydoc-core", version = "0.1.0-alpha.1" }
+trybuild = "1"
 
 [lints]
 workspace = true

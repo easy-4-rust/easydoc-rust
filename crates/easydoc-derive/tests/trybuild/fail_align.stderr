@@ -1,0 +1,5 @@
+error: unknown align value 'top', expected one of: left, center, right, justify, both
+ --> tests/trybuild/fail_align.rs:5:32
+  |
+5 |     #[docx(name = "X", align = "top")]
+  |                                ^^^^^

@@ -1,4 +1,6 @@
-//! Document builder — the main entry point for building DOCX documents.
+//! 文档构建器 -- 构建 DOCX 文档的主入口。
+//!
+//! 对应 Java: `com.alibaba.excel.write.ExcelBuilder`
 
 use std::path::PathBuf;
 
@@ -9,11 +11,13 @@ use easydoc_core::types::HeadingLevel;
 use crate::executor::write_executor::DocWriteExecutor;
 use crate::{DocImage, Paragraph, Table};
 
-/// Fluent builder for constructing complete DOCX documents.
+/// 构建完整 DOCX 文档的 Fluent 构建器。
 ///
-/// Created via the facade's `EasyDoc::document()` method.
+/// 通过门面 `EasyDoc::document()` 方法创建。
 ///
-/// # Example
+/// 对应 Java: `com.alibaba.excel.write.ExcelBuilderImpl`
+///
+/// # 示例
 ///
 /// ```ignore
 /// EasyDoc::document("report.docx")

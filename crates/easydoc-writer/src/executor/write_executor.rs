@@ -1,4 +1,6 @@
-//! Document write executor — orchestrates the assembly of a complete DOCX file.
+//! 文档写入执行器 -- 编排完整 DOCX 文件的组装。
+//!
+//! 对应 Java: `com.alibaba.excel.write.ExcelBuilderImpl` 的内部实现
 
 use std::io::{Seek, Write};
 use std::path::PathBuf;
@@ -11,9 +13,9 @@ use crate::builder::doc_builder::DocumentElement;
 
 use docx_rs::{BreakType, Docx, Pic, RunFonts};
 
-/// Executor for rendering a [`crate::DocBuilder`] into a physical DOCX file.
+/// 将 [`crate::DocBuilder`] 渲染为物理 DOCX 文件的执行器。
 ///
-/// Wraps `docx-rs` for the actual OOXML generation.
+/// 包装 `docx-rs` 进行实际的 OOXML 生成。
 pub struct DocWriteExecutor {
     path: PathBuf,
     #[allow(dead_code)]

@@ -1,27 +1,35 @@
 [package]
 name = "easydoc"
-description = "A Rust library for easy DOC/DOCX document operations"
+description = "A Rust library for easy DOC/DOCX document operations — read, write, template fill, Markdown conversion, and streaming event processing"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+keywords = ["docx", "doc", "word", "document", "office"]
+categories = ["encoding", "parser-implementations", "text-processing"]
 
 [dependencies]
-easydoc-core = { path = "../easydoc-core" }
-easydoc-derive = { path = "../easydoc-derive" }
-easydoc-markdown = { path = "../easydoc-markdown" }
-easydoc-ooxml = { path = "../easydoc-ooxml" }
-easydoc-reader = { path = "../easydoc-reader" }
-easydoc-template = { path = "../easydoc-template" }
-easydoc-writer = { path = "../easydoc-writer" }
+easydoc-core = { path = "../easydoc-core", version = "0.1.0-alpha.1" }
+easydoc-derive = { path = "../easydoc-derive", version = "0.1.0-alpha.1" }
+easydoc-markdown = { path = "../easydoc-markdown", version = "0.1.0-alpha.1" }
+easydoc-ooxml = { path = "../easydoc-ooxml", version = "0.1.0-alpha.1" }
+easydoc-reader = { path = "../easydoc-reader", version = "0.1.0-alpha.1" }
+easydoc-template = { path = "../easydoc-template", version = "0.1.0-alpha.1" }
+easydoc-writer = { path = "../easydoc-writer", version = "0.1.0-alpha.1" }
 serde.workspace = true
 
 [dev-dependencies]
+easydoc-core = { path = "../easydoc-core", version = "0.1.0-alpha.1" }
+criterion = { version = "0.5", features = ["html_reports"] }
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
 zip.workspace = true
+
+[[bench]]
+name = "read_write"
+harness = false
 
 [lints]
 workspace = true

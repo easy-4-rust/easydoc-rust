@@ -24,9 +24,9 @@ impl DocxRow for TestUser {
     fn schema() -> &'static [TableColumn] {
         static SCHEMA: std::sync::LazyLock<Vec<TableColumn>> = std::sync::LazyLock::new(|| {
             vec![
-                TableColumn::new("Name", "name", 0).order(0).width(0.3),
-                TableColumn::new("Age", "age", 1).order(1).width(0.15),
-                TableColumn::new("Email", "email", 2).order(2).width(0.55),
+                TableColumn::new("Name", "name", 0).order(0).width("30%"),
+                TableColumn::new("Age", "age", 1).order(1).width("15%"),
+                TableColumn::new("Email", "email", 2).order(2).width("55%"),
             ]
         });
         &SCHEMA
@@ -761,8 +761,7 @@ fn test_load_modify_write_round_trip() {
     let modified_text = EasyDoc::read_text(&modified).expect("read modified");
     assert!(
         modified_text.contains("Added by round-trip") || modified_text.contains("round-trip"),
-        "modified text should contain added content, got: {}",
-        modified_text
+        "modified text should contain added content, got: {modified_text}",
     );
 }
 
@@ -881,7 +880,7 @@ fn test_content_renderer_with_list() {
 
 #[test]
 fn test_content_renderer_code_block() {
-    use easydoc_core::{DocumentBlock, DocumentContent, DocumentTextRun};
+    use easydoc_core::{DocumentBlock, DocumentContent};
 
     let dir = TempDir::new().unwrap();
     let out = dir.path().join("code.docx");
@@ -923,7 +922,7 @@ fn test_content_renderer_thematic_break() {
 
 #[test]
 fn test_content_renderer_page_break() {
-    use easydoc_core::{DocumentBlock, DocumentContent, DocumentTextRun};
+    use easydoc_core::{DocumentBlock, DocumentContent};
 
     let dir = TempDir::new().unwrap();
     let out = dir.path().join("pagebreak.docx");
@@ -1029,10 +1028,7 @@ fn test_content_renderer_table_with_spans() {
 
 #[test]
 fn test_render_with_handler_fires_callbacks() {
-    use easydoc_core::{
-        DocumentBlock, DocumentContent, DocumentTable, DocumentTableCell, DocumentTableRow,
-        DocumentTextRun,
-    };
+    use easydoc_core::{DocumentBlock, DocumentContent, DocumentTable, DocumentTextRun};
     use easydoc_writer::content_renderer::render_with_handler;
 
     struct TestHandler {
@@ -1098,7 +1094,7 @@ fn test_render_with_handler_fires_callbacks() {
         table_count: 0,
     };
 
-    let docx = render_with_handler(&content, &mut handler).expect("render with handler");
+    let _docx = render_with_handler(&content, &mut handler).expect("render with handler");
     assert!(handler.document_before);
     assert!(handler.document_after);
     assert_eq!(handler.para_count, 2); // Paragraph + Heading
@@ -1170,7 +1166,7 @@ fn test_write_document_with_styled_table() {
     EasyDoc::document(&out)
         .add_heading("Styled Table", HeadingLevel::H1)
         .add_table(
-            easydoc::Table::from_data(&vec![
+            easydoc::Table::from_data(&[
                 TestUser {
                     name: "Alice".into(),
                     age: 30,
@@ -1201,7 +1197,7 @@ fn test_write_table_no_header() {
 
     EasyDoc::write_table(
         &out,
-        &vec![TestUser {
+        &[TestUser {
             name: "X".into(),
             age: 1,
             email: "x@y.z".into(),
@@ -1221,7 +1217,7 @@ fn test_write_table_with_title_and_banded() {
 
     EasyDoc::write_table(
         &out,
-        &vec![TestUser {
+        &[TestUser {
             name: "Y".into(),
             age: 2,
             email: "y@z.w".into(),
@@ -1233,12 +1229,12 @@ fn test_write_table_with_title_and_banded() {
     .expect("titled write");
 
     let text = EasyDoc::read_text(&out).unwrap();
-    assert!(text.contains("User Report") || text.contains("Y"));
+    assert!(text.contains("User Report") || text.contains('Y'));
 }
 
 #[test]
 fn test_write_table_to_bytes_v2() {
-    let bytes = EasyDoc::write_table_to_bytes(&vec![TestUser {
+    let bytes = EasyDoc::write_table_to_bytes(&[TestUser {
         name: "Z".into(),
         age: 3,
         email: "z@w.v".into(),

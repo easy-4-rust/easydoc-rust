@@ -1,8 +1,10 @@
-//! Auto-column-width strategy.
+//! 自动列宽策略。
+//!
+//! 对应 Java: `com.alibaba.excel.write.metadata.style.WriteCellStyle#autoSizeColumnStrategy`
 
-/// Strategy for automatic column width calculation.
+/// 自动列宽计算策略。
 ///
-/// Calculates column widths based on the longest cell content in each column.
+/// 根据每列中最长的单元格内容计算列宽。
 #[derive(Debug, Clone, Default)]
 pub struct AutoWidthStrategy {
     /// Minimum column width in twips (default: ~1 character).

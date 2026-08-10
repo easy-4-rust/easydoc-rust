@@ -1,0 +1,47 @@
+# cargo-deny configuration for easydoc-rust
+# https://EmbarkStudios.github.io/cargo-deny/
+
+[graph]
+all-features = false
+
+[advisories]
+version = 2
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+yanked = "warn"
+ignore = []
+
+[licenses]
+version = 2
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "CC0-1.0",
+]
+confidence-threshold = 0.8
+
+[bans]
+# "warn" because transitive deps (e.g. criterion -> wasm-bindgen -> syn 2.x
+# alongside direct syn 3.x) can legitimately pull in multiple versions.
+multiple-versions = "warn"
+# "warn" because workspace path dependencies are treated as wildcards by
+# cargo-deny; this is normal for workspace-internal crates and cannot be
+# changed without modifying crate Cargo.toml files.
+wildcards = "warn"
+highlight = "all"
+deny = []
+skip = []
+skip-tree = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

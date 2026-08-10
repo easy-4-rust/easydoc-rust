@@ -1,4 +1,6 @@
 //! 与解析和渲染后端解耦的语义文档模型。
+//!
+//! 无直接 Java 对应（Java `EasyExcel` 不处理 DOCX），是 easydoc-rust 自创的语义模型。
 
 mod document_block;
 mod document_content;

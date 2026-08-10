@@ -1,6 +1,6 @@
 # easydoc-rust Usage Guide &middot; 使用指南
 
-> **Version**: 0.1.0 | **Date**: 2026-07-21 | **Language**: English / 中文
+> **Version**: 0.1.0 | **Date**: 2026-08-10 | **Language**: English / 中文
 
 ---
 
@@ -18,7 +18,9 @@
 4. [Read Documents 读取文档](#4-read-documents-读取文档)
    - [4.1 Text Extraction 文本提取](#41-text-extraction-文本提取)
    - [4.2 Table Extraction 表格提取](#42-table-extraction-表格提取)
-   - [4.3 Format Detection 格式检测](#43-format-detection-格式检测)
+   - [4.3 SAX Streaming Read SAX 流式读取](#43-sax-streaming-read-sax-流式读取)
+   - [4.4 ViewMode Rendering 视图渲染](#44-viewmode-rendering-视图渲染)
+   - [4.5 Format Detection 格式检测](#45-format-detection-格式检测)
 5. [Template Fill 模板填充](#5-template-fill-模板填充)
    - [5.1 Scalar Replacement 标量替换](#51-scalar-replacement-标量替换)
    - [5.2 Collection Expansion 集合展开](#52-collection-expansion-集合展开)
@@ -29,8 +31,8 @@
    - [6.3 MarkdownBuilder API](#63-markdownbuilder-api)
    - [6.4 Supported Markdown Elements](#64-supported-markdown-elements)
    - [6.5 MarkdownResult](#65-markdownresult)
-7. [Semantic Document Reading 语义文档读取](#7-semantic-document-reading-语义文档读取)
-   - [7.1 Read as DocumentContent](#71-read-as-documentcontent)
+7. [Semantic Document Model 语义文档模型](#7-semantic-document-model-语义文档模型)
+   - [7.1 Read-Modify-Write Round-trip 读-改-写闭环](#71-read-modify-write-round-trip-读-改-写闭环)
    - [7.2 DocumentContent Model](#72-documentcontent-model)
 8. [Style System 样式系统](#8-style-system-样式系统)
    - [8.1 FontConfig 字体配置](#81-fontconfig-字体配置)
@@ -344,7 +346,93 @@ let all_users: Vec<User> = EasyDoc::read("users.docx").do_read::<User>()?;
 
 Note: Header rows (first row marked as header in the table) are automatically skipped during extraction.
 
-### 4.3 Format Detection 格式检测
+### 4.3 SAX Streaming Read SAX 流式读取
+
+For large documents, SAX streaming provides O(1) memory consumption -- the entire document is never loaded into memory at once.
+
+```rust
+use easydoc::prelude::*;
+
+struct MySink;
+impl EventSink for MySink {
+    fn on_event(&mut self, event: &DocumentEvent) -> easydoc::Result<()> {
+        match event {
+            DocumentEvent::Heading { level, runs } => {
+                let text: String = runs.iter().map(|r| r.text.as_str()).collect();
+                println!("H{level}: {text}");
+            }
+            DocumentEvent::Paragraph(runs) => {
+                let text: String = runs.iter().map(|r| r.text.as_str()).collect();
+                println!("P: {text}");
+            }
+            DocumentEvent::Table(table) => {
+                println!("Table: {} rows", table.rows.len());
+            }
+            DocumentEvent::Image(img) => {
+                println!("Image: {} bytes", img.data.as_ref().map_or(0, |d| d.len()));
+            }
+            DocumentEvent::Formula(formula) => {
+                println!("Formula: {}", formula.xml);
+            }
+            DocumentEvent::List(list) => {
+                println!("List: {} items, ordered={}", list.items.len(), list.ordered);
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
+
+EasyDoc::read_events("large.docx", &mut MySink)?;
+```
+
+**SAX Content Coverage:**
+
+| Content Type | Event Variant | Details |
+|---|---|---|
+| Paragraphs | `DocumentEvent::Paragraph` | Text runs with bold/italic/strikethrough/hyperlink |
+| Headings | `DocumentEvent::Heading` | H1-H6 with level |
+| Tables | `DocumentEvent::Table` | Including nested tables, merged cells (gridSpan/vMerge) |
+| Images | `DocumentEvent::Image` | Binary data from `word/media/*` via rels mapping |
+| OMML formulas | `DocumentEvent::Formula` | Inline `<m:oMath>` and display `<m:oMathPara>` |
+| Lists | `DocumentEvent::List` | `<w:numPr>` detection (ordered/unordered) |
+| Hyperlinks | Embedded in runs | `<w:hyperlink>` with relationship resolution |
+| Page/Column breaks | `DocumentEvent::PageBreak` | `<w:br>` |
+
+### 4.4 ViewMode Rendering 视图渲染
+
+ViewMode provides 4 rendering modes for different use cases. The `Annotated` mode is particularly useful for LLM context injection.
+
+```rust
+use easydoc::prelude::*;
+
+// Plain text -- simple text extraction
+let plain = EasyDoc::view_as("doc.docx", &ViewMode::Plain)?;
+// Output: "Hello world\nNext paragraph"
+
+// Annotated -- structural markers for LLM context
+let annotated = EasyDoc::view_as("doc.docx", &ViewMode::Annotated)?;
+// Output: "[Heading1] Introduction\n[Paragraph 1] Hello world\n[Table 1: 3x4] ..."
+
+// Outline -- headings only (Markdown-style)
+let outline = EasyDoc::view_as("doc.docx", &ViewMode::Outline { max_level: 3 })?;
+// Output: "# H1 Title\n## H2 Subtitle\n### H3 Section"
+
+// Stats -- document statistics
+let stats = EasyDoc::view_as("doc.docx", &ViewMode::Stats)?;
+// Output: "Paragraphs: 12\nTables: 3\nImages: 2\nWords: 1500"
+```
+
+**ViewMode Summary:**
+
+| Mode | Constructor | Best For |
+|---|---|---|
+| `Plain` | `ViewMode::Plain` | Simple text extraction |
+| `Annotated` | `ViewMode::Annotated` | LLM context injection (structural markers) |
+| `Outline` | `ViewMode::Outline { max_level }` | Document structure overview |
+| `Stats` | `ViewMode::Stats` | Quick document statistics |
+
+### 4.5 Format Detection 格式检测
 
 ```rust
 use easydoc::{detect_format, DocumentFormat};
@@ -526,21 +614,24 @@ pub struct ConversionWarning {
 
 ---
 
-## 7. Semantic Document Reading 语义文档读取
+## 7. Semantic Document Model 语义文档模型
 
-### 7.1 Read as DocumentContent
+### 7.1 Read-Modify-Write Round-trip 读-改-写闭环
+
+The semantic model provides a complete Read -> Modify -> Write loop:
 
 ```rust
-use easydoc::easydoc_reader::read_document;
+use easydoc::prelude::*;
 
-let doc = read_document(std::path::Path::new("document.docx"))?;
+// Read document into semantic model
+let mut content = EasyDoc::load("input.docx")?;
 
 // Access metadata
-println!("Title: {:?}", doc.metadata.title);
-println!("Author: {:?}", doc.metadata.author);
+println!("Title: {:?}", content.metadata.title);
+println!("Author: {:?}", content.metadata.author);
 
-// Iterate blocks
-for block in &doc.blocks {
+// Iterate and modify blocks
+for block in &mut content.blocks {
     match block {
         DocumentBlock::Heading { level, runs } => {
             println!("H{}: {}", level, runs.iter().map(|r| r.text.as_str()).collect::<String>());
@@ -560,6 +651,13 @@ for block in &doc.blocks {
         _ => {}
     }
 }
+
+// Write modified content back to file
+EasyDoc::write_content(&content, "output.docx")?;
+
+// Or write to memory
+let bytes = EasyDoc::write_content_to_bytes(&content)?;
+```
 ```
 
 ### 7.2 DocumentContent Model
@@ -685,17 +783,20 @@ let hex: u32 = orange.to_hex();  // 0xFF8C00
 #[derive(DocxRow)]
 #[docx(banded_rows = true)]         // struct-level attributes
 struct Employee {
-    #[docx(name = "Employee Name", width = 0.35, order = 0)]
+    #[docx(name = "Employee Name", order = 0, width = "35%")]
     name: String,
 
-    #[docx(name = "Department", width = 0.25, order = 1)]
+    #[docx(name = "Department", order = 1, width = "25%")]
     department: String,
 
-    #[docx(name = "Salary", width = 0.20, order = 2, format = "$#,##0.00")]
+    #[docx(name = "Salary", order = 2, width = "4cm", format = "#,##0.00", align = "right")]
     salary: f64,
 
-    #[docx(name = "Start Date", width = 0.20, order = 3, format = "%Y-%m-%d")]
-    start_date: chrono::NaiveDate,
+    #[docx(name = "Start Date", order = 3, width = "3cm", format = "yyyy-mm-dd")]
+    start_date: String,
+
+    #[docx(name = "Notes", order = 4, wrap = true)]
+    notes: Option<String>,
 
     #[docx(ignore)]  // completely excluded from read/write
     password_hash: String,
@@ -704,26 +805,41 @@ struct Employee {
 
 **Struct-level attributes:**
 
-| Attribute | Type | Example |
-|:---|:---|:---|
-| `banded_rows` | bool | `#[docx(banded_rows = true)]` |
-| `auto_width` | bool | `#[docx(table_width = Auto)]` |
+| Attribute | Type | Example | Effect |
+|:---|:---|:---|:---|
+| `banded_rows` | bool | `#[docx(banded_rows = true)]` | Zebra striping |
+| `table_width` / `auto_width` | bool | `#[docx(table_width = Auto)]` | Auto-fit table width |
 
 **Field-level attributes:**
 
-| Attribute | Type | Example |
-|:---|:---|:---|
-| `name` | string | `#[docx(name = "Full Name")]` |
-| `index` | usize | `#[docx(index = 0)]` |
-| `order` | u32 | `#[docx(order = 1)]` |
-| `width` | f64 | `#[docx(width = 0.3)]` (0.0–1.0 page fraction) |
-| `format` | string | `#[docx(format = "%Y-%m-%d")]` |
-| `ignore` | flag | `#[docx(ignore)]` |
+| Attribute | Type | Example | Effect |
+|:---|:---|:---|:---|
+| `name` | string | `#[docx(name = "Full Name")]` | Column header text |
+| `index` | usize | `#[docx(index = 0)]` | Zero-based column index |
+| `order` | u32 | `#[docx(order = 1)]` | Column sort order (lower = leftmost) |
+| `width` | string | `#[docx(width = "2cm")]` | Column width: `"2cm"`, `"80px"`, `"50%"`, `"auto"` |
+| `format` | string | `#[docx(format = "#,##0.00")]` | Number/date format string |
+| `align` | string | `#[docx(align = "right")]` | `"left"`, `"center"`, `"right"`, `"both"` / `"justify"` |
+| `wrap` | bool | `#[docx(wrap = true)]` | Text wrapping in cells |
+| `converter` | type path | `#[docx(converter = MyConverter)]` | Custom `DocConverter<T>` implementation |
+| `ignore` | flag | `#[docx(ignore)]` | Skip this field during read/write |
+
+**How annotations map to OOXML:**
+
+| Annotation | OOXML Output |
+|---|---|
+| `width="2cm"` / `"80px"` / `"50%"` / `"auto"` | `<w:tcW w:w="..." w:type="dxa\|pct\|auto"/>` |
+| `format="#,##0.00"` / `"yyyy-mm-dd"` | `<w:numFmt w:val="..."/>` |
+| `align="right"` / `"center"` / `"left"` / `"both"` | `<w:jc w:val="..."/>` |
+| `wrap=false` | `<w:noWrap/>` |
+| `converter="MyConverter"` | `ConverterRegistry` runtime dispatch |
 
 What the derive generates:
-- `schema()` — column metadata array
-- `from_row(&RowData)` — row-to-struct deserialization
-- `to_row(&self)` — struct-to-row serialization
+- `schema()` -- column metadata array
+- `from_row(&RowData)` -- row-to-struct deserialization
+- `to_row(&self)` -- struct-to-row serialization
+- `from_row_with_converters(&RowData, &ConverterRegistry)` -- converter-aware deserialization
+- `to_row_with_converters(&self, &ConverterRegistry)` -- converter-aware serialization
 
 ### 9.2 Custom Converters 自定义转换器
 
@@ -987,31 +1103,34 @@ fn analyze_document(path: &str) -> easydoc::Result<DocumentInfo> {
 
 ## 12. API Reference 接口速查
 
-## 12. API Reference 接口速查
-
-### EasyDoc Static Factory
+### EasyDoc Static Factory (18 methods)
 
 ```rust
-// Write
-EasyDoc::document(path) -> DocBuilder
-EasyDoc::write_table(path, &[T]) -> TableWriteBuilder<T>
+// === Write ===
+EasyDoc::document(path) -> DocBuilder                    // Build a full document
+EasyDoc::write_table(path, &[T]) -> TableWriteBuilder    // Write struct data as table
+EasyDoc::document_to_bytes(f) -> Result<Vec<u8>>         // Build document in memory
+EasyDoc::write_table_to_bytes(data) -> Result<Vec<u8>>   // Write table to memory
+EasyDoc::edit(path) -> Result<DocEditor>                 // Edit existing DOCX
+EasyDoc::fill_template(tpl, out, &HashMap<K,V>) -> Result<()>  // Scalar placeholder fill
+EasyDoc::fill_template_list(tpl, out, &[T], field) -> Result<()>  // Collection expansion
 
-// Read
-EasyDoc::read(path) -> DocReadBuilder
-EasyDoc::read_text(path) -> Result<String>
-EasyDoc::read_tables::<T>(path) -> Result<Vec<Vec<T>>>
+// === Read ===
+EasyDoc::read(path) -> DocReadBuilder                    // Streaming reader builder
+EasyDoc::read_text(path) -> Result<String>               // Quick text extraction
+EasyDoc::read_tables::<T>(path) -> Result<Vec<Vec<T>>>   // Typed table extraction
+EasyDoc::read_events(path, &mut sink) -> Result<()>      // SAX event streaming (O(1) memory)
+EasyDoc::view_as(path, &ViewMode) -> Result<String>      // Multi-mode view rendering
 
-// Template
-EasyDoc::fill_template(tpl, out, &HashMap<K,V>) -> Result<()>
-EasyDoc::fill_template_list(tpl, out, &[T], field) -> Result<()>
+// === Markdown ===
+EasyDoc::markdown(path) -> MarkdownBuilder               // Markdown conversion builder
+EasyDoc::to_markdown(path) -> Result<String>             // Quick Markdown conversion
+EasyDoc::write_markdown(source, output) -> Result<MarkdownResult>  // Convert and write
 
-// Edit
-EasyDoc::edit(path) -> Result<DocEditor>
-
-// Markdown
-EasyDoc::markdown(path) -> MarkdownBuilder
-EasyDoc::to_markdown(path) -> Result<String>
-EasyDoc::write_markdown(source, output) -> Result<MarkdownResult>
+// === Semantic Model ===
+EasyDoc::load(path) -> Result<DocumentContent>           // Read into semantic model
+EasyDoc::write_content(content, path) -> Result<()>      // Write semantic model to file
+EasyDoc::write_content_to_bytes(content) -> Result<Vec<u8>>  // Write semantic model to memory
 ```
 
 ### DocBuilder
@@ -1059,6 +1178,15 @@ EasyDoc::write_markdown(source, output) -> Result<MarkdownResult>
 .replace_text(old, new) -> Self
 .save() -> Result<()>
 .save_as(path) -> Result<()>
+```
+
+### ViewMode
+
+```rust
+ViewMode::Plain                                          // Plain text
+ViewMode::Annotated                                      // Structural markers (LLM-friendly)
+ViewMode::Outline { max_level: u8 }                      // Headings only
+ViewMode::Stats                                          // Document statistics
 ```
 
 ### Standalone Functions

@@ -1,17 +1,22 @@
-//! DOC/DOCX 到 Markdown 的语义转换模块。
+//! DOC/DOCX 到 Markdown 的语义转换模块，以及 Markdown 到 `DocumentContent` 的反向导入。
 
 #![deny(unsafe_code)]
 
 mod conversion_warning;
 mod extracted_asset;
 mod markdown_builder;
+mod markdown_import;
 mod markdown_options;
 mod markdown_renderer;
 mod markdown_result;
+pub mod math;
 
 pub use conversion_warning::ConversionWarning;
 pub use extracted_asset::ExtractedAsset;
 pub use markdown_builder::MarkdownBuilder;
+pub use markdown_import::{
+    ImportResult, ImportWarning, MarkdownImportBuilder, MarkdownImportOptions, ParseErrorStrategy,
+};
 pub use markdown_options::MarkdownOptions;
 pub use markdown_result::MarkdownResult;
 

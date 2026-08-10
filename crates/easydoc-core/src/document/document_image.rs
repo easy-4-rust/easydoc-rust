@@ -1,4 +1,7 @@
 /// 从文档中提取的图片及其语义信息。
+///
+/// 对应 OOXML `<w:drawing>` 中的 `<a:blip>` 图片引用。
+/// 无直接 Java 对应，是 easydoc-rust 自创的语义模型。
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DocumentImage {
     /// 替代文本。

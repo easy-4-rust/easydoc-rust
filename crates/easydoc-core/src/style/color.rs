@@ -1,4 +1,6 @@
-/// A 24-bit RGB color.
+/// 24 位 RGB 颜色。
+///
+/// 对应 Java: `com.alibaba.excel.util.ColorUtil` / OOXML `srgbClr` 颜色值
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Color {
     /// Red component (0–255).
