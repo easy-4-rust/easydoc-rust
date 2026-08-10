@@ -95,6 +95,15 @@ fn render_block(mut docx: Docx, block: &DocumentBlock) -> Result<Docx> {
                 docx = render_block(docx, inner)?;
             }
         }
+        DocumentBlock::Section {
+            blocks,
+            section_type: _,
+        } => {
+            // 分区内容渲染为普通子块
+            for inner in blocks {
+                docx = render_block(docx, inner)?;
+            }
+        }
         _ => {
             // 未来新增的块类型暂时跳过
         }

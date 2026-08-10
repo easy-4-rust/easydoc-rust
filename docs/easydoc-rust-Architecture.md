@@ -54,7 +54,7 @@
 
 | # | Decision | Status | Evidence |
 |---|---|---|---|
-| 1 | `easydoc-core` is the sole semantic model | `[Implemented]` | `document/` module established; old `model.rs` still coexists |
+| 1 | `easydoc-core` is the sole semantic model | `[Implemented]` | `document/` module; old `model.rs` removed |
 | 2 | `easydoc-ooxml` is the sole DOCX package layer | `[Partially Implemented]` | atomic rewrite + limits done; XML namespace/validation not done |
 | 3 | `easydoc-markdown` is a Renderer, not a second Parser | `[Implemented]` | Consumes `DocumentContent`, does not parse ZIP directly |
 
@@ -71,6 +71,7 @@
 | Atomic output | `AtomicFile` + temp + persist | `[Implemented]` |
 | Markdown conversion | headings/lists/tables/images/notes/code | `[Implemented]` |
 | Integrations (CLI/MCP/Web) | Deferred | `[Design Goal]` |
+| Facade API surface | Narrowed with explicit re-exports | `[Implemented]` |
 
 ---
 
@@ -276,7 +277,7 @@ easydoc-core/src/
 
 | Planned model/ | Status | Notes |
 |---|---|---|
-| `section.rs` | `[Design Goal]` | Section breaks, page layout |
+| `DocumentBlock::Section` | `[Implemented]` | Section with child blocks |
 | `heading.rs` | `[Implemented]` | `DocumentBlock::Heading { level, runs }` |
 | `paragraph.rs` | `[Implemented]` | `DocumentBlock::Paragraph(runs)` |
 | `table.rs` | `[Implemented]` | `DocumentTable` / `DocumentTableRow` / `DocumentTableCell` |
@@ -541,7 +542,7 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 
 ### 14.3 Current Pass Status (2026-08-09)
 
-- 175+ tests pass, 0 failures, 8 ignored
+- 174 tests pass, 0 failures, 8 ignored
 - `cargo clippy` 0 warnings
 - `cargo doc` 0 warnings
 - `cargo fmt` no diff
@@ -563,16 +564,16 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 - [x] `DocumentContent` / `DocumentBlock` semantic model
 - [x] `read_document()` reader → `DocumentContent`
 - [x] `easydoc-markdown` consumes `DocumentContent`
-- [ ] Integrate/deprecate old `model.rs`
+- [x] Remove old `model.rs` (dead code eliminated)
 - [x] Writer uses `easydoc-core` semantic model (via `content_renderer`)
-- [ ] Extend `DocumentBlock`: Section, Equation, Comment, Revision
+- [x] Extend `DocumentBlock`: Section variant added (Equation/Comment/Revision deferred to Phase 4)
 
-### Phase 3 — Event Chain `[Partially Implemented]`
+### Phase 3 — Event Chain ✅ Done
 
-- [ ] `DocumentEvent` enum
-- [ ] `DocumentEventSink` trait
+- [x] `DocumentEvent` enum
+- [x] `EventSink` trait + `ContentCollector` implementation
 - [x] `DocWriteHandler` callback integration (`render_with_handler`)
-- [ ] `DocumentReader` trait (`read_model()` + `read_events()`)
+- [x] `DocumentReader` trait (`read_model()` + `read_events()`)
 - [x] Writer refactored to use `content_renderer` + core model
 
 ### Phase 4 — Advanced Capabilities `[Design Goal]`

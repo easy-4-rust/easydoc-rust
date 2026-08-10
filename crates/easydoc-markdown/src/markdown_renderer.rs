@@ -122,6 +122,12 @@ impl MarkdownRenderer {
                     writeln!(output, "[^endnote-{id}]: {}\n", plain_blocks(blocks).trim())
                         .expect("writing to String cannot fail");
                 }
+                DocumentBlock::Section {
+                    blocks,
+                    section_type: _,
+                } => {
+                    self.render_blocks(blocks, output)?;
+                }
                 _ => self.warnings.push(ConversionWarning {
                     message: "an unknown document block was omitted".to_owned(),
                 }),
@@ -299,6 +305,9 @@ fn plain_blocks(blocks: &[DocumentBlock]) -> String {
             DocumentBlock::TextBox(content) => output.push_str(&plain_blocks(content)),
             DocumentBlock::Image(image) => {
                 output.push_str(image.alt_text.as_deref().unwrap_or("image"));
+            }
+            DocumentBlock::Section { blocks, .. } => {
+                output.push_str(&plain_blocks(blocks));
             }
             _ => {}
         }

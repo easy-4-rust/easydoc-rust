@@ -48,4 +48,60 @@ pub enum DocumentBlock {
         /// 尾注内容。
         blocks: Vec<DocumentBlock>,
     },
+    /// 文档分区（Section），包含页面布局属性和子块。
+    Section {
+        /// 分区内的块级内容。
+        blocks: Vec<DocumentBlock>,
+        /// 可选的分区类型标识（如 nextPage, continuous 等）。
+        section_type: Option<String>,
+    },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn section_variant_roundtrip() {
+        let section = DocumentBlock::Section {
+            blocks: vec![DocumentBlock::Paragraph(vec![DocumentTextRun {
+                text: "hello".into(),
+                ..DocumentTextRun::default()
+            }])],
+            section_type: Some("nextPage".into()),
+        };
+        match &section {
+            DocumentBlock::Section {
+                blocks,
+                section_type,
+            } => {
+                assert_eq!(blocks.len(), 1);
+                assert_eq!(section_type.as_deref(), Some("nextPage"));
+            }
+            _ => panic!("expected Section"),
+        }
+    }
+
+    #[test]
+    fn document_block_is_non_exhaustive() {
+        // Verify _ => wildcard works for forward compat
+        let block = DocumentBlock::ThematicBreak;
+        let desc = match block {
+            DocumentBlock::Heading { .. } => "heading",
+            DocumentBlock::Paragraph(_) => "paragraph",
+            DocumentBlock::Table(_) => "table",
+            DocumentBlock::List(_) => "list",
+            DocumentBlock::Image(_) => "image",
+            DocumentBlock::ThematicBreak => "break",
+            DocumentBlock::PageBreak => "page",
+            DocumentBlock::ColumnBreak => "column",
+            DocumentBlock::CodeBlock { .. } => "code",
+            DocumentBlock::TextBox(_) => "textbox",
+            DocumentBlock::Footnote { .. } => "footnote",
+            DocumentBlock::Endnote { .. } => "endnote",
+            DocumentBlock::Section { .. } => "section",
+            _ => "unknown",
+        };
+        assert_eq!(desc, "break");
+    }
 }

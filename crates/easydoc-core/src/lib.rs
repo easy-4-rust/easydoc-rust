@@ -1,8 +1,4 @@
 //! Core data model and extension points for `easydoc-rust`.
-//!
-//! This crate provides the foundational types, traits, and converters that
-//! all other `easydoc-rust` crates build upon. It mirrors the architecture of
-//! `easyexcel-core` but for the DOC/DOCX domain.
 
 #![deny(unsafe_code)]
 
@@ -14,7 +10,6 @@ pub mod style;
 pub mod traits;
 pub mod types;
 
-// Re-export the most commonly used items.
 pub use converter::ConverterRegistry;
 pub use document::{
     DocumentBlock, DocumentContent, DocumentImage, DocumentList, DocumentListItem, DocumentTable,
@@ -24,10 +19,26 @@ pub use error::{DocError, Result};
 pub use metadata::{DocumentMeta, TableColumn};
 pub use style::{Color, FontConfig, ParagraphStyle, TableStyle};
 pub use traits::{
-    CellContext, DocConverter, DocReadContext, DocReadListener, DocWriteContext, DocWriteHandler,
-    DocxRow, ParagraphContext, TableWriteContext,
+    CellContext, ContentCollector, DocConverter, DocReadContext, DocReadListener, DocWriteContext,
+    DocWriteHandler, DocumentEvent, DocumentReader, DocxRow, EventSink, ParagraphContext,
+    TableWriteContext,
 };
 pub use types::{
     CellData, DocValue, ErrorAction, HeadingLevel, HorizontalAlignment, ImageData, RichRun,
     RowData, TableData,
 };
+
+/// 文档分区类型，用于 Section 块。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DocumentSection {
+    /// 连续分区（不换页）。
+    Continuous,
+    /// 下一页开始新分区。
+    NextPage,
+    /// 下一列开始新分区。
+    NextColumn,
+    /// 偶数页开始新分区。
+    EvenPage,
+    /// 奇数页开始新分区。
+    OddPage,
+}

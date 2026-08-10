@@ -558,15 +558,15 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 - [x] `DocumentContent` / `DocumentBlock` 语义模型
 - [x] `read_document()` reader → `DocumentContent`
 - [x] `easydoc-markdown` 消费 `DocumentContent`
-- [ ] 整合/废弃旧 `model.rs`
+- [x] 移除旧 `model.rs`（死代码已清除）
 - [ ] Writer 使用 `easydoc-core` 语义模型
 - [ ] 扩展 `DocumentBlock`：Section、Equation、Comment、Revision
 
 ### Phase 3 — Event 链 `[设计目标]`
 
-- [ ] `DocumentEvent` 枚举
-- [ ] `DocumentEventSink` trait
-- [ ] `DocumentReader` trait（`read_model()` + `read_events()`）
+- [x] `DocumentEvent` 枚举
+- [x] `EventSink` trait + `ContentCollector` 实现
+- [x] `DocumentReader` trait（`read_model()` + `read_events()`）
 - [ ] Writer refactored to use `DocxRenderer` + core model
 
 ### Phase 4 — 高级能力 `[设计目标]`

@@ -1,55 +1,36 @@
 //! Public facade for easy DOC/DOCX document operations.
-//!
-//! `easydoc` provides a fluent, annotation-driven API for creating, reading,
-//! and template-filling Word documents — the DOC/DOCX counterpart to `easyexcel-rust`.
-//!
-//! # Quick start
-//!
-//! ```ignore
-//! use easydoc::prelude::*;
-//!
-//! // Quick table write
-//! EasyDoc::write_table("users.docx", &users)
-//!     .title("User Report")
-//!     .do_write()?;
-//!
-//! // Build a full document
-//! EasyDoc::document("report.docx")
-//!     .add_heading("Summary", HeadingLevel::H1)
-//!     .add_paragraph("This is the report content.")
-//!     .add_table(Table::from_data(&data))
-//!     .build()?
-//!     .save()?;
-//!
-//! // Read text
-//! let text = EasyDoc::read_text("document.docx")?;
-//! ```
-//!
-//! # Crate structure
-//!
-//! This facade re-exports everything from:
-//! - `easydoc-core` — core types, traits, converters, styles
-//! - `easydoc-derive` — `#[derive(DocxRow)]` proc-macro
-//! - `easydoc-writer` — DOCX document generation
-//! - `easydoc-reader` — DOCX/DOC document reading
-//! - `easydoc-template` — template placeholder fill
+
+#![deny(unsafe_code)]
 
 mod easy_doc;
 
-// Re-export everything from sub-crates
 pub use easy_doc::EasyDoc;
-pub use easydoc_core::*;
-pub use easydoc_derive::DocxRow;
+
+// Core types (explicit)
+pub use easydoc_core::{
+    CellContext, CellData, Color, ConverterRegistry, DocConverter, DocError, DocReadContext,
+    DocReadListener, DocValue, DocWriteContext, DocWriteHandler, DocumentBlock, DocumentContent,
+    DocumentEvent, DocumentImage, DocumentList, DocumentListItem, DocumentMeta, DocumentReader,
+    DocumentSection, DocumentTable, DocumentTableCell, DocumentTableRow, DocumentTextRun, DocxRow,
+    ErrorAction, EventSink, FontConfig, HeadingLevel, HorizontalAlignment, ImageData,
+    ParagraphContext, ParagraphStyle, Result, RichRun, RowData, TableColumn, TableData, TableStyle,
+    TableWriteContext,
+};
+
+pub use easydoc_derive::DocxRow as DocxRowDerive;
 pub use easydoc_markdown::{
     ConversionWarning, ExtractedAsset, MarkdownBuilder, MarkdownOptions, MarkdownResult,
 };
 pub use easydoc_ooxml::{AtomicFile, PackageLimits, PackageRewriter};
-pub use easydoc_reader::*;
-pub use easydoc_template::*;
+pub use easydoc_reader::{CollectListener, DocReadBuilder, DocumentFormat, detect_format};
+pub use easydoc_template::{FillConfig, FillDirection, Placeholder, TemplateFillBuilder};
 pub use easydoc_writer::content_renderer;
-pub use easydoc_writer::*;
+pub use easydoc_writer::{
+    AutoWidthStrategy, BandedRowsStrategy, DocBuilder, DocEditor, DocImage, DocWriteExecutor,
+    Paragraph, Run, Table, TableWriteBuilder, TableWriteExecutor,
+};
 
-/// Java-compatible alias for [`EasyDoc`].
+/// Java-compatible alias for `EasyDoc`.
 pub type EasyDocFactory = EasyDoc;
 
 /// Prelude module with the most commonly used types.
@@ -62,5 +43,5 @@ pub mod prelude {
     };
     pub use easydoc_derive::DocxRow as DocxRowDerive;
     pub use easydoc_markdown::{MarkdownBuilder, MarkdownOptions, MarkdownResult};
-    pub use easydoc_writer::{DocBuilder, Paragraph, Run, TableWriteBuilder};
+    pub use easydoc_writer::{DocBuilder, Paragraph, Run, Table, TableWriteBuilder};
 }
