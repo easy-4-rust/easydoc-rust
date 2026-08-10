@@ -75,3 +75,45 @@ impl MarkdownBuilder {
         Ok(result)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn builder_new() {
+        let b = MarkdownBuilder::new("/tmp/test.docx");
+        assert_eq!(b.source, PathBuf::from("/tmp/test.docx"));
+        assert!(b.options.image_directory.is_none());
+    }
+
+    #[test]
+    fn builder_image_directory() {
+        let b = MarkdownBuilder::new("/tmp/test.docx").image_directory("/tmp/img");
+        assert!(b.options.image_directory.is_some());
+    }
+
+    #[test]
+    fn builder_image_reference_prefix() {
+        let b = MarkdownBuilder::new("/tmp/test.docx").image_reference_prefix("assets");
+        assert!(b.options.image_reference_prefix.is_some());
+    }
+
+    #[test]
+    fn builder_include_front_matter() {
+        let b = MarkdownBuilder::new("/tmp/test.docx").include_front_matter(true);
+        assert!(b.options.include_front_matter);
+    }
+
+    #[test]
+    fn builder_custom_options() {
+        let opts = MarkdownOptions {
+            include_front_matter: true,
+            image_directory: Some("/tmp/img".into()),
+            image_reference_prefix: Some("img".into()),
+        };
+        let b = MarkdownBuilder::new("/tmp/test.docx").options(opts);
+        assert!(b.options.include_front_matter);
+    }
+}

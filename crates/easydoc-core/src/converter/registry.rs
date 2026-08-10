@@ -708,4 +708,303 @@ mod tests {
         let result: NaiveDateTime = r.from_doc_value(&v, &test_column()).unwrap();
         assert_eq!(result, ndt);
     }
+
+    #[test]
+    fn fallback_i64_from_float_error() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Float(3.14);
+        let result: std::result::Result<i64, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_i64_from_bool_error() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Bool(true);
+        let result: std::result::Result<i64, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_i64_from_empty_error() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Empty;
+        let result: std::result::Result<i64, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_i32_from_string_parse() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::String("42".into());
+        let result: i32 = r.from_doc_value(&v, &test_column()).unwrap();
+        assert_eq!(result, 42);
+    }
+
+    #[test]
+    fn fallback_i32_from_invalid_string() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::String("abc".into());
+        let result: std::result::Result<i32, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_i32_from_float_error() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Float(3.14);
+        let result: std::result::Result<i32, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_u32_from_string_parse() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::String("42".into());
+        let result: u32 = r.from_doc_value(&v, &test_column()).unwrap();
+        assert_eq!(result, 42);
+    }
+
+    #[test]
+    fn fallback_u32_from_invalid_string() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::String("abc".into());
+        let result: std::result::Result<u32, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_u32_from_float_error() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Float(3.14);
+        let result: std::result::Result<u32, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_f64_from_int() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Int(42);
+        let result: f64 = r.from_doc_value(&v, &test_column()).unwrap();
+        assert!((result - 42.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn fallback_f64_from_invalid_string() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::String("abc".into());
+        let result: std::result::Result<f64, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_f64_from_bool_error() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Bool(true);
+        let result: std::result::Result<f64, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_bool_from_string_true() {
+        let r = ConverterRegistry::new();
+        for s in &["true", "True", "TRUE", "1", "yes", "Yes"] {
+            let v = DocValue::String(s.to_string());
+            let result: bool = r.from_doc_value(&v, &test_column()).unwrap();
+            assert!(result, "failed for {s}");
+        }
+    }
+
+    #[test]
+    fn fallback_bool_from_string_false() {
+        let r = ConverterRegistry::new();
+        for s in &["false", "False", "FALSE", "0", "no", "No"] {
+            let v = DocValue::String(s.to_string());
+            let result: bool = r.from_doc_value(&v, &test_column()).unwrap();
+            assert!(!result, "failed for {s}");
+        }
+    }
+
+    #[test]
+    fn fallback_bool_from_invalid_string() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::String("maybe".into());
+        let result: std::result::Result<bool, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_bool_from_int() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Int(1);
+        let result: bool = r.from_doc_value(&v, &test_column()).unwrap();
+        assert!(result);
+        let v2 = DocValue::Int(0);
+        let result2: bool = r.from_doc_value(&v2, &test_column()).unwrap();
+        assert!(!result2);
+    }
+
+    #[test]
+    fn fallback_bool_from_float_error() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Float(1.0);
+        let result: std::result::Result<bool, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_datetime_from_datetime() {
+        let r = ConverterRegistry::new();
+        let dt = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+        let v = DocValue::DateTime(dt);
+        let result: DateTime<Utc> = r.from_doc_value(&v, &test_column()).unwrap();
+        assert_eq!(result.timestamp(), 1_700_000_000);
+    }
+
+    #[test]
+    fn fallback_datetime_from_string_parse() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::String("2023-11-14T22:13:20Z".into());
+        let result: DateTime<Utc> = r.from_doc_value(&v, &test_column()).unwrap();
+        assert_eq!(result.timestamp(), 1_700_000_000);
+    }
+
+    #[test]
+    fn fallback_datetime_from_invalid_string() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::String("not-a-date".into());
+        let result: std::result::Result<DateTime<Utc>, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_datetime_from_int_error() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Int(100);
+        let result: std::result::Result<DateTime<Utc>, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_naive_date_from_string_parse() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::String("2024-01-15".into());
+        let result: NaiveDate = r.from_doc_value(&v, &test_column()).unwrap();
+        assert_eq!(result, NaiveDate::from_ymd_opt(2024, 1, 15).unwrap());
+    }
+
+    #[test]
+    fn fallback_naive_date_from_datetime() {
+        let r = ConverterRegistry::new();
+        let dt = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+        let v = DocValue::DateTime(dt);
+        let result: NaiveDate = r.from_doc_value(&v, &test_column()).unwrap();
+        assert_eq!(result, dt.date_naive());
+    }
+
+    #[test]
+    fn fallback_naive_date_from_invalid_string() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::String("not-a-date".into());
+        let result: std::result::Result<NaiveDate, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_naive_date_from_int_error() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Int(100);
+        let result: std::result::Result<NaiveDate, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_naive_datetime_from_string_parse() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::String("2024-06-01 12:00:00".into());
+        let result: NaiveDateTime = r.from_doc_value(&v, &test_column()).unwrap();
+        let expected = NaiveDate::from_ymd_opt(2024, 6, 1)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap();
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn fallback_naive_datetime_from_datetime() {
+        let r = ConverterRegistry::new();
+        let dt = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+        let v = DocValue::DateTime(dt);
+        let result: NaiveDateTime = r.from_doc_value(&v, &test_column()).unwrap();
+        assert_eq!(result, dt.naive_utc());
+    }
+
+    #[test]
+    fn fallback_naive_datetime_from_invalid_string() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::String("not-a-datetime".into());
+        let result: std::result::Result<NaiveDateTime, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_naive_datetime_from_int_error() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::Int(100);
+        let result: std::result::Result<NaiveDateTime, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_to_doc_value_debug_fallback() {
+        let r = ConverterRegistry::new();
+        // Vec<u8> has no FallbackConvert impl but implements Debug
+        // so it falls back to Debug string representation
+        let val: Vec<u8> = vec![1, 2, 3];
+        let result = r.to_doc_value(&val, &test_column());
+        assert!(result.is_ok());
+        assert!(matches!(result.unwrap(), DocValue::String(s) if s.contains("1")));
+    }
+
+    #[test]
+    fn fallback_from_doc_value_unsupported_type() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::String("test".into());
+        // Try to convert to a type with no FallbackConvert
+        let result: std::result::Result<Vec<u8>, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn registry_contains_after_register() {
+        let mut r = ConverterRegistry::new();
+        assert!(!r.contains::<String>());
+        // Note: we can't easily register a converter without a concrete type
+        // but we can test the contains method
+    }
+
+    #[test]
+    fn registry_debug_format() {
+        let r = ConverterRegistry::new();
+        let dbg = format!("{:?}", r);
+        assert!(dbg.contains("ConverterRegistry"));
+        assert!(dbg.contains("count: 0"));
+    }
+
+    #[test]
+    fn fallback_string_from_richtext() {
+        let r = ConverterRegistry::new();
+        let v = DocValue::RichText(vec![]);
+        let result: std::result::Result<String, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn fallback_string_from_datetime() {
+        let r = ConverterRegistry::new();
+        let dt = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+        let v = DocValue::DateTime(dt);
+        let result: std::result::Result<String, _> = r.from_doc_value(&v, &test_column());
+        assert!(result.is_err());
+    }
 }

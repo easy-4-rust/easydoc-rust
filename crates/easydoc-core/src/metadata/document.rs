@@ -59,3 +59,58 @@ impl DocumentMeta {
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn document_meta_builder_chain() {
+        let meta = DocumentMeta::new()
+            .title("Test Document")
+            .author("Author Name")
+            .subject("Test Subject")
+            .keywords("rust,docx")
+            .landscape(true);
+        assert_eq!(meta.title.as_deref(), Some("Test Document"));
+        assert_eq!(meta.author.as_deref(), Some("Author Name"));
+        assert_eq!(meta.subject.as_deref(), Some("Test Subject"));
+        assert_eq!(meta.keywords.as_deref(), Some("rust,docx"));
+        assert!(meta.landscape);
+    }
+
+    #[test]
+    fn document_meta_default() {
+        let meta = DocumentMeta::default();
+        assert!(meta.title.is_none());
+        assert!(meta.author.is_none());
+        assert!(meta.subject.is_none());
+        assert!(meta.keywords.is_none());
+        assert!(meta.page_width.is_none());
+        assert!(meta.page_height.is_none());
+        assert!(!meta.landscape);
+    }
+
+    #[test]
+    fn document_meta_clone_eq() {
+        let meta = DocumentMeta::new().title("Test");
+        let meta2 = meta.clone();
+        assert_eq!(meta, meta2);
+    }
+
+    #[test]
+    fn document_meta_debug() {
+        let meta = DocumentMeta::new().title("Test");
+        let dbg = format!("{:?}", meta);
+        assert!(dbg.contains("Test"));
+    }
+
+    #[test]
+    fn document_meta_page_dimensions() {
+        let mut meta = DocumentMeta::new();
+        meta.page_width = Some(11906);
+        meta.page_height = Some(16838);
+        assert_eq!(meta.page_width, Some(11906));
+        assert_eq!(meta.page_height, Some(16838));
+    }
+}

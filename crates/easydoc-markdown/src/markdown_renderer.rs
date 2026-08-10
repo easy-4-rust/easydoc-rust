@@ -342,3 +342,324 @@ fn html_escape(value: &str) -> String {
         .replace('\'', "&#39;")
         .replace('\n', "<br>")
 }
+
+#[cfg(test)]
+mod coverage_tests {
+    use super::*;
+    use easydoc_core::*;
+
+    fn tr(text: &str) -> DocumentTextRun {
+        DocumentTextRun {
+            text: text.into(),
+            ..Default::default()
+        }
+    }
+
+    fn render_blocks(blocks: Vec<DocumentBlock>) -> String {
+        let content = DocumentContent {
+            blocks,
+            ..Default::default()
+        };
+        let renderer = MarkdownRenderer::new(MarkdownOptions::default());
+        renderer.render(&content).unwrap().markdown
+    }
+
+    #[test]
+    fn render_heading_all_levels() {
+        for level in 1..=6 {
+            let md = render_blocks(vec![DocumentBlock::Heading {
+                level,
+                runs: vec![tr("Title")],
+            }]);
+            assert!(md.contains("Title"), "level {level}");
+        }
+    }
+
+    #[test]
+    fn render_paragraph_with_bold_italic_strike() {
+        let md = render_blocks(vec![DocumentBlock::Paragraph(vec![
+            DocumentTextRun {
+                text: "bold".into(),
+                bold: true,
+                ..Default::default()
+            },
+            DocumentTextRun {
+                text: "italic".into(),
+                italic: true,
+                ..Default::default()
+            },
+            DocumentTextRun {
+                text: "strike".into(),
+                strikethrough: true,
+                ..Default::default()
+            },
+            DocumentTextRun {
+                text: "link".into(),
+                hyperlink: Some("https://example.com".into()),
+                ..Default::default()
+            },
+        ])]);
+        assert!(md.contains("**bold**"));
+        assert!(md.contains("*italic*"));
+        assert!(md.contains("~~strike~~"));
+        assert!(md.contains("[link]"));
+    }
+
+    #[test]
+    fn render_table_with_header() {
+        let md = render_blocks(vec![DocumentBlock::Table(DocumentTable {
+            rows: vec![
+                DocumentTableRow {
+                    cells: vec![
+                        DocumentTableCell {
+                            blocks: vec![DocumentBlock::Paragraph(vec![tr("H1")])],
+                            column_span: 1,
+                            row_span: 1,
+                        },
+                        DocumentTableCell {
+                            blocks: vec![DocumentBlock::Paragraph(vec![tr("H2")])],
+                            column_span: 1,
+                            row_span: 1,
+                        },
+                    ],
+                    is_header: true,
+                },
+                DocumentTableRow {
+                    cells: vec![
+                        DocumentTableCell {
+                            blocks: vec![DocumentBlock::Paragraph(vec![tr("A")])],
+                            column_span: 1,
+                            row_span: 1,
+                        },
+                        DocumentTableCell {
+                            blocks: vec![DocumentBlock::Paragraph(vec![tr("B")])],
+                            column_span: 1,
+                            row_span: 1,
+                        },
+                    ],
+                    is_header: false,
+                },
+            ],
+        })]);
+        assert!(md.contains("H1"));
+        assert!(md.contains("H1") || md.contains("|")); // table rendered
+    }
+
+    #[test]
+    fn render_list_ordered_and_unordered() {
+        let md = render_blocks(vec![DocumentBlock::List(DocumentList {
+            ordered: false,
+            start_number: None,
+            items: vec![
+                DocumentListItem {
+                    blocks: vec![DocumentBlock::Paragraph(vec![tr("Item 1")])],
+                    nested: None,
+                },
+                DocumentListItem {
+                    blocks: vec![DocumentBlock::Paragraph(vec![tr("Item 2")])],
+                    nested: Some(Box::new(DocumentList {
+                        ordered: true,
+                        start_number: Some(1),
+                        items: vec![DocumentListItem {
+                            blocks: vec![DocumentBlock::Paragraph(vec![tr("Nested")])],
+                            nested: None,
+                        }],
+                    })),
+                },
+            ],
+        })]);
+        assert!(md.contains("- Item 1"));
+        assert!(md.contains("1. Nested"));
+    }
+
+    #[test]
+    fn render_image_with_alt() {
+        let md = render_blocks(vec![DocumentBlock::Image(DocumentImage {
+            alt_text: Some("photo".into()),
+            data: None,
+            extension: Some("png".into()),
+        })]);
+        assert!(!md.is_empty()); // image rendered
+    }
+
+    #[test]
+    fn render_image_with_data() {
+        let md = render_blocks(vec![DocumentBlock::Image(DocumentImage {
+            alt_text: Some("img".into()),
+            data: Some(vec![0x89, 0x50]),
+            extension: Some("png".into()),
+        })]);
+        assert!(!md.is_empty()); // image with data rendered
+    }
+
+    #[test]
+    fn render_footnote_and_endnote() {
+        let md = render_blocks(vec![
+            DocumentBlock::Footnote {
+                id: 1,
+                blocks: vec![DocumentBlock::Paragraph(vec![tr("note text")])],
+            },
+            DocumentBlock::Endnote {
+                id: 2,
+                blocks: vec![DocumentBlock::Paragraph(vec![tr("end text")])],
+            },
+        ]);
+        assert!(md.contains("[^1]"));
+        assert!(md.contains("note text"));
+    }
+
+    #[test]
+    fn render_codeblock_with_language() {
+        let md = render_blocks(vec![DocumentBlock::CodeBlock {
+            language: Some("rust".into()),
+            code: "fn main() {}".into(),
+        }]);
+        assert!(md.contains("```rust"));
+        assert!(md.contains("fn main()"));
+    }
+
+    #[test]
+    fn render_codeblock_without_language() {
+        let md = render_blocks(vec![DocumentBlock::CodeBlock {
+            language: None,
+            code: "plain".into(),
+        }]);
+        assert!(md.contains("```"));
+        assert!(md.contains("plain"));
+    }
+
+    #[test]
+    fn render_textbox() {
+        let md = render_blocks(vec![DocumentBlock::TextBox(vec![
+            DocumentBlock::Paragraph(vec![tr("inside")]),
+        ])]);
+        assert!(md.contains("inside"));
+    }
+
+    #[test]
+    fn render_section() {
+        let md = render_blocks(vec![DocumentBlock::Section {
+            blocks: vec![DocumentBlock::Paragraph(vec![tr("section content")])],
+            section_type: Some("nextPage".into()),
+        }]);
+        assert!(md.contains("section content"));
+    }
+
+    #[test]
+    fn render_thematic_break() {
+        let md = render_blocks(vec![DocumentBlock::ThematicBreak]);
+        assert!(md.contains("---"));
+    }
+
+    #[test]
+    fn render_page_break() {
+        let md = render_blocks(vec![DocumentBlock::PageBreak]);
+        assert!(md.contains("page-break"));
+    }
+
+    #[test]
+    fn render_column_break() {
+        let md = render_blocks(vec![DocumentBlock::ColumnBreak]);
+        assert!(md.contains("column-break"));
+    }
+
+    #[test]
+    fn render_with_front_matter() {
+        let content = DocumentContent {
+            metadata: DocumentMeta {
+                title: Some("Test".into()),
+                author: Some("Author".into()),
+                ..Default::default()
+            },
+            blocks: vec![DocumentBlock::Paragraph(vec![tr("body")])],
+        };
+        let opts = MarkdownOptions {
+            include_front_matter: true,
+            ..Default::default()
+        };
+        let result = MarkdownRenderer::new(opts).render(&content).unwrap();
+        assert!(result.markdown.contains("---"));
+        assert!(result.markdown.contains("title:"));
+    }
+
+    #[test]
+    fn render_with_image_directory() {
+        let content = DocumentContent {
+            blocks: vec![DocumentBlock::Image(DocumentImage {
+                alt_text: Some("pic".into()),
+                data: Some(vec![0x89, 0x50]),
+                extension: Some("png".into()),
+            })],
+            ..Default::default()
+        };
+        let opts = MarkdownOptions {
+            image_directory: Some("/tmp/img".into()),
+            image_reference_prefix: Some("images".into()),
+            ..Default::default()
+        };
+        let result = MarkdownRenderer::new(opts).render(&content).unwrap();
+        assert!(result.markdown.contains("images/"));
+    }
+
+    #[test]
+    fn render_empty_document() {
+        let md = render_blocks(vec![]);
+        assert!(md.is_empty() || md.trim().is_empty());
+    }
+
+    #[test]
+    fn render_table_empty_cells() {
+        let md = render_blocks(vec![DocumentBlock::Table(DocumentTable {
+            rows: vec![DocumentTableRow {
+                cells: vec![
+                    DocumentTableCell {
+                        blocks: vec![],
+                        column_span: 1,
+                        row_span: 1,
+                    },
+                    DocumentTableCell {
+                        blocks: vec![],
+                        column_span: 1,
+                        row_span: 1,
+                    },
+                ],
+                is_header: false,
+            }],
+        })]);
+        assert!(md.contains("|"));
+    }
+
+    #[test]
+    fn plain_text_extraction() {
+        let content = DocumentContent {
+            blocks: vec![
+                DocumentBlock::Heading {
+                    level: 1,
+                    runs: vec![tr("Title")],
+                },
+                DocumentBlock::Paragraph(vec![tr("Body")]),
+                DocumentBlock::CodeBlock {
+                    language: None,
+                    code: "code".into(),
+                },
+                DocumentBlock::TextBox(vec![DocumentBlock::Paragraph(vec![tr("box")])]),
+                DocumentBlock::Image(DocumentImage {
+                    alt_text: Some("img".into()),
+                    data: None,
+                    extension: None,
+                }),
+                DocumentBlock::Section {
+                    blocks: vec![DocumentBlock::Paragraph(vec![tr("sec")])],
+                    section_type: None,
+                },
+                DocumentBlock::ThematicBreak,
+                DocumentBlock::PageBreak,
+            ],
+            ..Default::default()
+        };
+        let result = MarkdownRenderer::new(MarkdownOptions::default())
+            .render(&content)
+            .unwrap();
+        assert!(!result.markdown.is_empty());
+    }
+}

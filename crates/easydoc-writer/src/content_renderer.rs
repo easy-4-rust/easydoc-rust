@@ -315,3 +315,357 @@ pub fn render_with_handler<H: easydoc_core::traits::DocWriteHandler>(
 
     Ok(docx)
 }
+
+#[cfg(test)]
+mod coverage_tests {
+    use super::*;
+    use easydoc_core::*;
+
+    fn make_text_run(text: &str) -> DocumentTextRun {
+        DocumentTextRun {
+            text: text.into(),
+            bold: false,
+            italic: false,
+            strikethrough: false,
+            hyperlink: None,
+        }
+    }
+
+    fn make_bold_run(text: &str) -> DocumentTextRun {
+        DocumentTextRun {
+            text: text.into(),
+            bold: true,
+            italic: false,
+            strikethrough: false,
+            hyperlink: None,
+        }
+    }
+
+    #[test]
+    fn render_heading_variants() {
+        for level in 1..=7 {
+            let content = DocumentContent {
+                blocks: vec![DocumentBlock::Heading {
+                    level,
+                    runs: vec![make_text_run("Title")],
+                }],
+                ..Default::default()
+            };
+            let docx = render_document_content(&content).unwrap();
+            let _ = docx;
+        }
+    }
+
+    #[test]
+    fn render_paragraph_with_runs() {
+        let content = DocumentContent {
+            blocks: vec![DocumentBlock::Paragraph(vec![
+                make_text_run("Hello "),
+                make_bold_run("World"),
+            ])],
+            ..Default::default()
+        };
+        let docx = render_document_content(&content).unwrap();
+        let _ = docx;
+    }
+
+    #[test]
+    fn render_table_with_spans() {
+        let content = DocumentContent {
+            blocks: vec![DocumentBlock::Table(DocumentTable {
+                rows: vec![DocumentTableRow {
+                    cells: vec![
+                        DocumentTableCell {
+                            blocks: vec![DocumentBlock::Paragraph(vec![make_text_run("A")])],
+                            column_span: 2,
+                            row_span: 1,
+                        },
+                        DocumentTableCell {
+                            blocks: vec![DocumentBlock::Paragraph(vec![make_text_run("B")])],
+                            column_span: 1,
+                            row_span: 1,
+                        },
+                    ],
+                    is_header: true,
+                }],
+            })],
+            ..Default::default()
+        };
+        let docx = render_document_content(&content).unwrap();
+        let _ = docx;
+    }
+
+    #[test]
+    fn render_list_ordered_and_unordered() {
+        let content = DocumentContent {
+            blocks: vec![
+                DocumentBlock::List(DocumentList {
+                    ordered: false,
+                    start_number: None,
+                    items: vec![DocumentListItem {
+                        blocks: vec![DocumentBlock::Paragraph(vec![make_text_run("Item 1")])],
+                        nested: None,
+                    }],
+                }),
+                DocumentBlock::List(DocumentList {
+                    ordered: true,
+                    start_number: Some(5),
+                    items: vec![DocumentListItem {
+                        blocks: vec![DocumentBlock::Paragraph(vec![make_text_run("Item 2")])],
+                        nested: Some(Box::new(DocumentList {
+                            ordered: false,
+                            start_number: None,
+                            items: vec![DocumentListItem {
+                                blocks: vec![DocumentBlock::Paragraph(vec![make_text_run(
+                                    "Nested",
+                                )])],
+                                nested: None,
+                            }],
+                        })),
+                    }],
+                }),
+            ],
+            ..Default::default()
+        };
+        let docx = render_document_content(&content).unwrap();
+        let _ = docx;
+    }
+
+    #[test]
+    fn render_image_with_data() {
+        let content = DocumentContent {
+            blocks: vec![DocumentBlock::Image(DocumentImage {
+                alt_text: Some("test".into()),
+                data: Some(vec![
+                    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49,
+                    0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02,
+                    0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44,
+                    0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00, 0x00, 0x00, 0x02, 0x00,
+                    0x01, 0xE2, 0x21, 0xBC, 0x33, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44,
+                    0xAE, 0x42, 0x60, 0x82,
+                ]),
+                extension: Some("png".into()),
+            })],
+            ..Default::default()
+        };
+        let docx = render_document_content(&content).unwrap();
+        let _ = docx;
+    }
+
+    #[test]
+    fn render_image_without_data() {
+        let content = DocumentContent {
+            blocks: vec![DocumentBlock::Image(DocumentImage {
+                alt_text: Some("test".into()),
+                data: None,
+                extension: None,
+            })],
+            ..Default::default()
+        };
+        let docx = render_document_content(&content).unwrap();
+        let _ = docx;
+    }
+
+    #[test]
+    fn render_codeblock() {
+        let content = DocumentContent {
+            blocks: vec![DocumentBlock::CodeBlock {
+                language: Some("rust".into()),
+                code: "fn main() {}".into(),
+            }],
+            ..Default::default()
+        };
+        let docx = render_document_content(&content).unwrap();
+        let _ = docx;
+    }
+
+    #[test]
+    fn render_textbox() {
+        let content = DocumentContent {
+            blocks: vec![DocumentBlock::TextBox(vec![DocumentBlock::Paragraph(
+                vec![make_text_run("inside")],
+            )])],
+            ..Default::default()
+        };
+        let docx = render_document_content(&content).unwrap();
+        let _ = docx;
+    }
+
+    #[test]
+    fn render_footnote_and_endnote() {
+        let content = DocumentContent {
+            blocks: vec![
+                DocumentBlock::Footnote {
+                    id: 1,
+                    blocks: vec![DocumentBlock::Paragraph(vec![make_text_run("note")])],
+                },
+                DocumentBlock::Endnote {
+                    id: 2,
+                    blocks: vec![DocumentBlock::Paragraph(vec![make_text_run("end")])],
+                },
+            ],
+            ..Default::default()
+        };
+        let docx = render_document_content(&content).unwrap();
+        let _ = docx;
+    }
+
+    #[test]
+    fn render_section() {
+        let content = DocumentContent {
+            blocks: vec![DocumentBlock::Section {
+                blocks: vec![DocumentBlock::Paragraph(vec![make_text_run("in section")])],
+                section_type: Some("nextPage".into()),
+            }],
+            ..Default::default()
+        };
+        let docx = render_document_content(&content).unwrap();
+        let _ = docx;
+    }
+
+    #[test]
+    fn render_thematic_and_page_and_column_break() {
+        let content = DocumentContent {
+            blocks: vec![
+                DocumentBlock::ThematicBreak,
+                DocumentBlock::PageBreak,
+                DocumentBlock::ColumnBreak,
+            ],
+            ..Default::default()
+        };
+        let docx = render_document_content(&content).unwrap();
+        let _ = docx;
+    }
+
+    #[test]
+    fn render_with_handler_all_blocks() {
+        let content = DocumentContent {
+            blocks: vec![
+                DocumentBlock::Heading {
+                    level: 1,
+                    runs: vec![make_text_run("H1")],
+                },
+                DocumentBlock::Paragraph(vec![make_text_run("P")]),
+                DocumentBlock::Table(DocumentTable { rows: vec![] }),
+                DocumentBlock::CodeBlock {
+                    language: None,
+                    code: "x".into(),
+                },
+                DocumentBlock::ThematicBreak,
+                DocumentBlock::PageBreak,
+                DocumentBlock::ColumnBreak,
+                DocumentBlock::Section {
+                    blocks: vec![],
+                    section_type: None,
+                },
+            ],
+            ..Default::default()
+        };
+        struct TestHandler;
+        impl DocWriteHandler for TestHandler {
+            fn order() -> i32 {
+                0
+            }
+            fn before_document(&mut self, _: &DocWriteContext) -> Result<()> {
+                Ok(())
+            }
+            fn after_document(&mut self, _: &DocWriteContext) -> Result<()> {
+                Ok(())
+            }
+            fn before_paragraph(&mut self, _: &ParagraphContext) -> Result<()> {
+                Ok(())
+            }
+            fn after_paragraph(&mut self, _: &ParagraphContext) -> Result<()> {
+                Ok(())
+            }
+            fn before_table(&mut self, _: &TableWriteContext) -> Result<()> {
+                Ok(())
+            }
+            fn after_table(&mut self, _: &TableWriteContext) -> Result<()> {
+                Ok(())
+            }
+            fn before_cell(&mut self, _: &CellContext) -> Result<()> {
+                Ok(())
+            }
+            fn after_cell(&mut self, _: &CellContext) -> Result<()> {
+                Ok(())
+            }
+        }
+        let mut handler = TestHandler;
+        let docx = render_with_handler(&content, &mut handler).unwrap();
+        let _ = docx;
+    }
+
+    #[test]
+    fn heading_style_names() {
+        assert_eq!(heading_style_name(1), "Heading1");
+        assert_eq!(heading_style_name(2), "Heading2");
+        assert_eq!(heading_style_name(3), "Heading3");
+        assert_eq!(heading_style_name(4), "Heading4");
+        assert_eq!(heading_style_name(5), "Heading5");
+        assert_eq!(heading_style_name(6), "Heading6");
+        assert_eq!(heading_style_name(7), "Heading6"); // default
+    }
+
+    #[test]
+    fn heading_outline_levels() {
+        assert_eq!(heading_outline_level(1), 0);
+        assert_eq!(heading_outline_level(2), 1);
+        assert_eq!(heading_outline_level(6), 5);
+        assert_eq!(heading_outline_level(0), 0); // saturating_sub
+    }
+
+    #[test]
+    fn u8_to_heading_level_all() {
+        assert_eq!(u8_to_heading_level(1), HeadingLevel::H1);
+        assert_eq!(u8_to_heading_level(2), HeadingLevel::H2);
+        assert_eq!(u8_to_heading_level(3), HeadingLevel::H3);
+        assert_eq!(u8_to_heading_level(4), HeadingLevel::H4);
+        assert_eq!(u8_to_heading_level(5), HeadingLevel::H5);
+        assert_eq!(u8_to_heading_level(6), HeadingLevel::H6);
+        assert_eq!(u8_to_heading_level(99), HeadingLevel::H6); // default
+    }
+
+    #[test]
+    fn text_run_to_docx_run_styles() {
+        let run = DocumentTextRun {
+            text: "test".into(),
+            bold: true,
+            italic: true,
+            strikethrough: true,
+            hyperlink: None,
+        };
+        let r = text_run_to_docx_run(&run, false);
+        let _ = r;
+        let r2 = text_run_to_docx_run(&run, true);
+        let _ = r2;
+    }
+
+    #[test]
+    fn render_block_to_paragraph_codeblock() {
+        let block = DocumentBlock::CodeBlock {
+            language: Some("python".into()),
+            code: "print()".into(),
+        };
+        let p = render_block_to_paragraph(&block).unwrap();
+        let _ = p;
+    }
+
+    #[test]
+    fn render_block_to_paragraph_heading() {
+        let block = DocumentBlock::Heading {
+            level: 2,
+            runs: vec![make_text_run("Sub")],
+        };
+        let p = render_block_to_paragraph(&block).unwrap();
+        let _ = p;
+    }
+
+    #[test]
+    fn render_block_to_paragraph_fallback() {
+        // Non-paragraph blocks in table cells fall back to empty paragraph
+        let block = DocumentBlock::ThematicBreak;
+        let p = render_block_to_paragraph(&block).unwrap();
+        let _ = p;
+    }
+}

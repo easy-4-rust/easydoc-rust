@@ -490,3 +490,202 @@ mod event_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod trait_coverage_tests {
+    use super::*;
+
+    struct NoopHandler;
+    impl DocWriteHandler for NoopHandler {}
+
+    #[test]
+    fn noop_handler_all_defaults() {
+        let mut h = NoopHandler;
+        assert_eq!(NoopHandler::order(), 0);
+        let ctx = DocWriteContext {
+            path: "test".into(),
+        };
+        h.before_document(&ctx).unwrap();
+        h.after_document(&ctx).unwrap();
+        let pctx = ParagraphContext { index: 0 };
+        h.before_paragraph(&pctx).unwrap();
+        h.after_paragraph(&pctx).unwrap();
+        let tctx = TableWriteContext {
+            index: 0,
+            row_count: 1,
+        };
+        h.before_table(&tctx).unwrap();
+        h.after_table(&tctx).unwrap();
+        let cctx = CellContext {
+            row: 0,
+            column: 0,
+            value: DocValue::Empty,
+        };
+        h.before_cell(&cctx).unwrap();
+        h.after_cell(&cctx).unwrap();
+    }
+
+    #[test]
+    fn read_listener_defaults() {
+        struct TestListener;
+        impl DocReadListener<String> for TestListener {
+            fn invoke(&mut self, _: String, _: &DocReadContext) -> crate::Result<()> {
+                Ok(())
+            }
+        }
+        let mut listener = TestListener;
+        let ctx = DocReadContext {
+            path: "test".into(),
+            index: 0,
+        };
+        assert!(listener.has_next(&ctx));
+        assert!(matches!(
+            listener.on_error(&crate::DocError::Document("x".into()), &ctx),
+            ErrorAction::Stop
+        ));
+        listener.on_complete(&ctx);
+    }
+
+    #[test]
+    fn read_listener_invoke_table_default() {
+        struct TestListener;
+        impl DocReadListener<String> for TestListener {
+            fn invoke(&mut self, _: String, _: &DocReadContext) -> crate::Result<()> {
+                Ok(())
+            }
+        }
+        let mut listener = TestListener;
+        let ctx = DocReadContext {
+            path: "test".into(),
+            index: 0,
+        };
+        let table = TableData {
+            headers: None,
+            rows: vec![],
+        };
+        listener.invoke_table(&table, &ctx).unwrap();
+    }
+
+    #[test]
+    fn content_collector_all_event_types() {
+        let mut c = ContentCollector::new();
+        c.on_event(&DocumentEvent::DocumentStart).unwrap();
+        c.on_event(&DocumentEvent::Heading {
+            level: 1,
+            runs: vec![],
+        })
+        .unwrap();
+        c.on_event(&DocumentEvent::Paragraph(vec![])).unwrap();
+        c.on_event(&DocumentEvent::Table(crate::DocumentTable { rows: vec![] }))
+            .unwrap();
+        c.on_event(&DocumentEvent::List(crate::DocumentList {
+            ordered: false,
+            start_number: None,
+            items: vec![],
+        }))
+        .unwrap();
+        c.on_event(&DocumentEvent::Image(crate::DocumentImage {
+            alt_text: None,
+            data: None,
+            extension: None,
+        }))
+        .unwrap();
+        c.on_event(&DocumentEvent::PageBreak).unwrap();
+        c.on_event(&DocumentEvent::ColumnBreak).unwrap();
+        c.on_event(&DocumentEvent::CodeBlock {
+            language: None,
+            code: "".into(),
+        })
+        .unwrap();
+        c.on_event(&DocumentEvent::Section { section_type: None })
+            .unwrap();
+        c.on_event(&DocumentEvent::DocumentEnd).unwrap();
+        c.on_complete();
+        let content = c.into_content();
+        assert_eq!(content.blocks.len(), 9); // DocumentStart/DocumentEnd produce no blocks
+    }
+
+    #[test]
+    fn content_collector_default() {
+        let c = ContentCollector::default();
+        let content = c.into_content();
+        assert!(content.blocks.is_empty());
+    }
+
+    #[test]
+    fn doc_read_context_clone_debug() {
+        let ctx = DocReadContext {
+            path: "test".into(),
+            index: 5,
+        };
+        let ctx2 = ctx.clone();
+        assert_eq!(ctx2.index, 5);
+        assert!(format!("{:?}", ctx).contains("test"));
+    }
+
+    #[test]
+    fn doc_write_context_clone_debug() {
+        let ctx = DocWriteContext {
+            path: "out.docx".into(),
+        };
+        let ctx2 = ctx.clone();
+        assert_eq!(ctx2.path, "out.docx");
+        assert!(format!("{:?}", ctx).contains("out.docx"));
+    }
+
+    #[test]
+    fn paragraph_context_clone_debug() {
+        let ctx = ParagraphContext { index: 3 };
+        let ctx2 = ctx.clone();
+        assert_eq!(ctx2.index, 3);
+        assert!(format!("{:?}", ctx).contains("3"));
+    }
+
+    #[test]
+    fn table_write_context_clone_debug() {
+        let ctx = TableWriteContext {
+            index: 1,
+            row_count: 10,
+        };
+        let ctx2 = ctx.clone();
+        assert_eq!(ctx2.index, 1);
+        assert_eq!(ctx2.row_count, 10);
+        assert!(format!("{:?}", ctx).contains("10"));
+    }
+
+    #[test]
+    fn cell_context_clone_debug() {
+        let ctx = CellContext {
+            row: 2,
+            column: 3,
+            value: DocValue::Int(42),
+        };
+        let ctx2 = ctx.clone();
+        assert_eq!(ctx2.row, 2);
+        assert!(format!("{:?}", ctx).contains("42"));
+    }
+
+    #[test]
+    fn document_event_clone_debug() {
+        let events = vec![
+            DocumentEvent::DocumentStart,
+            DocumentEvent::DocumentEnd,
+            DocumentEvent::PageBreak,
+            DocumentEvent::ColumnBreak,
+            DocumentEvent::Heading {
+                level: 1,
+                runs: vec![],
+            },
+            DocumentEvent::Paragraph(vec![]),
+            DocumentEvent::Section { section_type: None },
+            DocumentEvent::CodeBlock {
+                language: None,
+                code: "".into(),
+            },
+        ];
+        for event in &events {
+            let _clone = event.clone();
+            let _debug = format!("{:?}", event);
+        }
+    }
+}
