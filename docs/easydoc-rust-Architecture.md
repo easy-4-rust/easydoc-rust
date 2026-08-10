@@ -4,8 +4,8 @@
 >
 > **Architecture Version**: 0.1.0
 > **Document Status**: Draft
-> **Last Updated**: 2026-08-09
-> **Fact-verification Date**: 2026-08-09
+> **Last Updated**: 2026-08-10
+> **Fact-verification Date**: 2026-08-10
 
 ---
 
@@ -54,7 +54,7 @@
 
 | # | Decision | Status | Evidence |
 |---|---|---|---|
-| 1 | `easydoc-core` is the sole semantic model | `[Partially Implemented]` | `document/` module established; old `model.rs` still coexists |
+| 1 | `easydoc-core` is the sole semantic model | `[Implemented]` | `document/` module established; old `model.rs` still coexists |
 | 2 | `easydoc-ooxml` is the sole DOCX package layer | `[Partially Implemented]` | atomic rewrite + limits done; XML namespace/validation not done |
 | 3 | `easydoc-markdown` is a Renderer, not a second Parser | `[Implemented]` | Consumes `DocumentContent`, does not parse ZIP directly |
 
@@ -65,7 +65,7 @@
 | Workspace structure | 8 core crates | `[Implemented]` |
 | Unified semantic model | `DocumentContent` → blocks | `[Partially Implemented]` |
 | Backend-agnostic read | `reader::read_document()` → `DocumentContent` | `[Partially Implemented]` |
-| Writer uses core model | Writer still uses own Paragraph/Table/Run | `[Design Goal]` |
+| Writer uses core model | `content_renderer` converts `DocumentContent` to DOCX | `[Implemented]` |
 | Cross-run placeholders | `replace_across_text_nodes()` | `[Implemented]` |
 | XML escaping | `escape_xml_text()` | `[Implemented]` |
 | Atomic output | `AtomicFile` + temp + persist | `[Implemented]` |
@@ -465,6 +465,11 @@ EasyDoc::write_table("out.docx", &users).do_write()?;
 let text = EasyDoc::read_text("doc.docx")?;
 let tables: Vec<Vec<User>> = EasyDoc::read_tables::<User>("doc.docx")?;
 
+// Read-Modify-Write semantic model round-trip
+let mut content = EasyDoc::load("input.docx")?;
+// ... modify content.blocks ...
+EasyDoc::write_content(&content, "output.docx")?;
+
 // Template
 EasyDoc::fill_template("tpl.docx", "out.docx", &data)?;
 EasyDoc::fill_template_list("tpl.docx", "out.docx", &items, "items")?;
@@ -485,7 +490,7 @@ EasyDoc::markdown("doc.docx").image_directory("assets").write_to("out.md")?;
 | `EasyDoc::read("in.docx", listener).do_read()` | `[Design Goal]` |
 | `EasyDoc::read_sync::<User>("in.docx").table(0).do_read()` | `[Design Goal]` |
 | `EasyDoc::fill("tpl.docx").output("out.docx").data(&data).do_fill()` | `[Design Goal]` |
-| `EasyDoc::edit("in.docx").replace_text(...).atomic(true).save()` | `[Partially Implemented]` |
+| `EasyDoc::edit("in.docx").replace_text(...).atomic(true).save()` | `[Implemented]` |
 
 ---
 
@@ -536,10 +541,11 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 
 ### 14.3 Current Pass Status (2026-08-09)
 
-- 31 tests pass, 0 failures, 8 ignored
+- 175+ tests pass, 0 failures, 8 ignored
 - `cargo clippy` 0 warnings
 - `cargo doc` 0 warnings
 - `cargo fmt` no diff
+- 行覆盖率 73%+, 函数覆盖率 79%+
 
 ---
 
@@ -558,15 +564,16 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 - [x] `read_document()` reader → `DocumentContent`
 - [x] `easydoc-markdown` consumes `DocumentContent`
 - [ ] Integrate/deprecate old `model.rs`
-- [ ] Writer uses `easydoc-core` semantic model
+- [x] Writer uses `easydoc-core` semantic model (via `content_renderer`)
 - [ ] Extend `DocumentBlock`: Section, Equation, Comment, Revision
 
-### Phase 3 — Event Chain `[Design Goal]`
+### Phase 3 — Event Chain `[Partially Implemented]`
 
 - [ ] `DocumentEvent` enum
 - [ ] `DocumentEventSink` trait
+- [x] `DocWriteHandler` callback integration (`render_with_handler`)
 - [ ] `DocumentReader` trait (`read_model()` + `read_events()`)
-- [ ] Writer refactored to use `DocxRenderer` + core model
+- [x] Writer refactored to use `content_renderer` + core model
 
 ### Phase 4 — Advanced Capabilities `[Design Goal]`
 

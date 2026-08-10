@@ -46,6 +46,7 @@ pub use easydoc_markdown::{
 pub use easydoc_ooxml::{AtomicFile, PackageLimits, PackageRewriter};
 pub use easydoc_reader::*;
 pub use easydoc_template::*;
+pub use easydoc_writer::content_renderer;
 pub use easydoc_writer::*;
 
 /// Java-compatible alias for [`EasyDoc`].
@@ -55,8 +56,9 @@ pub type EasyDocFactory = EasyDoc;
 pub mod prelude {
     pub use super::EasyDoc;
     pub use easydoc_core::{
-        CellData, Color, DocError, DocValue, DocxRow, ErrorAction, FontConfig, HeadingLevel,
-        HorizontalAlignment, ParagraphStyle, Result, RowData, TableColumn, TableData, TableStyle,
+        CellData, Color, DocError, DocValue, DocumentBlock, DocumentContent, DocumentTextRun,
+        DocxRow, ErrorAction, FontConfig, HeadingLevel, HorizontalAlignment, ParagraphStyle,
+        Result, RowData, TableColumn, TableData, TableStyle,
     };
     pub use easydoc_derive::DocxRow as DocxRowDerive;
     pub use easydoc_markdown::{MarkdownBuilder, MarkdownOptions, MarkdownResult};
