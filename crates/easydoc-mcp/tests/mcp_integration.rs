@@ -17,6 +17,11 @@ fn call(raw: &str) -> serde_json::Value {
     serde_json::from_str(&response_str).expect("response is not valid JSON")
 }
 
+/// 把路径转为可安全嵌入 JSON 字符串的表示（Windows 反斜杠转义）。
+fn json_path(path: &Path) -> String {
+    path.display().to_string().replace('\\', "\\\\")
+}
+
 /// Create a minimal DOCX file for testing and return its path.
 ///
 /// Uses `DocumentContent` + `EasyDoc::write_content` to build the file
@@ -181,7 +186,7 @@ fn read_docx_annotated_mode() {
 
     let req = format!(
         r#"{{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{{"name":"read_docx","arguments":{{"path":"{}","mode":"annotated"}}}}}}"#,
-        path.display()
+        json_path(&path)
     );
     let resp = call(&req);
 
@@ -202,7 +207,7 @@ fn read_docx_plain_mode() {
 
     let req = format!(
         r#"{{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{{"name":"read_docx","arguments":{{"path":"{}","mode":"plain"}}}}}}"#,
-        path.display()
+        json_path(&path)
     );
     let resp = call(&req);
     let text = resp["result"]["content"][0]["text"].as_str().unwrap();
@@ -216,7 +221,7 @@ fn read_docx_stats_mode() {
 
     let req = format!(
         r#"{{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{{"name":"read_docx","arguments":{{"path":"{}","mode":"stats"}}}}}}"#,
-        path.display()
+        json_path(&path)
     );
     let resp = call(&req);
     let text = resp["result"]["content"][0]["text"].as_str().unwrap();
@@ -230,7 +235,7 @@ fn read_docx_outline_mode() {
 
     let req = format!(
         r#"{{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{{"name":"read_docx","arguments":{{"path":"{}","mode":"outline"}}}}}}"#,
-        path.display()
+        json_path(&path)
     );
     let resp = call(&req);
     let text = resp["result"]["content"][0]["text"].as_str().unwrap();
@@ -244,7 +249,7 @@ fn read_docx_default_mode_is_annotated() {
 
     let req = format!(
         r#"{{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{{"name":"read_docx","arguments":{{"path":"{}"}}}}}}"#,
-        path.display()
+        json_path(&path)
     );
     let resp = call(&req);
     let text = resp["result"]["content"][0]["text"].as_str().unwrap();
@@ -263,7 +268,7 @@ fn read_table_returns_all_tables() {
 
     let req = format!(
         r#"{{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{{"name":"read_table","arguments":{{"path":"{}"}}}}}}"#,
-        path.display()
+        json_path(&path)
     );
     let resp = call(&req);
     assert!(resp["error"].is_null(), "error: {}", resp["error"]);
@@ -280,7 +285,7 @@ fn read_table_specific_sheet() {
 
     let req = format!(
         r#"{{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{{"name":"read_table","arguments":{{"path":"{}","sheet":0}}}}}}"#,
-        path.display()
+        json_path(&path)
     );
     let resp = call(&req);
     assert!(resp["error"].is_null(), "error: {}", resp["error"]);
@@ -301,7 +306,7 @@ fn read_docx_blocks_returns_semantic_model() {
 
     let req = format!(
         r#"{{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{{"name":"read_docx_blocks","arguments":{{"path":"{}"}}}}}}"#,
-        path.display()
+        json_path(&path)
     );
     let resp = call(&req);
     assert!(resp["error"].is_null(), "error: {}", resp["error"]);
@@ -325,7 +330,7 @@ fn convert_to_markdown_basic() {
 
     let req = format!(
         r#"{{"jsonrpc":"2.0","id":14,"method":"tools/call","params":{{"name":"convert_to_markdown","arguments":{{"path":"{}"}}}}}}"#,
-        path.display()
+        json_path(&path)
     );
     let resp = call(&req);
     assert!(resp["error"].is_null(), "error: {}", resp["error"]);
@@ -353,7 +358,7 @@ fn create_docx_heading_template() {
 
     let req = format!(
         r#"{{"jsonrpc":"2.0","id":15,"method":"tools/call","params":{{"name":"create_docx_from_data","arguments":{{"path":"{}","template":"heading","data":{{"text":"Generated Title","level":2}}}}}}}}"#,
-        out_path.display()
+        json_path(&out_path)
     );
     let resp = call(&req);
     assert!(resp["error"].is_null(), "error: {}", resp["error"]);
@@ -371,7 +376,7 @@ fn create_docx_table_template() {
 
     let req = format!(
         r#"{{"jsonrpc":"2.0","id":16,"method":"tools/call","params":{{"name":"create_docx_from_data","arguments":{{"path":"{}","template":"table","data":{{"rows":[["Name","Age"],["Alice","30"],["Bob","25"]]}}}}}}}}"#,
-        out_path.display()
+        json_path(&out_path)
     );
     let resp = call(&req);
     assert!(resp["error"].is_null(), "error: {}", resp["error"]);
@@ -385,7 +390,7 @@ fn create_docx_list_template() {
 
     let req = format!(
         r#"{{"jsonrpc":"2.0","id":17,"method":"tools/call","params":{{"name":"create_docx_from_data","arguments":{{"path":"{}","template":"list","data":{{"items":["First item","Second item","Third item"]}}}}}}}}"#,
-        out_path.display()
+        json_path(&out_path)
     );
     let resp = call(&req);
     assert!(resp["error"].is_null(), "error: {}", resp["error"]);
@@ -468,7 +473,7 @@ fn round_trip_create_and_read() {
     // Create.
     let create_req = format!(
         r#"{{"jsonrpc":"2.0","id":30,"method":"tools/call","params":{{"name":"create_docx_from_data","arguments":{{"path":"{}","template":"heading","data":{{"text":"Round Trip","level":1}}}}}}}}"#,
-        out_path.display()
+        json_path(&out_path)
     );
     let create_resp = call(&create_req);
     assert!(create_resp["error"].is_null());
@@ -476,7 +481,7 @@ fn round_trip_create_and_read() {
     // Read back.
     let read_req = format!(
         r#"{{"jsonrpc":"2.0","id":31,"method":"tools/call","params":{{"name":"read_docx","arguments":{{"path":"{}","mode":"plain"}}}}}}"#,
-        out_path.display()
+        json_path(&out_path)
     );
     let read_resp = call(&read_req);
     let text = read_resp["result"]["content"][0]["text"].as_str().unwrap();

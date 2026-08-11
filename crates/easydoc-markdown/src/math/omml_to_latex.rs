@@ -864,8 +864,8 @@ impl OmmlConverter {
     /// LaTeX output: `${}^{top}_{bot}base`
     fn process_spre<R: BufRead>(&mut self, reader: &mut Reader<R>) -> easydoc_core::Result<String> {
         let mut base = String::new();
-        let mut sup = String::new();
-        let mut sub = String::new();
+        let mut upper_script = String::new();
+        let mut lower_script = String::new();
         let mut buf = Vec::new();
         loop {
             match reader.read_event_into(&mut buf) {
@@ -873,8 +873,8 @@ impl OmmlConverter {
                     let tag = local_name(&e);
                     match tag.as_str() {
                         "e" => base = self.process_children_to_string(reader)?,
-                        "sup" => sup = self.process_children_to_string(reader)?,
-                        "sub" => sub = self.process_children_to_string(reader)?,
+                        "sup" => upper_script = self.process_children_to_string(reader)?,
+                        "sub" => lower_script = self.process_children_to_string(reader)?,
                         _ => {
                             let _ = self.process_children_to_string(reader)?;
                         }
@@ -892,18 +892,18 @@ impl OmmlConverter {
         }
         // Pre-sub-superscript: ${}^{sup}_{sub}base
         let mut result = String::new();
-        if !sup.is_empty() || !sub.is_empty() {
+        if !upper_script.is_empty() || !lower_script.is_empty() {
             result.push_str("{}");
-            if !sup.is_empty() {
+            if !upper_script.is_empty() {
                 result.push('^');
                 result.push('{');
-                result.push_str(&sup);
+                result.push_str(&upper_script);
                 result.push('}');
             }
-            if !sub.is_empty() {
+            if !lower_script.is_empty() {
                 result.push('_');
                 result.push('{');
-                result.push_str(&sub);
+                result.push_str(&lower_script);
                 result.push('}');
             }
         }
