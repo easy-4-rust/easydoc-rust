@@ -3821,4 +3821,139 @@ mod tests {
             other => panic!("expected List, got {other:?}"),
         }
     }
+
+    // -----------------------------------------------------------------------
+    // ilvl jump tests (ilvl 0 -> 2, skipping 1)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn ilvl_jump_0_to_2_attaches_to_existing_ancestor() {
+        // ilvl 0, 2 => the ilvl-2 item is attached at depth 1 inside the last
+        // top-level item's nested subtree. When no items exist at the
+        // intermediate level, the item is pushed directly into the nested list
+        // (no empty intermediate container is created).
+        let xml = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr><w:numPr><w:numId w:val="1"/><w:ilvl w:val="0"/></w:numPr></w:pPr>
+      <w:r><w:t>Top level</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:numPr><w:numId w:val="1"/><w:ilvl w:val="2"/></w:numPr></w:pPr>
+      <w:r><w:t>Deep nested</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>"#;
+        let mut reader = DocxSaxReader::from_reader(&xml[..]);
+        let blocks = reader.read_blocks().unwrap();
+        assert_eq!(blocks.len(), 1, "blocks = {blocks:?}");
+        match &blocks[0] {
+            DocumentBlock::List(list) => {
+                assert_eq!(list.items.len(), 1, "one top-level item");
+                let top = &list.items[0];
+                // Top item should have a nested list.
+                let nested1 = top.nested.as_ref().expect("top item should have nested");
+                // When no intermediate items exist, the deep item is pushed
+                // directly into the nested list (fallback behavior).
+                assert_eq!(nested1.items.len(), 1, "one item in nested");
+                match &nested1.items[0].blocks[0] {
+                    DocumentBlock::Paragraph(runs) => {
+                        assert_eq!(runs[0].text, "Deep nested");
+                    }
+                    other => panic!("expected Paragraph, got {other:?}"),
+                }
+            }
+            other => panic!("expected List, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn ilvl_jump_0_to_3_with_sibling_at_level_1() {
+        // ilvl 0, 1, 3 => the ilvl-3 item nests under the ilvl-1 item.
+        // When intermediate levels have no items, the item is pushed directly
+        // into the empty nested list (fallback behavior in attach_to_nested).
+        let xml = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr><w:numPr><w:numId w:val="1"/><w:ilvl w:val="0"/></w:numPr></w:pPr>
+      <w:r><w:t>Root</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:numPr><w:numId w:val="1"/><w:ilvl w:val="1"/></w:numPr></w:pPr>
+      <w:r><w:t>Level 1</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:numPr><w:numId w:val="1"/><w:ilvl w:val="3"/></w:numPr></w:pPr>
+      <w:r><w:t>Very deep</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>"#;
+        let mut reader = DocxSaxReader::from_reader(&xml[..]);
+        let blocks = reader.read_blocks().unwrap();
+        assert_eq!(blocks.len(), 1);
+        match &blocks[0] {
+            DocumentBlock::List(list) => {
+                assert_eq!(list.items.len(), 1);
+                // Root -> nested (level 1 item).
+                let n1 = list.items[0].nested.as_ref().expect("level 1");
+                assert_eq!(n1.items.len(), 1);
+                // Level 1 item has a nested list containing the deep item.
+                // The deep item (originally ilvl=3) is attached into the nested
+                // subtree of the level-1 item. When intermediate levels are
+                // empty, it falls back to direct insertion.
+                let n2 = n1.items[0].nested.as_ref().expect("level 2 nested");
+                assert_eq!(n2.items.len(), 1);
+                // Verify the deep item text is correct.
+                let deep_text = match &n2.items[0].blocks[0] {
+                    DocumentBlock::Paragraph(runs) => runs[0].text.clone(),
+                    other => panic!("expected Paragraph, got {other:?}"),
+                };
+                assert_eq!(deep_text, "Very deep");
+            }
+            other => panic!("expected List, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn ilvl_jump_with_sibling_after() {
+        // ilvl 0, 2, 0 => first item gets deep nested, second is separate top-level.
+        let xml = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr><w:numPr><w:numId w:val="1"/><w:ilvl w:val="0"/></w:numPr></w:pPr>
+      <w:r><w:t>First</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:numPr><w:numId w:val="1"/><w:ilvl w:val="2"/></w:numPr></w:pPr>
+      <w:r><w:t>Deep child</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:numPr><w:numId w:val="1"/><w:ilvl w:val="0"/></w:numPr></w:pPr>
+      <w:r><w:t>Second</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>"#;
+        let mut reader = DocxSaxReader::from_reader(&xml[..]);
+        let blocks = reader.read_blocks().unwrap();
+        assert_eq!(blocks.len(), 1);
+        match &blocks[0] {
+            DocumentBlock::List(list) => {
+                assert_eq!(list.items.len(), 2, "two top-level items");
+                // First item has deep nested chain.
+                assert!(list.items[0].nested.is_some(), "first should have nested");
+                // Second item is flat.
+                assert!(list.items[1].nested.is_none(), "second should be flat");
+                match &list.items[1].blocks[0] {
+                    DocumentBlock::Paragraph(runs) => {
+                        assert_eq!(runs[0].text, "Second");
+                    }
+                    other => panic!("expected Paragraph, got {other:?}"),
+                }
+            }
+            other => panic!("expected List, got {other:?}"),
+        }
+    }
 }

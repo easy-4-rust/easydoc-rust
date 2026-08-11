@@ -4,8 +4,8 @@
 //! 不依赖外部 Markdown 解析库（如 pulldown-cmark），保持依赖最小化。
 
 use easydoc_core::{
-    DocumentBlock, DocumentContent, DocumentImage, DocumentList, DocumentListItem, DocumentTable,
-    DocumentTableCell, DocumentTableRow, DocumentTextRun, Result,
+    DocumentBlock, DocumentContent, DocumentImage, DocumentList, DocumentListItem, DocumentMeta,
+    DocumentTable, DocumentTableCell, DocumentTableRow, DocumentTextRun, Result,
 };
 
 // ---------------------------------------------------------------------------
@@ -82,6 +82,8 @@ pub struct ImportResult {
     pub content: DocumentContent,
     /// 导入过程中产生的警告列表。
     pub warnings: Vec<ImportWarning>,
+    /// 从 front matter 中解析出的文档元数据。
+    pub metadata: DocumentMeta,
 }
 
 impl MarkdownImportBuilder {
@@ -124,12 +126,14 @@ impl MarkdownImportBuilder {
     pub fn do_import(self) -> Result<ImportResult> {
         let mut parser = MarkdownParser::new(&self.source, self.options);
         parser.parse()?;
+        let metadata = parser.metadata.clone();
         Ok(ImportResult {
             content: DocumentContent {
                 blocks: parser.blocks,
-                ..DocumentContent::default()
+                metadata,
             },
             warnings: parser.warnings,
+            metadata: parser.metadata,
         })
     }
 }
@@ -145,12 +149,18 @@ struct MarkdownParser<'a> {
     options: MarkdownImportOptions,
     warnings: Vec<ImportWarning>,
     blocks: Vec<DocumentBlock>,
+    /// 从 front matter 解析出的文档元数据。
+    metadata: DocumentMeta,
     /// 是否处于代码块内。
     in_code_block: bool,
     /// 代码块语言标记。
     code_lang: Option<String>,
     /// 代码块内容缓冲区。
     code_buffer: String,
+    /// 是否处于 front matter 解析状态。
+    in_front_matter: bool,
+    /// front matter 文本缓冲区。
+    front_matter_buffer: String,
 }
 
 impl<'a> MarkdownParser<'a> {
@@ -162,9 +172,12 @@ impl<'a> MarkdownParser<'a> {
             options,
             warnings: Vec::new(),
             blocks: Vec::new(),
+            metadata: DocumentMeta::default(),
             in_code_block: false,
             code_lang: None,
             code_buffer: String::new(),
+            in_front_matter: false,
+            front_matter_buffer: String::new(),
         }
     }
 
@@ -191,10 +204,37 @@ impl<'a> MarkdownParser<'a> {
                 continue;
             }
 
+            // Front matter 状态：累积直到闭合 `---`
+            if self.in_front_matter {
+                let trimmed = line.trim();
+                if trimmed == "---" || trimmed == "..." {
+                    // Front matter 结束，解析内容
+                    self.metadata = parse_simple_front_matter(&self.front_matter_buffer);
+                    self.in_front_matter = false;
+                    self.front_matter_buffer.clear();
+                    self.pos += 1;
+                    continue;
+                }
+                if !self.front_matter_buffer.is_empty() {
+                    self.front_matter_buffer.push('\n');
+                }
+                self.front_matter_buffer.push_str(line);
+                self.pos += 1;
+                continue;
+            }
+
             let trimmed = line.trim();
 
             // 空行：跳过
             if trimmed.is_empty() {
+                self.pos += 1;
+                continue;
+            }
+
+            // Front matter 开始：文件首行为 `---` 且不在代码块内
+            if trimmed == "---" && self.blocks.is_empty() && self.pos == 0 {
+                self.in_front_matter = true;
+                self.front_matter_buffer.clear();
                 self.pos += 1;
                 continue;
             }
@@ -235,9 +275,21 @@ impl<'a> MarkdownParser<'a> {
                 continue;
             }
 
+            // 引用块
+            if trimmed.starts_with('>') {
+                self.parse_blockquote();
+                continue;
+            }
+
             // 表格（行以 | 开头，且下一行是分隔行）
             if trimmed.starts_with('|') && self.is_table_start() {
                 self.parse_table()?;
+                continue;
+            }
+
+            // 任务列表项：`- [ ]` / `- [x]` / `* [ ]` / `* [x]`
+            if is_task_list_item(trimmed) {
+                self.parse_task_list(line);
                 continue;
             }
 
@@ -271,6 +323,16 @@ impl<'a> MarkdownParser<'a> {
             });
         }
 
+        // 收尾：未闭合的 front matter 当作普通文本处理
+        if self.in_front_matter && !self.front_matter_buffer.is_empty() {
+            // 未闭合的 front matter，恢复为原始内容
+            self.blocks
+                .push(DocumentBlock::Paragraph(parse_inline(&format!(
+                    "---\n{}",
+                    self.front_matter_buffer
+                ))));
+        }
+
         Ok(())
     }
 
@@ -281,12 +343,14 @@ impl<'a> MarkdownParser<'a> {
             let line = self.lines[self.pos];
             let trimmed = line.trim();
 
-            // 遇到空行、标题、代码块、表格、列表、分隔线、图片——停止
+            // 遇到空行、标题、代码块、表格、列表、分隔线、图片、引用块——停止
             if trimmed.is_empty()
                 || heading_level(trimmed).is_some()
                 || trimmed.starts_with("```")
                 || is_thematic_break(trimmed)
+                || trimmed.starts_with('>')
                 || (trimmed.starts_with('|') && self.is_table_start())
+                || is_task_list_item(trimmed)
                 || detect_list_item(line).is_some()
                 || trimmed.starts_with("![")
             {
@@ -305,6 +369,103 @@ impl<'a> MarkdownParser<'a> {
         }
         if !runs.is_empty() {
             self.blocks.push(DocumentBlock::Paragraph(runs));
+        }
+    }
+
+    /// 解析引用块：合并连续 `> ` 前缀行，去除前缀后作为斜体段落处理。
+    fn parse_blockquote(&mut self) {
+        let mut runs = Vec::new();
+        while self.pos < self.lines.len() {
+            let line = self.lines[self.pos];
+            let trimmed = line.trim();
+
+            // 非引用行则停止
+            if !trimmed.starts_with('>') {
+                // 空行后跟引用行则继续，否则停止
+                if trimmed.is_empty()
+                    && self.pos + 1 < self.lines.len()
+                    && self.lines[self.pos + 1].trim().starts_with('>')
+                {
+                    self.pos += 1;
+                    continue;
+                }
+                break;
+            }
+
+            // 去掉 `>` 前缀和前导空格
+            let inner = &trimmed[1..];
+            let inner = inner.strip_prefix(' ').unwrap_or(inner);
+
+            if !runs.is_empty() {
+                runs.push(DocumentTextRun {
+                    text: " ".to_owned(),
+                    ..DocumentTextRun::default()
+                });
+            }
+            // 引用内容以斜体呈现，表示引用样式
+            runs.push(DocumentTextRun {
+                text: inner.to_owned(),
+                italic: true,
+                ..DocumentTextRun::default()
+            });
+            self.pos += 1;
+        }
+        if !runs.is_empty() {
+            self.blocks.push(DocumentBlock::Paragraph(runs));
+        }
+    }
+
+    /// 解析任务列表项：`- [ ] todo` / `- [x] done`，合并为无序列表。
+    fn parse_task_list(&mut self, _first_line: &str) {
+        let mut items = Vec::new();
+        self.parse_task_list_items(&mut items);
+        if !items.is_empty() {
+            let list = DocumentList {
+                ordered: false,
+                start_number: Some(1),
+                items,
+            };
+            self.blocks.push(DocumentBlock::List(list));
+        }
+    }
+
+    /// 递归解析任务列表项。
+    fn parse_task_list_items(&mut self, items: &mut Vec<DocumentListItem>) {
+        while self.pos < self.lines.len() {
+            let line = self.lines[self.pos];
+            let trimmed = line.trim();
+
+            // 空行：检查后面是否还有任务列表项
+            if trimmed.is_empty() {
+                if self.pos + 1 < self.lines.len() {
+                    let next = self.lines[self.pos + 1].trim();
+                    if is_task_list_item(next) {
+                        self.pos += 1;
+                        continue;
+                    }
+                }
+                break;
+            }
+
+            // 非任务列表项则停止
+            if !is_task_list_item(trimmed) {
+                break;
+            }
+
+            // 解析 checkbox 和文本
+            let (checkbox, text) = parse_task_list_line(trimmed);
+            let runs = parse_inline(&text);
+            let mut all_runs = vec![DocumentTextRun {
+                text: checkbox,
+                ..DocumentTextRun::default()
+            }];
+            all_runs.extend(runs);
+
+            items.push(DocumentListItem {
+                blocks: vec![DocumentBlock::Paragraph(all_runs)],
+                nested: None,
+            });
+            self.pos += 1;
         }
     }
 
@@ -439,6 +600,55 @@ impl<'a> MarkdownParser<'a> {
 // ---------------------------------------------------------------------------
 // 行级辅助函数
 // ---------------------------------------------------------------------------
+
+/// 简单 front matter 解析器：按 `key: value` 格式解析 YAML 子集。
+///
+/// 支持 `title`、`author`、`subject`、`keywords` 字段。
+/// 值可使用单引号或双引号包裹。
+fn parse_simple_front_matter(text: &str) -> DocumentMeta {
+    let mut meta = DocumentMeta::default();
+    for line in text.lines() {
+        if let Some((key, value)) = line.split_once(':') {
+            let key = key.trim();
+            let value = value.trim().trim_matches('"').trim_matches('\'');
+            match key {
+                "title" => meta.title = Some(value.to_owned()),
+                "author" => meta.author = Some(value.to_owned()),
+                "subject" => meta.subject = Some(value.to_owned()),
+                "keywords" => meta.keywords = Some(value.to_owned()),
+                _ => {}
+            }
+        }
+    }
+    meta
+}
+
+/// 检测行是否为任务列表项（`- [ ]` / `- [x]` / `* [ ]` / `* [x]`）。
+fn is_task_list_item(line: &str) -> bool {
+    let trimmed = line.trim();
+    // 必须以 `- ` 或 `* ` 开头，后跟 `[ ]` 或 `[x]` 或 `[X]`
+    (trimmed.starts_with("- [") || trimmed.starts_with("* ["))
+        && trimmed.len() >= 6
+        && (trimmed.as_bytes()[2] == b'[')
+        && (trimmed.as_bytes()[4] == b']')
+        && (trimmed.as_bytes()[3] == b' '
+            || trimmed.as_bytes()[3] == b'x'
+            || trimmed.as_bytes()[3] == b'X')
+}
+
+/// 解析任务列表行，返回 (checkbox unicode, 剩余文本)。
+///
+/// `- [ ] todo` -> `("☐ ", "todo")`
+/// `- [x] done` -> `("☑ ", "done")`
+fn parse_task_list_line(line: &str) -> (String, String) {
+    let trimmed = line.trim();
+    let checked =
+        trimmed.as_bytes().get(3) == Some(&b'x') || trimmed.as_bytes().get(3) == Some(&b'X');
+    let checkbox = if checked { "☑ " } else { "☐ " };
+    let text_start = trimmed.find(']').map_or(6, |p| p + 1);
+    let text = trimmed[text_start..].trim();
+    (checkbox.to_owned(), text.to_owned())
+}
 
 /// 检测行是否为 ATX 标题，返回标题级别（1-6）。
 fn heading_level(line: &str) -> Option<usize> {
@@ -1071,6 +1281,169 @@ mod tests {
             result.warnings.is_empty(),
             "skip mode should discard warnings"
         );
+    }
+
+    // === Front matter ===
+
+    #[test]
+    fn import_front_matter_title_author() {
+        let md = "---\ntitle: My Document\nauthor: Alice\n---\n\nBody text";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        assert_eq!(result.metadata.title.as_deref(), Some("My Document"));
+        assert_eq!(result.metadata.author.as_deref(), Some("Alice"));
+        // Body should still be parsed
+        assert_eq!(result.content.blocks.len(), 1);
+        assert!(matches!(
+            result.content.blocks[0],
+            DocumentBlock::Paragraph(_)
+        ));
+    }
+
+    #[test]
+    fn import_front_matter_with_quotes() {
+        let md = "---\ntitle: \"Quoted Title\"\nsubject: 'Single Quoted'\n---\n";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        assert_eq!(result.metadata.title.as_deref(), Some("Quoted Title"));
+        assert_eq!(result.metadata.subject.as_deref(), Some("Single Quoted"));
+    }
+
+    #[test]
+    fn import_front_matter_and_content() {
+        let md = "---\ntitle: Test\n---\n\n# Heading\n\nParagraph";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        assert_eq!(result.metadata.title.as_deref(), Some("Test"));
+        assert_eq!(result.content.blocks.len(), 2);
+        assert!(matches!(
+            result.content.blocks[0],
+            DocumentBlock::Heading { .. }
+        ));
+    }
+
+    #[test]
+    fn import_front_matter_dots_terminator() {
+        let md = "---\ntitle: Dots\n...\n\nBody";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        assert_eq!(result.metadata.title.as_deref(), Some("Dots"));
+    }
+
+    #[test]
+    fn import_no_front_matter() {
+        let md = "# Heading\n\nBody";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        assert!(result.metadata.title.is_none());
+        assert_eq!(result.content.blocks.len(), 2);
+    }
+
+    // === Blockquote ===
+
+    #[test]
+    fn import_blockquote_single_line() {
+        let md = "> This is a quote";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        assert_eq!(result.content.blocks.len(), 1);
+        match &result.content.blocks[0] {
+            DocumentBlock::Paragraph(runs) => {
+                assert!(runs.iter().any(|r| r.italic), "blockquote should be italic");
+                let text: String = runs.iter().map(|r| r.text.as_str()).collect();
+                assert!(text.contains("This is a quote"));
+            }
+            _ => panic!("expected Paragraph"),
+        }
+    }
+
+    #[test]
+    fn import_blockquote_multiline() {
+        let md = "> Line one\n> Line two";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        assert_eq!(result.content.blocks.len(), 1);
+        match &result.content.blocks[0] {
+            DocumentBlock::Paragraph(runs) => {
+                let text: String = runs.iter().map(|r| r.text.as_str()).collect();
+                assert!(text.contains("Line one"));
+                assert!(text.contains("Line two"));
+            }
+            _ => panic!("expected Paragraph"),
+        }
+    }
+
+    #[test]
+    fn import_blockquote_then_paragraph() {
+        let md = "> Quote\n\nNormal";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        assert_eq!(result.content.blocks.len(), 2);
+        assert!(matches!(
+            result.content.blocks[0],
+            DocumentBlock::Paragraph(_)
+        ));
+        assert!(matches!(
+            result.content.blocks[1],
+            DocumentBlock::Paragraph(_)
+        ));
+    }
+
+    // === Task list ===
+
+    #[test]
+    fn import_task_list_unchecked() {
+        let md = "- [ ] todo item";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        assert_eq!(result.content.blocks.len(), 1);
+        match &result.content.blocks[0] {
+            DocumentBlock::List(list) => {
+                assert_eq!(list.items.len(), 1);
+                match &list.items[0].blocks[0] {
+                    DocumentBlock::Paragraph(runs) => {
+                        let text: String = runs.iter().map(|r| r.text.as_str()).collect();
+                        assert!(text.contains('☐'), "should contain unchecked checkbox");
+                        assert!(text.contains("todo item"));
+                    }
+                    _ => panic!("expected Paragraph in list item"),
+                }
+            }
+            _ => panic!("expected List"),
+        }
+    }
+
+    #[test]
+    fn import_task_list_checked() {
+        let md = "- [x] done item";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        match &result.content.blocks[0] {
+            DocumentBlock::List(list) => match &list.items[0].blocks[0] {
+                DocumentBlock::Paragraph(runs) => {
+                    let text: String = runs.iter().map(|r| r.text.as_str()).collect();
+                    assert!(text.contains('☑'), "should contain checked checkbox");
+                    assert!(text.contains("done item"));
+                }
+                _ => panic!("expected Paragraph in list item"),
+            },
+            _ => panic!("expected List"),
+        }
+    }
+
+    #[test]
+    fn import_task_list_multiple_items() {
+        let md = "- [ ] task 1\n- [x] task 2\n- [ ] task 3";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        match &result.content.blocks[0] {
+            DocumentBlock::List(list) => {
+                assert_eq!(list.items.len(), 3);
+                assert!(!list.ordered);
+            }
+            _ => panic!("expected List"),
+        }
+    }
+
+    #[test]
+    fn import_task_list_star_marker() {
+        let md = "* [ ] star task";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        match &result.content.blocks[0] {
+            DocumentBlock::List(list) => {
+                assert_eq!(list.items.len(), 1);
+            }
+            _ => panic!("expected List"),
+        }
     }
 
     // === Inline 边界 case ===

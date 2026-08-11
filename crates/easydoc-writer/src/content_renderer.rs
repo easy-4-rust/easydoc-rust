@@ -16,6 +16,11 @@ use easydoc_core::{
 const BULLET_NUM_ID: usize = 10;
 /// Ordered (decimal) list numbering ID (references `numbering.xml` abstractNum 1).
 const DECIMAL_NUM_ID: usize = 11;
+/// Starting abstract numbering ID for dynamically created numbering definitions
+/// (used when `start_number` differs from 1).
+const DYNAMIC_ABSTRACT_NUM_START: usize = 100;
+/// Starting numbering ID for dynamically created numbering references.
+const DYNAMIC_NUM_ID_START: usize = 100;
 
 /// Adds predefined bullet and decimal numbering definitions to the `Docx` instance.
 ///
@@ -117,6 +122,74 @@ fn add_list_numberings(docx: Docx) -> Docx {
         .add_abstract_numbering(decimal_abstract)
         .add_numbering(Numbering::new(BULLET_NUM_ID, 0))
         .add_numbering(Numbering::new(DECIMAL_NUM_ID, 1))
+}
+
+/// Counter for generating unique numbering IDs for custom start numbers.
+static DYNAMIC_NUM_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Registers a custom abstract numbering definition with the given start value.
+///
+/// Returns the `numId` to use in `<w:numPr>` for this list.
+/// Each call creates a new abstract numbering + numbering pair to avoid
+/// conflicting with existing definitions.
+fn register_custom_start_numbering(docx: &mut Docx, start: u32) -> usize {
+    use std::sync::atomic::Ordering;
+
+    let idx = DYNAMIC_NUM_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let abstract_num_id = DYNAMIC_ABSTRACT_NUM_START + idx;
+    let num_id = DYNAMIC_NUM_ID_START + idx;
+
+    let mut abstract_num = AbstractNumbering::new(abstract_num_id);
+    abstract_num.multi_level_type = Some("hybridMultilevel".to_string());
+    let abstract_num = abstract_num
+        .add_level(
+            Level::new(
+                0,
+                Start::new(start as usize),
+                NumberFormat::new("decimal"),
+                LevelText::new("%1."),
+                LevelJc::new("left"),
+            )
+            .indent(Some(720), Some(SpecialIndentType::Hanging(360)), None, None),
+        )
+        .add_level(
+            Level::new(
+                1,
+                Start::new(1),
+                NumberFormat::new("lowerLetter"),
+                LevelText::new("%2."),
+                LevelJc::new("left"),
+            )
+            .indent(
+                Some(1080),
+                Some(SpecialIndentType::Hanging(360)),
+                None,
+                None,
+            ),
+        )
+        .add_level(
+            Level::new(
+                2,
+                Start::new(1),
+                NumberFormat::new("lowerRoman"),
+                LevelText::new("%3."),
+                LevelJc::new("left"),
+            )
+            .indent(
+                Some(1440),
+                Some(SpecialIndentType::Hanging(360)),
+                None,
+                None,
+            ),
+        );
+
+    // Swap out the docx, add numbering, and swap back.
+    let owned = std::mem::replace(docx, Docx::new());
+    *docx = owned
+        .add_abstract_numbering(abstract_num)
+        .add_numbering(Numbering::new(num_id, abstract_num_id));
+
+    num_id
 }
 
 /// Wraps a set of runs into a paragraph, grouping consecutive hyperlink runs
@@ -344,9 +417,19 @@ fn render_list(mut docx: Docx, list: &DocumentList) -> Result<Docx> {
 }
 
 /// Recursively renders list items at a given indent level.
+///
+/// When the list is ordered and has a non-default `start_number`, a new abstract
+/// numbering definition with the correct start value is registered dynamically.
 fn render_list_at_level(mut docx: Docx, list: &DocumentList, level: usize) -> Result<Docx> {
     let num_id = if list.ordered {
-        DECIMAL_NUM_ID
+        // If start_number is non-default, create a dynamic numbering definition.
+        if let Some(start) = list.start_number
+            && start != 1
+        {
+            register_custom_start_numbering(&mut docx, start)
+        } else {
+            DECIMAL_NUM_ID
+        }
     } else {
         BULLET_NUM_ID
     };
@@ -791,6 +874,64 @@ mod coverage_tests {
         assert_eq!(u8_to_heading_level(5), HeadingLevel::H5);
         assert_eq!(u8_to_heading_level(6), HeadingLevel::H6);
         assert_eq!(u8_to_heading_level(99), HeadingLevel::H6); // default
+    }
+
+    #[test]
+    fn render_ordered_list_with_custom_start_number() {
+        let content = DocumentContent {
+            blocks: vec![DocumentBlock::List(DocumentList {
+                ordered: true,
+                start_number: Some(5),
+                items: vec![
+                    DocumentListItem {
+                        blocks: vec![DocumentBlock::Paragraph(vec![make_text_run("Fifth")])],
+                        nested: None,
+                    },
+                    DocumentListItem {
+                        blocks: vec![DocumentBlock::Paragraph(vec![make_text_run("Sixth")])],
+                        nested: None,
+                    },
+                ],
+            })],
+            ..Default::default()
+        };
+        let docx = render_document_content(&content).unwrap();
+        // Should succeed -- custom numbering definitions are registered.
+        let _ = docx;
+    }
+
+    #[test]
+    fn render_ordered_list_with_default_start_number() {
+        let content = DocumentContent {
+            blocks: vec![DocumentBlock::List(DocumentList {
+                ordered: true,
+                start_number: Some(1),
+                items: vec![DocumentListItem {
+                    blocks: vec![DocumentBlock::Paragraph(vec![make_text_run("First")])],
+                    nested: None,
+                }],
+            })],
+            ..Default::default()
+        };
+        let docx = render_document_content(&content).unwrap();
+        let _ = docx;
+    }
+
+    #[test]
+    fn render_ordered_list_with_none_start_number() {
+        let content = DocumentContent {
+            blocks: vec![DocumentBlock::List(DocumentList {
+                ordered: true,
+                start_number: None,
+                items: vec![DocumentListItem {
+                    blocks: vec![DocumentBlock::Paragraph(vec![make_text_run("Default")])],
+                    nested: None,
+                }],
+            })],
+            ..Default::default()
+        };
+        let docx = render_document_content(&content).unwrap();
+        let _ = docx;
     }
 
     #[test]

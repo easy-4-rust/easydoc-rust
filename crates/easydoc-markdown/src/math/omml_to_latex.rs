@@ -176,6 +176,10 @@ impl OmmlConverter {
                 let latex = self.process_children_to_string(reader)?;
                 Ok(Some(latex))
             }
+            "spre" => {
+                let latex = self.process_spre(reader)?;
+                Ok(Some(latex))
+            }
             "r" => {
                 let latex = self.process_run(reader)?;
                 Ok(Some(latex))
@@ -853,6 +857,60 @@ impl OmmlConverter {
         Ok(ARRAY_TEMPLATE.replace("{text}", &text))
     }
 
+    /// `<m:spre>` -- pre-sub-superscript.
+    ///
+    /// Structure: `<m:spre><m:e>base</m:e><m:sup>top</m:sup><m:sub>bot</m:sub></m:spre>`
+    ///
+    /// LaTeX output: `${}^{top}_{bot}base`
+    fn process_spre<R: BufRead>(&mut self, reader: &mut Reader<R>) -> easydoc_core::Result<String> {
+        let mut base = String::new();
+        let mut sup = String::new();
+        let mut sub = String::new();
+        let mut buf = Vec::new();
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Ok(Event::Start(e)) => {
+                    let tag = local_name(&e);
+                    match tag.as_str() {
+                        "e" => base = self.process_children_to_string(reader)?,
+                        "sup" => sup = self.process_children_to_string(reader)?,
+                        "sub" => sub = self.process_children_to_string(reader)?,
+                        _ => {
+                            let _ = self.process_children_to_string(reader)?;
+                        }
+                    }
+                }
+                Ok(Event::End(_) | Event::Eof) => break,
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(easydoc_core::DocError::Format(format!(
+                        "OMML XML parse error: {e}"
+                    )));
+                }
+            }
+            buf.clear();
+        }
+        // Pre-sub-superscript: ${}^{sup}_{sub}base
+        let mut result = String::new();
+        if !sup.is_empty() || !sub.is_empty() {
+            result.push_str("{}");
+            if !sup.is_empty() {
+                result.push('^');
+                result.push('{');
+                result.push_str(&sup);
+                result.push('}');
+            }
+            if !sub.is_empty() {
+                result.push('_');
+                result.push('{');
+                result.push_str(&sub);
+                result.push('}');
+            }
+        }
+        result.push_str(&base);
+        Ok(result)
+    }
+
     // -----------------------------------------------------------------------
     // Property parsing
     // -----------------------------------------------------------------------
@@ -1099,6 +1157,36 @@ mod tests {
         );
         let result = convert(&xml).unwrap();
         assert_eq!(result, "x_{i}^{2}");
+    }
+
+    #[test]
+    fn pre_sub_superscript() {
+        let xml = omath(
+            "<m:spre>\
+               <m:e><m:r><m:t>A</m:t></m:r></m:e>\
+               <m:sup><m:r><m:t>i</m:t></m:r></m:sup>\
+               <m:sub><m:r><m:t>j</m:t></m:r></m:sub>\
+             </m:spre>",
+        );
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, "{}^{i}_{j}A");
+    }
+
+    #[test]
+    fn pre_sub_superscript_base_first() {
+        // base element comes before sup/sub in the XML
+        let xml = omath(
+            "<m:spre>\
+               <m:e><m:r><m:t>x</m:t></m:r></m:e>\
+               <m:sup><m:r><m:t>2</m:t></m:r></m:sup>\
+               <m:sub><m:r><m:t>n</m:t></m:r></m:sub>\
+             </m:spre>",
+        );
+        let result = convert(&xml).unwrap();
+        // base "x" should appear at the end
+        assert!(result.ends_with('x'), "got: {result}");
+        assert!(result.contains("^{2}"), "got: {result}");
+        assert!(result.contains("_{n}"), "got: {result}");
     }
 
     #[test]

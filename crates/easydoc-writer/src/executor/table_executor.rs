@@ -120,6 +120,14 @@ impl<'a, T: DocxRow> TableWriteExecutor<'a, T> {
         let visible: Vec<&TableColumn> = schema.iter().filter(|c| !c.ignored).copied().collect();
         let num_visible = visible.len();
 
+        // Fast path: skip XML post-processing entirely when no columns need
+        // noWrap or numFmt injection (avoids O(cells) string allocations).
+        let needs_no_wrap = visible.iter().any(|c| !c.wrap);
+        let needs_num_fmt = visible.iter().any(|c| c.format.is_some());
+        if !needs_no_wrap && !needs_num_fmt {
+            return Ok(());
+        }
+
         let xml = String::from_utf8_lossy(document_xml).to_string();
         let mut modified = xml;
 

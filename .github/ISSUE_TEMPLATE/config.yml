@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://docs.rs/easydoc
+    about: View the full API documentation on docs.rs
+  - name: GitHub Discussions
+    url: https://github.com/easy-4-rust/easydoc-rust/discussions
+    about: Ask questions and discuss (recommended for general questions)
+  - name: Security Advisory
+    url: https://github.com/easy-4-rust/easydoc-rust/security/advisories/new
+    about: Report security vulnerabilities (private)

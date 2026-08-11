@@ -6,6 +6,39 @@
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 alpha 阶段（0.x-alpha.y）允许 API 不兼容变更。
 
+## [Unreleased]
+
+### 新增
+
+#### Markdown → DOCX 扩展
+
+- **Front matter 支持**：解析文件开头 `---` 分隔的 YAML 元数据（`title`/`author`/`subject`/`keywords`），自动填入 `DocumentMeta`
+- **引用块 `>`**：将 `> text` 识别为斜体段落，支持多行引用
+- **任务列表 `- [ ]` / `- [x]`**：识别 checkbox 语法，输出为带 `☐`/`☑` unicode 前缀的列表项
+
+#### Writer `start_number` 支持
+
+- 有序列表的 `DocumentList.start_number` 现在生效：当 `start_number` 不为 1 时，动态创建独立的 numbering 定义（自定义 abstractNum + numId），避免与默认列表冲突
+- 新增 `register_custom_start_numbering` 内部函数，支持并发安全的唯一 numId 分配
+
+#### OMML → LaTeX `<m:spre>` 支持
+
+- 新增 `<m:spre>`（pre-sub-superscript）元素处理：`<m:spre><m:e>base</m:e><m:sup>top</m:sup><m:sub>bot</m:sub></m:spre>` → `${}^{top}_{bot}base`
+
+#### 列表嵌套 ilvl 跳级测试
+
+- 新增 3 个测试覆盖 ilvl 跳级场景（0→2、0→3、跳级+兄弟项），验证 `attach_to_nested` 的回退行为
+
+#### Writer 写入性能优化
+
+- `TableWriteExecutor::apply_xml_extras` 新增快速路径：当所有列的 `wrap=true` 且无 `format` 时，跳过整个 XML 后处理（避免 O(cells) 次字符串分配）
+
+### 已知局限（后续计划）
+
+- **MD → DOCX** 不支持：HTML 标签、脚注、删除线、数学公式 `$...$`
+- **列表嵌套**：不平衡 ilvl（0→2 跳过 1）仍创建中间容器（现有行为已通过测试覆盖）
+- **写吞吐**：XML 后处理中 `insert_after_nth` 仍逐 cell 创建新字符串（进一步优化需要重构为 in-place 操作）
+
 ## [0.1.0-alpha.1] — 2026-08-10
 
 首个 alpha 预发布。核心能力已就绪，但 API 仍可能调整。
