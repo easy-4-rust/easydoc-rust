@@ -21,7 +21,7 @@
 
 ---
 
-> **当前版本**：`0.1.0-alpha.1`
+> **状态**：alpha 预发布（最新版见 [crates.io](https://crates.io/crates/easydoc-writer)）
 > **MSRV**：Rust `1.88`
 > **Edition**：`2024`
 > **Resolver**：`3`
@@ -35,7 +35,7 @@
 | 维度 | 值 |
 |---|---|
 | Crate | `easydoc-writer` |
-| 版本 | `0.1.0-alpha.1` |
+| 状态 | Alpha 预发布（最新版见 crates.io） |
 | MSRV / Edition | `1.88` / `2024` |
 | unsafe 策略 | `forbid`（workspace lint） |
 | 许可证 | `Apache-2.0` |
@@ -153,7 +153,7 @@ after_document
 
 ```toml
 [dependencies]
-easydoc-writer = "0.1.0-alpha.1"
+easydoc-writer = "0.1.0-alpha"
 ```
 
 ### 4.2 Fluent 构建器

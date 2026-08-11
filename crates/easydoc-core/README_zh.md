@@ -21,7 +21,7 @@
 
 ---
 
-> **当前版本**：`0.1.0-alpha.1`
+> **状态**：alpha 预发布（最新版见 [crates.io](https://crates.io/crates/easydoc-core)）
 > **MSRV**：Rust `1.88`
 > **Edition**：`2024`
 > **成熟度**：Alpha
@@ -36,7 +36,7 @@
 | 维度 | 内容 |
 |---|---|
 | crate | `easydoc-core` |
-| 当前版本 | `0.1.0-alpha.1` |
+| 状态 | Alpha 预发布（最新版见 crates.io） |
 | MSRV / Edition | `1.88` / `2024` |
 | 默认 features | `[]`（空） |
 | 可选 features | `serde` |
@@ -217,10 +217,10 @@ Java EasyExcel 将错误分散在 7 个 `RuntimeException` 子类中；`easydoc-
 ```toml
 # 最小（无 serde）
 [dependencies]
-easydoc-core = "0.1.0-alpha.1"
+easydoc-core = "0.1.0-alpha"
 
 # 带 serde 支持
-easydoc-core = { version = "0.1.0-alpha.1", features = ["serde"] }
+easydoc-core = { version = "0.1.0-alpha", features = ["serde"] }
 ```
 
 ## 6. 上游兼容

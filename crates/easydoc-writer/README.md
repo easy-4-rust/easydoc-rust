@@ -21,7 +21,7 @@
 
 ---
 
-> **Current version**: `0.1.0-alpha.1`
+> **Status**: alpha pre-release (latest on [crates.io](https://crates.io/crates/easydoc-writer))
 > **MSRV**: Rust `1.88`
 > **Edition**: `2024`
 > **Resolver**: `3`
@@ -35,7 +35,7 @@
 | Dimension | Value |
 |---|---|
 | Crate | `easydoc-writer` |
-| Version | `0.1.0-alpha.1` |
+| Status | Alpha pre-release (latest on crates.io) |
 | MSRV / Edition | `1.88` / `2024` |
 | Unsafe policy | `forbid` (workspace lint) |
 | License | `Apache-2.0` |
@@ -153,7 +153,7 @@ after_document
 
 ```toml
 [dependencies]
-easydoc-writer = "0.1.0-alpha.1"
+easydoc-writer = "0.1.0-alpha"
 ```
 
 ### 4.2 Fluent Builder

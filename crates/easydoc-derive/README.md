@@ -20,7 +20,7 @@
 
 ---
 
-> **Current version**: `0.1.0-alpha.1`
+> **Status**: alpha pre-release (latest on [crates.io](https://crates.io/crates/easydoc-derive))
 > **MSRV**: Rust `1.88`
 > **Edition**: `2024`
 > **Maturity**: Preview
@@ -37,7 +37,7 @@
 | Dimension | Value |
 |---|---|
 | Crate | `easydoc-derive` |
-| Current version | `0.1.0-alpha.1` |
+| Status | Alpha pre-release (latest on crates.io) |
 | MSRV / Edition | `1.88` / `2024` |
 | Type | proc-macro crate |
 | unsafe policy | `forbid` (workspace lint) |
@@ -56,7 +56,7 @@
 | Compiles | `cargo check -p easydoc-derive` |
 | Tests | trybuild compile-fail tests + unit tests |
 | MSRV | CI MSRV job (Rust 1.88) |
-| crates.io | Published | [v0.1.0-alpha.1](https://crates.io/crates/easydoc-derive) / [docs.rs](https://docs.rs/easydoc-derive) |
+| crates.io | Published | [crates.io](https://crates.io/crates/easydoc-derive) / [docs.rs](https://docs.rs/easydoc-derive) |
 
 ---
 
@@ -66,8 +66,8 @@
 
 ```toml
 [dependencies]
-easydoc-derive = "0.1.0-alpha.1"
-easydoc-core = "0.1.0-alpha.1"
+easydoc-derive = "0.1.0-alpha"
+easydoc-core = "0.1.0-alpha"
 ```
 
 ### 2.2 Minimal example

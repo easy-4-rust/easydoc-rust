@@ -20,7 +20,7 @@
 
 ---
 
-> **当前版本**：`0.1.0-alpha.1`
+> **状态**：alpha 预发布（最新版见 [crates.io](https://crates.io/crates/easydoc-ooxml)）
 > **MSRV**：Rust `1.88`
 > **Edition**：`2024`
 > **成熟度**：预览
@@ -37,7 +37,7 @@
 | 维度 | 内容 |
 |---|---|
 | crate | `easydoc-ooxml` |
-| 当前版本 | `0.1.0-alpha.1` |
+| 状态 | Alpha 预发布（最新版见 crates.io） |
 | MSRV / Edition | `1.88` / `2024` |
 | unsafe 策略 | `deny`（crate 级 `#![deny(unsafe_code)]`） |
 | 许可证 | `Apache-2.0` |
@@ -142,7 +142,7 @@ let rewriter = PackageRewriter::new(limits);
 
 ```toml
 [dependencies]
-easydoc-ooxml = "0.1.0-alpha.1"
+easydoc-ooxml = "0.1.0-alpha"
 ```
 
 ### 4.2 原子文件写入

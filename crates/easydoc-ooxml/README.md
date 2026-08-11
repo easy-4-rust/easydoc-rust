@@ -20,7 +20,7 @@
 
 ---
 
-> **Current version**: `0.1.0-alpha.1`
+> **Status**: alpha pre-release (latest on [crates.io](https://crates.io/crates/easydoc-ooxml))
 > **MSRV**: Rust `1.88`
 > **Edition**: `2024`
 > **Maturity**: Preview
@@ -37,7 +37,7 @@
 | Dimension | Value |
 |---|---|
 | Crate | `easydoc-ooxml` |
-| Current version | `0.1.0-alpha.1` |
+| Status | Alpha pre-release (latest on crates.io) |
 | MSRV / Edition | `1.88` / `2024` |
 | unsafe policy | `deny` (crate-level `#![deny(unsafe_code)]`) |
 | License | `Apache-2.0` |
@@ -142,7 +142,7 @@ Validation runs before any entry is read into memory. If any limit is exceeded, 
 
 ```toml
 [dependencies]
-easydoc-ooxml = "0.1.0-alpha.1"
+easydoc-ooxml = "0.1.0-alpha"
 ```
 
 ### 4.2 Atomic file write

@@ -20,7 +20,7 @@
 
 ---
 
-> **Current version**: `0.1.0-alpha.1`
+> **Status**: alpha pre-release (latest on [crates.io](https://crates.io/crates/easydoc-template))
 > **MSRV**: Rust `1.88`
 > **Edition**: `2024`
 > **Maturity**: Preview
@@ -37,7 +37,7 @@
 | Dimension | Value |
 |---|---|
 | Crate | `easydoc-template` |
-| Current version | `0.1.0-alpha.1` |
+| Status | Alpha pre-release (latest on crates.io) |
 | MSRV / Edition | `1.88` / `2024` |
 | unsafe policy | `deny` (crate-level `#![deny(unsafe_code)]`) |
 | License | `Apache-2.0` |
@@ -112,7 +112,7 @@ Each `fill_template` / `fill_template_list` call reads the template fresh and wr
 
 ```toml
 [dependencies]
-easydoc-template = "0.1.0-alpha.1"
+easydoc-template = "0.1.0-alpha"
 serde = { version = "1", features = ["derive"] }
 ```
 

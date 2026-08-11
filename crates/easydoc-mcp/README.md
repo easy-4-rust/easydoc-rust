@@ -22,7 +22,7 @@
 
 ---
 
-> **Current version**: `0.1.0-alpha.1`
+> **Status**: alpha pre-release (latest on [crates.io](https://crates.io/crates/easydoc-mcp))
 > **MSRV**: Rust `1.88`
 > **Edition**: `2024`
 > **Maturity**: Alpha
@@ -37,7 +37,7 @@
 | Dimension | Value |
 |---|---|
 | Crate | `easydoc-mcp` |
-| Current version | `0.1.0-alpha.1` |
+| Status | Alpha pre-release (latest on crates.io) |
 | MSRV / Edition | `1.88` / `2024` |
 | Transport | stdio (JSON-RPC 2.0) |
 | `unsafe` policy | `deny` (crate-level) |
@@ -228,7 +228,7 @@ cargo install --path crates/easydoc-mcp
 
 ```toml
 [dependencies]
-easydoc-mcp = "0.1.0-alpha.1"
+easydoc-mcp = "0.1.0-alpha"
 ```
 
 ## 6. Agent Integration

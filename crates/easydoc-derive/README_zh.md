@@ -20,7 +20,7 @@
 
 ---
 
-> **当前版本**：`0.1.0-alpha.1`
+> **状态**：alpha 预发布（最新版见 [crates.io](https://crates.io/crates/easydoc-derive)）
 > **MSRV**：Rust `1.88`
 > **Edition**：`2024`
 > **成熟度**：预览
@@ -37,7 +37,7 @@
 | 维度 | 内容 |
 |---|---|
 | crate | `easydoc-derive` |
-| 当前版本 | `0.1.0-alpha.1` |
+| 状态 | Alpha 预发布（最新版见 crates.io） |
 | MSRV / Edition | `1.88` / `2024` |
 | 类型 | proc-macro crate |
 | unsafe 策略 | `forbid`（workspace lint） |
@@ -56,7 +56,7 @@
 | 可构建 | `cargo check -p easydoc-derive` |
 | 测试 | trybuild 编译失败测试 + 单元测试 |
 | MSRV | CI MSRV 任务（Rust 1.88） |
-| crates.io | 已发布 | [v0.1.0-alpha.1](https://crates.io/crates/easydoc-derive) / [docs.rs](https://docs.rs/easydoc-derive) |
+| crates.io | 已发布 | [crates.io](https://crates.io/crates/easydoc-derive) / [docs.rs](https://docs.rs/easydoc-derive) |
 
 ---
 
@@ -66,8 +66,8 @@
 
 ```toml
 [dependencies]
-easydoc-derive = "0.1.0-alpha.1"
-easydoc-core = "0.1.0-alpha.1"
+easydoc-derive = "0.1.0-alpha"
+easydoc-core = "0.1.0-alpha"
 ```
 
 ### 2.2 最小示例

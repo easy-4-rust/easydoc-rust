@@ -21,7 +21,7 @@
 
 ---
 
-> **Current version**: `0.1.0-alpha.1`
+> **Status**: alpha pre-release (latest on [crates.io](https://crates.io/crates/easydoc-reader))
 > **MSRV**: Rust `1.88`
 > **Edition**: `2024`
 > **Resolver**: `3`
@@ -35,7 +35,7 @@
 | Dimension | Value |
 |---|---|
 | Crate | `easydoc-reader` |
-| Version | `0.1.0-alpha.1` |
+| Status | Alpha pre-release (latest on crates.io) |
 | MSRV / Edition | `1.88` / `2024` |
 | Unsafe policy | `forbid` (workspace lint) |
 | License | `Apache-2.0` |
@@ -137,7 +137,7 @@ flowchart TB
 
 ```toml
 [dependencies]
-easydoc-reader = "0.1.0-alpha.1"
+easydoc-reader = "0.1.0-alpha"
 ```
 
 ### 4.2 Streaming Read (Event-based)

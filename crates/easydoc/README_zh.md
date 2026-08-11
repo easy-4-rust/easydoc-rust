@@ -23,7 +23,7 @@
 
 ---
 
-> **当前版本**：`0.1.0-alpha.1`
+> **状态**：alpha 预发布（最新版见 [crates.io](https://crates.io/crates/easydoc)）
 > **MSRV**：Rust `1.88`
 > **Edition**：`2024`
 > **Workspace Resolver**：`3`
@@ -39,11 +39,11 @@
 | 维度 | 内容 |
 |---|---|
 | crate | `easydoc` |
-| 当前版本 | `0.1.0-alpha.1` |
+| 状态 | Alpha 预发布（最新版见 crates.io） |
 | MSRV / Edition | `1.88` / `2024` |
 | 默认 features | 无（所有子 crate 为直接依赖） |
 | `unsafe` 策略 | `forbid`（workspace 级别） |
-| 发布状态 | [crates.io](https://crates.io/crates/easydoc)（v0.1.0-alpha.1）/ [docs.rs](https://docs.rs/easydoc) |
+| 发布状态 | [crates.io](https://crates.io/crates/easydoc) / [docs.rs](https://docs.rs/easydoc) |
 | 许可证 | `Apache-2.0` |
 
 ### 1.2 不是什么
@@ -61,7 +61,7 @@
 | 测试 | 单元 + 集成 + 文档测试 | `cargo test --workspace` |
 | MSRV | `1.88` | `Cargo.toml` 中 `rust-version` |
 | `unsafe_code` | `forbid` | `[workspace.lints.rust]` |
-| crates.io | 已发布 | [v0.1.0-alpha.1](https://crates.io/crates/easydoc) / [docs.rs](https://docs.rs/easydoc) |
+| crates.io | 已发布 | [crates.io](https://crates.io/crates/easydoc) / [docs.rs](https://docs.rs/easydoc) |
 
 ## 2. 功能与成熟度
 
@@ -117,10 +117,10 @@
 ```toml
 # 大多数用户：依赖门面
 [dependencies]
-easydoc = "0.1.0-alpha.1"
+easydoc = "0.1.0-alpha"
 
 # 高级用法：仅依赖单个领域 crate
-easydoc-core = "0.1.0-alpha.1"
+easydoc-core = "0.1.0-alpha"
 ```
 
 ## 4. Workspace 架构
@@ -189,7 +189,7 @@ flowchart TB
 
 ```toml
 [dependencies]
-easydoc = "0.1.0-alpha.1"
+easydoc = "0.1.0-alpha"
 ```
 
 ### 5.2 从结构体数据写表格

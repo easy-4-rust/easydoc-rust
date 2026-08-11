@@ -23,7 +23,7 @@
 
 ---
 
-> **Current version**: `0.1.0-alpha.1`
+> **Status**: alpha pre-release (latest on [crates.io](https://crates.io/crates/easydoc))
 > **MSRV**: Rust `1.88`
 > **Edition**: `2024`
 > **Workspace Resolver**: `3`
@@ -39,11 +39,11 @@
 | Dimension | Value |
 |---|---|
 | Crate | `easydoc` |
-| Current version | `0.1.0-alpha.1` |
+| Status | Alpha pre-release (latest on crates.io) |
 | MSRV / Edition | `1.88` / `2024` |
 | Default features | none (all sub-crates are direct dependencies) |
 | `unsafe` policy | `forbid` (workspace-wide) |
-| Publish status | [crates.io](https://crates.io/crates/easydoc) (v0.1.0-alpha.1) / [docs.rs](https://docs.rs/easydoc) |
+| Publish status | [crates.io](https://crates.io/crates/easydoc) / [docs.rs](https://docs.rs/easydoc) |
 | License | `Apache-2.0` |
 
 ### 1.2 What It Is Not
@@ -61,7 +61,7 @@
 | Tests | Unit + integration + doc tests | `cargo test --workspace` |
 | MSRV | `1.88` | `rust-version` in `Cargo.toml` |
 | `unsafe_code` | `forbid` | `[workspace.lints.rust]` |
-| crates.io | Published | [v0.1.0-alpha.1](https://crates.io/crates/easydoc) / [docs.rs](https://docs.rs/easydoc) |
+| crates.io | Published | [crates.io](https://crates.io/crates/easydoc) / [docs.rs](https://docs.rs/easydoc) |
 
 ## 2. Capabilities & Maturity
 
@@ -117,10 +117,10 @@ The `easydoc-rust` workspace contains 9 crates. Most users should depend on `eas
 ```toml
 # Most users: depend on the facade
 [dependencies]
-easydoc = "0.1.0-alpha.1"
+easydoc = "0.1.0-alpha"
 
 # Advanced: depend on a single domain crate
-easydoc-core = "0.1.0-alpha.1"
+easydoc-core = "0.1.0-alpha"
 ```
 
 ## 4. Workspace Architecture
@@ -189,7 +189,7 @@ flowchart TB
 
 ```toml
 [dependencies]
-easydoc = "0.1.0-alpha.1"
+easydoc = "0.1.0-alpha"
 ```
 
 ### 5.2 Write a Table from Struct Data

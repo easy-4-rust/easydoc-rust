@@ -21,7 +21,7 @@
 
 ---
 
-> **Current version**: `0.1.0-alpha.1`
+> **Status**: alpha pre-release (latest on [crates.io](https://crates.io/crates/easydoc-core))
 > **MSRV**: Rust `1.88`
 > **Edition**: `2024`
 > **Maturity**: Alpha
@@ -36,7 +36,7 @@
 | Dimension | Value |
 |---|---|
 | Crate | `easydoc-core` |
-| Current version | `0.1.0-alpha.1` |
+| Status | Alpha pre-release (latest on crates.io) |
 | MSRV / Edition | `1.88` / `2024` |
 | Default features | `[]` (empty) |
 | Optional features | `serde` |
@@ -217,10 +217,10 @@ Java EasyExcel spreads errors across 7 `RuntimeException` subclasses; `easydoc-c
 ```toml
 # Minimal (no serde)
 [dependencies]
-easydoc-core = "0.1.0-alpha.1"
+easydoc-core = "0.1.0-alpha"
 
 # With serde support
-easydoc-core = { version = "0.1.0-alpha.1", features = ["serde"] }
+easydoc-core = { version = "0.1.0-alpha", features = ["serde"] }
 ```
 
 ## 6. Upstream Compatibility
