@@ -36,6 +36,7 @@ zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 quick-xml = "0.41"
 anyhow = "1"
 tracing = "0.1"
+proptest = "1.5"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

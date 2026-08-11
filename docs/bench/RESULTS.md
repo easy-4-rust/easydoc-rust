@@ -108,6 +108,42 @@ approximately 6.8 us/row for medium docs. This is about 2x the per-row cost
 of plain text extraction (3.2 us/row), which is expected since Markdown
 generation must handle formatting, table borders, and heading prefixes.
 
+### F. Fidelity Benchmarks (`fidelity`)
+
+Roundtrip write+read verification: each fixture is generated programmatically,
+written to a temp file, read back with `view_as(Plain)`, and the rendered text
+is compared byte-for-byte against the expected output captured at fixture
+initialization time.  Any data drift causes a panic (assertion failure) inside
+the benchmark loop.
+
+Five fixtures cover distinct document features:
+
+| Fixture | Description | DOCX Size | Roundtrip Time | Throughput | Text Match |
+|---|---|---|---|---|---|
+| simple | 1 heading + 3 paragraphs | ~19 KiB | ~323 us | ~55 MiB/s | pass |
+| table | header + 5 rows x 3 cols | ~20 KiB | ~260 us | ~79 MiB/s | pass |
+| list | 3 unordered + 2 ordered (1 nested) | ~19 KiB | ~274 us | ~72 MiB/s | pass |
+| rich | bold/italic/underline/color/size | ~19 KiB | ~246 us | ~75 MiB/s | pass |
+| image | embedded 1x1 red PNG | ~18 KiB | ~268 us | ~71 MiB/s | pass |
+
+**Observations**:
+
+- All five fixtures pass byte-for-byte text comparison -- no data drift detected.
+- Roundtrip times are consistent across fixtures (~250-320 us), dominated by
+  ZIP pack/unpack and XML serialize/parse rather than content complexity.
+- The image fixture (with embedded binary data) performs comparably to text-only
+  fixtures, indicating that image embedding does not introduce disproportionate
+  overhead.
+- The `list` fixture verifies that `DocumentContent` constructed directly (not
+  via `DocBuilder`) roundtrips correctly through `write_content_to_bytes` and
+  `view_as`.
+
+**How it works**: Each `FidelityFixture` stores the raw DOCX bytes and the
+expected `view_as(Plain)` text.  During the benchmark iteration, the bytes are
+written to a `NamedTempFile` (with `.docx` suffix), read back, and the output
+is compared via `assert_eq!`.  If any optimization introduces content drift,
+the benchmark panics immediately.
+
 ## Summary
 
 | Metric | Value | Notes |

@@ -14,11 +14,14 @@
 //!   C. view_mode_throughput  — ViewMode rendering (Plain / Annotated / Outline / Stats)
 //!   D. stream_vs_oneshot     — SAX event streaming vs full DocumentContent load
 //!   E. markdown_throughput   — DOCX-to-Markdown conversion
+//!   F. fidelity              — roundtrip write+read with byte-for-byte assertion
+
+mod fixtures;
 
 use std::hint::black_box;
 use std::sync::LazyLock;
 
-use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use easydoc::prelude::*;
 use easydoc::{ConverterRegistry, DocumentEvent, EasyDoc};
 use easydoc_core::metadata::TableColumn;
@@ -320,6 +323,37 @@ fn bench_markdown_throughput(c: &mut Criterion) {
 }
 
 // ---------------------------------------------------------------------------
+// F. Fidelity: roundtrip write+read with byte-for-byte assertion
+// ---------------------------------------------------------------------------
+
+fn bench_fidelity(c: &mut Criterion) {
+    let fx = fixtures::Fixtures::load();
+
+    let mut group = c.benchmark_group("fidelity");
+
+    for fixture in fx.all() {
+        group.throughput(Throughput::Bytes(fixture.original_size));
+        group.bench_with_input(
+            BenchmarkId::from_parameter(fixture.name),
+            fixture,
+            |b, fix| {
+                b.iter(|| {
+                    let tmp = fix.write_to_temp();
+                    let result = EasyDoc::view_as(tmp.path(), &ViewMode::Plain).expect("view_as");
+                    assert_eq!(
+                        result, fix.expected_text,
+                        "fidelity regression in fixture '{}'",
+                        fix.name
+                    );
+                });
+            },
+        );
+    }
+
+    group.finish();
+}
+
+// ---------------------------------------------------------------------------
 // Criterion harness
 // ---------------------------------------------------------------------------
 
@@ -330,5 +364,6 @@ criterion_group!(
     bench_view_mode,
     bench_stream_vs_oneshot,
     bench_markdown_throughput,
+    bench_fidelity,
 );
 criterion_main!(benches);
