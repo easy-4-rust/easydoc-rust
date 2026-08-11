@@ -277,7 +277,7 @@ dependencies = [
 
 [[package]]
 name = "easydoc"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "criterion",
  "easydoc-core",
@@ -295,7 +295,7 @@ dependencies = [
 
 [[package]]
 name = "easydoc-core"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "chrono",
  "serde",
@@ -307,7 +307,7 @@ dependencies = [
 
 [[package]]
 name = "easydoc-derive"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "easydoc-core",
  "proc-macro-crate",
@@ -319,7 +319,7 @@ dependencies = [
 
 [[package]]
 name = "easydoc-examples"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "chrono",
  "easydoc",
@@ -331,7 +331,7 @@ dependencies = [
 
 [[package]]
 name = "easydoc-markdown"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "easydoc-core",
  "easydoc-ooxml",
@@ -343,7 +343,7 @@ dependencies = [
 
 [[package]]
 name = "easydoc-mcp"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "anyhow",
  "easydoc",
@@ -361,7 +361,7 @@ dependencies = [
 
 [[package]]
 name = "easydoc-ooxml"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "easydoc-core",
  "tempfile",
@@ -370,7 +370,7 @@ dependencies = [
 
 [[package]]
 name = "easydoc-reader"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "easydoc-core",
  "office_oxide",
@@ -382,7 +382,7 @@ dependencies = [
 
 [[package]]
 name = "easydoc-template"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "easydoc-core",
  "easydoc-ooxml",
@@ -395,7 +395,7 @@ dependencies = [
 
 [[package]]
 name = "easydoc-writer"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "docx-rs",
  "easydoc-core",

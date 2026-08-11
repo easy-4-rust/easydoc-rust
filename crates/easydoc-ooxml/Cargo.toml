@@ -8,7 +8,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-easydoc-core = { path = "../easydoc-core", version = "0.1.0-alpha.1" }
+easydoc-core = { path = "../easydoc-core", version = "0.1.0-alpha.2" }
 tempfile.workspace = true
 zip.workspace = true
 

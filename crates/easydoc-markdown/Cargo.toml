@@ -8,13 +8,13 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-easydoc-core = { path = "../easydoc-core", version = "0.1.0-alpha.1" }
-easydoc-ooxml = { path = "../easydoc-ooxml", version = "0.1.0-alpha.1" }
-easydoc-reader = { path = "../easydoc-reader", version = "0.1.0-alpha.1" }
+easydoc-core = { path = "../easydoc-core", version = "0.1.0-alpha.2" }
+easydoc-ooxml = { path = "../easydoc-ooxml", version = "0.1.0-alpha.2" }
+easydoc-reader = { path = "../easydoc-reader", version = "0.1.0-alpha.2" }
 quick-xml.workspace = true
 
 [dev-dependencies]
-easydoc-writer = { path = "../easydoc-writer", version = "0.1.0-alpha.1" }
+easydoc-writer = { path = "../easydoc-writer", version = "0.1.0-alpha.2" }
 tempfile.workspace = true
 
 [lints]

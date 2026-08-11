@@ -6,7 +6,10 @@
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 alpha 阶段（0.x-alpha.y）允许 API 不兼容变更。
 
-## [Unreleased]
+## [0.1.0-alpha.2] — 2026-08-11
+
+第二个 alpha 预发布。在 alpha.1 基础上新增 MD→DOCX 扩展、文档/质量增强。
+635 个测试全绿，clippy/rustfmt 全 workspace 零警告。
 
 ### 新增
 
@@ -32,6 +35,20 @@ alpha 阶段（0.x-alpha.y）允许 API 不兼容变更。
 #### Writer 写入性能优化
 
 - `TableWriteExecutor::apply_xml_extras` 新增快速路径：当所有列的 `wrap=true` 且无 `format` 时，跳过整个 XML 后处理（避免 O(cells) 次字符串分配）
+
+#### 文档（full-stack-doc 标准）
+
+- 为全部 9 个 crate 补充中英文 README（`README.md` + `README_zh.md`），按 full-stack-doc skill 的 Rust README 标准编写
+- 剖面组合：文档与文件格式处理 + 上游兼容与移植（Java EasyExcel 4.0.3）+ 大型工具箱 Workspace + 多语言布局
+- 每个 README 的支持矩阵分别声明（读/写/编辑/模板填充/往返保真）
+
+#### 质量与安全增强
+
+- **SECURITY.md**：漏洞报告流程（GitHub Security Advisories）、响应时间承诺、支持版本策略
+- **proptest fuzzing**：8 个 property-based 测试（2048 adversarial cases），覆盖损坏 DOCX/ZIP/URL 输入
+- **fidelity benchmark**：5 个 fixture（simple/table/list/rich/image），byte-equal 断言嵌入 bench 热循环
+- **ROADMAP.md**：0.1.0-alpha → 1.0.0 路线图（2026 Q2 - 2027 Q4+）
+- **GitHub Issue 模板**：bug_report / feature_request / question + PR 模板
 
 ### 已知局限（后续计划）
 
