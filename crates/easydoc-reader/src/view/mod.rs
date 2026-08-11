@@ -12,42 +12,12 @@
 mod annotated;
 mod outline;
 mod plain;
+mod render;
 mod stats;
+mod view_mode;
 
-use easydoc_core::{DocumentContent, Result};
-
-/// Selects how a [`DocumentContent`] is rendered into a string.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ViewMode {
-    /// Bare text: paragraphs joined by newlines, tables by commas.
-    Plain,
-    /// Annotated with structural markers (e.g. `[段落 3]`, `[表格 1: 2行x3列]`).
-    Annotated,
-    /// Headings only, Markdown-style.
-    Outline {
-        /// Maximum heading level to include (1--6). Levels deeper than this are
-        /// omitted.
-        max_level: u8,
-    },
-    /// Aggregate statistics: paragraph / table / image / word counts.
-    Stats,
-}
-
-/// Renders a [`DocumentContent`] into a string according to the chosen
-/// [`ViewMode`].
-///
-/// # Errors
-///
-/// Returns an error if rendering fails (currently infallible, but the signature
-/// allows for future fallible rendering).
-pub fn render_view(content: &DocumentContent, mode: &ViewMode) -> Result<String> {
-    match mode {
-        ViewMode::Plain => Ok(plain::render(content)),
-        ViewMode::Annotated => Ok(annotated::render(content)),
-        ViewMode::Outline { max_level } => Ok(outline::render(content, *max_level)),
-        ViewMode::Stats => Ok(stats::render(content)),
-    }
-}
+pub use render::render_view;
+pub use view_mode::ViewMode;
 
 // ===========================================================================
 // Tests
@@ -57,7 +27,8 @@ pub fn render_view(content: &DocumentContent, mode: &ViewMode) -> Result<String>
 mod tests {
     use super::*;
     use easydoc_core::{
-        DocumentBlock, DocumentTable, DocumentTableCell, DocumentTableRow, DocumentTextRun,
+        DocumentBlock, DocumentContent, DocumentTable, DocumentTableCell, DocumentTableRow,
+        DocumentTextRun,
     };
 
     fn sample_content() -> DocumentContent {

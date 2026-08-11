@@ -22,7 +22,9 @@ use std::hint::black_box;
 use std::sync::LazyLock;
 
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use easydoc::prelude::*;
+use easydoc::prelude::{
+    CellData, DocxRow, EventSink, HeadingLevel, Paragraph, RowData, Table, ViewMode,
+};
 use easydoc::{ConverterRegistry, DocumentEvent, EasyDoc};
 use easydoc_core::metadata::TableColumn;
 
