@@ -1,39 +1,27 @@
 ---
 name: Feature Request
 about: Suggest a new feature for easydoc-rust
-title: '[Feature]: '
+title: "[Feature] "
 labels: enhancement
-assignees: ''
+assignees: ""
 ---
 
-## Feature Description
+## Description
 
-A clear description of the feature you would like.
+A clear and concise description of the feature you'd like.
 
-## Motivation and Use Cases
+## Use Case
 
-- What problem does this solve?
-- What scenarios require this feature?
-- What alternatives exist today?
+Describe the problem or use case this feature would address.
 
-## Proposed API (if applicable)
+## Proposed Solution
 
-```rust
-// If applicable, describe the API you envision
-EasyDoc::new_feature(...)?;
-```
-
-## Priority
-
-- [ ] Critical (blocking)
-- [ ] High (important)
-- [ ] Medium
-- [ ] Low (nice-to-have)
+If you have a specific implementation in mind, describe it here.
 
 ## Alternatives Considered
 
-Other approaches you have considered.
+Describe any alternative solutions or workarounds you've considered.
 
 ## Additional Context
 
-Any other relevant information.
+Add any other context, DOCX specification references, or screenshots here.

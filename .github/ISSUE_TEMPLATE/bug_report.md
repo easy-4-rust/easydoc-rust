@@ -1,53 +1,46 @@
 ---
 name: Bug Report
 about: Report a bug in easydoc-rust
-title: '[Bug]: '
+title: "[Bug] "
 labels: bug
-assignees: ''
+assignees: ""
 ---
 
-## Bug Description
+## Environment
+
+- **easydoc version**: [e.g. 0.1.0-alpha.2]
+- **Rust version**: [e.g. 1.88.0]
+- **OS**: [e.g. Ubuntu 24.04, macOS 15, Windows 11]
+
+## Description
 
 A clear and concise description of the bug.
 
 ## Steps to Reproduce
 
-1. `EasyDoc::xxx(...)` ...
-2. `EasyDoc::yyy(...)` ...
-3. Observe error / panic / unexpected behavior
+1. ...
+2. ...
+3. ...
 
 ## Expected Behavior
 
-What should have happened.
+What you expected to happen.
 
 ## Actual Behavior
 
-What actually happened.
+What actually happened. Include any error messages or panic output.
 
-## Environment
-
-- **easydoc-rust version**: `0.1.0-alpha.1` (or `cargo tree | grep easydoc`)
-- **Rust toolchain**: `rustc --version`
-- **OS**: `uname -a` (Linux / macOS / Windows)
-- **Platform**: x86_64 / aarch64
-
-## Minimal Reproduction
+## Minimal Reproducible Example
 
 ```rust
-// Minimal code that reproduces the issue
+// Paste minimal code that reproduces the issue
+use easydoc::prelude::*;
+
 fn main() {
     // ...
 }
 ```
 
-## Error Output
-
-```
-Paste the full error message, panic backtrace, or logs here
-```
-
 ## Additional Context
 
-- Documentation: https://docs.rs/easydoc
-- Source file: ...
-- Related issues: ...
+Add any other context (DOCX files, screenshots, logs) about the problem here.

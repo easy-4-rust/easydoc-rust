@@ -1,0 +1,155 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. v0.1.0 or v0.1.0-alpha.3)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  validate-tag:
+    name: Validate Tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract.outputs.version }}
+    steps:
+      - name: Extract and validate version
+        id: extract
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.version }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          # 支持 stable (vX.Y.Z) 与 pre-release (vX.Y.Z-alpha.N) 两种 tag
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid tag format: $TAG (expected vX.Y.Z or vX.Y.Z-alpha.N)"
+            exit 1
+          fi
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Validated version: $TAG"
+
+  publish:
+    name: Release (${{ matrix.os }})
+    needs: validate-tag
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: Build release
+        run: cargo build --workspace --release
+
+      - name: Run tests
+        run: cargo test --workspace --release --locked
+
+      - name: Validate crate manifests
+        run: # 校验 leaf crate（facade 的 workspace 依赖需发布后才能 dry-run，publish-crates 步骤按序处理）
+          cargo publish --dry-run --allow-dirty -p easydoc-core
+
+      - name: Build documentation
+        run: cargo doc --no-deps --workspace
+
+  create-release:
+    name: Create GitHub Release
+    needs: [validate-tag, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          tag_name: ${{ needs.validate-tag.outputs.version }}
+          name: ${{ needs.validate-tag.outputs.version }}
+          body_path: CHANGELOG.md
+          draft: false
+          # alpha/beta/rc 等 pre-release tag 自动标记为预发布
+          prerelease: ${{ contains(needs.validate-tag.outputs.version, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-crates:
+    name: Publish to crates.io
+    needs: [validate-tag, publish]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: stable
+
+      - name: Publish crates in dependency order
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          # 前置：token 未配置立即失败（避免空 token 重试 21×3 次的假绿）
+          if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
+            echo "::error::CARGO_REGISTRY_TOKEN secret 未配置（仓库 Settings → Secrets → Actions）"
+            exit 1
+          fi
+          # 依赖顺序：core → derive/ooxml/reader → writer → template/markdown → facade → mcp
+          CRATES=(
+            easydoc-core
+            easydoc-derive
+            easydoc-ooxml
+            easydoc-reader
+            easydoc-writer
+            easydoc-template
+            easydoc-markdown
+            easydoc
+            easydoc-mcp
+          )
+          FAILED=()
+          for crate in "${CRATES[@]}"; do
+            echo "::group::Publishing $crate"
+            ok=0
+            # Retry up to 3 times with backoff for crates.io index propagation
+            for attempt in 1 2 3; do
+              # 必须用 if 条件捕获：Actions 默认 bash -e，独立赋值语句会在 cargo 失败（exit 101）时直接终止脚本
+              if out=$(cargo publish -p "$crate" --allow-dirty 2>&1); then
+                echo "Successfully published $crate"
+                ok=1
+                break
+              fi
+              # 幂等重跑：版本已上传视为成功（cargo publish 对已存在版本报错退出）
+              if echo "$out" | grep -qiE "already (uploaded|exists)"; then
+                echo "$crate already published (version exists), skipping"
+                ok=1
+                break
+              fi
+              echo "$out" | tail -5
+              echo "Attempt $attempt failed for $crate, waiting before retry..."
+              sleep 15
+            done
+            if [ "$ok" -ne 1 ]; then
+              echo "::error::$crate 3 次重试后仍发布失败"
+              FAILED+=("$crate")
+            fi
+            echo "::endgroup::"
+          done
+          if [ "${#FAILED[@]}" -gt 0 ]; then
+            echo "::error::发布失败的 crate: ${FAILED[*]}"
+            exit 1
+          fi
