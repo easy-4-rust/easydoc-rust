@@ -34,6 +34,7 @@ pub use types::{
 
 /// 文档分区类型，用于 Section 块。
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DocumentSection {
     /// 连续分区（不换页）。
     Continuous,

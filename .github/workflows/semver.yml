@@ -1,0 +1,36 @@
+name: SemVer Checks
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  semver:
+    name: API compatibility (cargo-semver-checks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: Install cargo-semver-checks
+        run: cargo install cargo-semver-checks --locked
+
+      # 仅对已发布到 crates.io 的 crate 做基线对比；未发布 crate 由
+      # cargo-semver-checks 自动跳过。首个版本（无基线）时该步骤无操作。
+      - name: Check API compatibility vs crates.io baseline
+        run: cargo semver-checks check-release --workspace
+        timeout-minutes: 30

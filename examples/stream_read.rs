@@ -36,6 +36,8 @@ impl EventSink for CountingSink {
             DocumentEvent::ColumnBreak => self.record("ColumnBreak"),
             DocumentEvent::CodeBlock { .. } => self.record("CodeBlock"),
             DocumentEvent::Section { .. } => self.record("Section"),
+            // 未来新增的事件类型（#[non_exhaustive]）
+            _ => self.record("Unknown"),
         }
         Ok(())
     }

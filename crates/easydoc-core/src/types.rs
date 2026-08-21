@@ -14,6 +14,7 @@ use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 ///
 /// 对应 Java: `com.alibaba.excel.metadata.data.CellValue` / `ReadCellData` / `WriteCellData`
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum DocValue {
     /// 纯文本字符串。
     String(String),
@@ -142,6 +143,7 @@ pub struct TableData {
 ///
 /// 对应 Java: `com.alibaba.excel.write.metadata.style.WriteCellStyle#getHorizontalAlignment`
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum HorizontalAlignment {
     /// 左对齐。
     Left,
@@ -155,6 +157,7 @@ pub enum HorizontalAlignment {
 
 /// 结构化文档的标题级别。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum HeadingLevel {
     /// 标题 1（最大）。
     H1,
@@ -174,6 +177,7 @@ pub enum HeadingLevel {
 ///
 /// 由 [`DocReadListener::on_error`](crate::traits::DocReadListener::on_error) 返回。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ErrorAction {
     /// 跳过错误并继续读取。
     Continue,

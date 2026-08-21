@@ -198,6 +198,8 @@ struct BlockCollector(Vec<DocumentBlock>);
 
 impl ParseSink for BlockCollector {
     fn on_event(&mut self, event: &DocumentEvent) -> Result<()> {
+        // `_` 通配与显式分支体相同是 #[non_exhaustive] 的必然结果
+        #[allow(clippy::match_same_arms)]
         match event {
             DocumentEvent::Heading { level, runs } => {
                 self.0.push(DocumentBlock::Heading {
@@ -236,6 +238,8 @@ impl ParseSink for BlockCollector {
                 });
             }
             DocumentEvent::DocumentStart | DocumentEvent::DocumentEnd => {}
+            // 未来新增的事件类型（#[non_exhaustive]）：忽略
+            _ => {}
         }
         Ok(())
     }

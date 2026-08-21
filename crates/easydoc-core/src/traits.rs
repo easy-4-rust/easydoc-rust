@@ -297,6 +297,7 @@ pub trait DocumentReader {
 ///
 /// 用于流式读取场景，替代一次性返回完整文档模型。
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum DocumentEvent {
     /// 遇到标题。
     Heading {

@@ -4,6 +4,7 @@
 
 /// 在 DOCX 文档中检测到的占位符。
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Placeholder {
     /// Scalar placeholder: `{name}`, `{date}`, etc.
     Scalar {

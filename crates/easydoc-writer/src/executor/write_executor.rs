@@ -189,6 +189,8 @@ impl DocWriteExecutor {
 }
 
 fn heading_style(level: easydoc_core::HeadingLevel) -> &'static str {
+    // `_` 通配与显式分支体相同是 #[non_exhaustive] 的必然结果
+    #[allow(clippy::match_same_arms)]
     match level {
         easydoc_core::HeadingLevel::H1 => "Heading1",
         easydoc_core::HeadingLevel::H2 => "Heading2",
@@ -196,10 +198,14 @@ fn heading_style(level: easydoc_core::HeadingLevel) -> &'static str {
         easydoc_core::HeadingLevel::H4 => "Heading4",
         easydoc_core::HeadingLevel::H5 => "Heading5",
         easydoc_core::HeadingLevel::H6 => "Heading6",
+        // #[non_exhaustive]：未来新增的标题级别回退到正文
+        _ => "Normal",
     }
 }
 
 fn heading_outline_level(level: easydoc_core::HeadingLevel) -> usize {
+    // `_` 通配与显式分支体相同是 #[non_exhaustive] 的必然结果
+    #[allow(clippy::match_same_arms)]
     match level {
         easydoc_core::HeadingLevel::H1 => 0,
         easydoc_core::HeadingLevel::H2 => 1,
@@ -207,6 +213,8 @@ fn heading_outline_level(level: easydoc_core::HeadingLevel) -> usize {
         easydoc_core::HeadingLevel::H4 => 3,
         easydoc_core::HeadingLevel::H5 => 4,
         easydoc_core::HeadingLevel::H6 => 5,
+        // #[non_exhaustive]：未来新增的标题级别回退到无大纲级别
+        _ => 0,
     }
 }
 
@@ -224,10 +232,14 @@ fn doc_value_to_string(value: &easydoc_core::DocValue) -> String {
 fn convert_alignment(
     alignment: easydoc_core::types::HorizontalAlignment,
 ) -> docx_rs::AlignmentType {
+    // `_` 通配与显式分支体相同是 #[non_exhaustive] 的必然结果
+    #[allow(clippy::match_same_arms)]
     match alignment {
         easydoc_core::types::HorizontalAlignment::Left => docx_rs::AlignmentType::Left,
         easydoc_core::types::HorizontalAlignment::Center => docx_rs::AlignmentType::Center,
         easydoc_core::types::HorizontalAlignment::Right => docx_rs::AlignmentType::Right,
         easydoc_core::types::HorizontalAlignment::Both => docx_rs::AlignmentType::Both,
+        // #[non_exhaustive]：未来新增的对齐方式默认左对齐
+        _ => docx_rs::AlignmentType::Left,
     }
 }

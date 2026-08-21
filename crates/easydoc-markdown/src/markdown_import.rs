@@ -40,6 +40,7 @@ pub struct MarkdownImportOptions {
 
 /// 解析失败时的处理策略。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ParseErrorStrategy {
     /// 跳过无效行，继续处理。
     Skip,
@@ -52,6 +53,7 @@ pub enum ParseErrorStrategy {
 
 /// 导入过程中产生的警告信息。
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ImportWarning {
     /// 无法识别的语法行。
     UnrecognizedSyntax {

@@ -2,6 +2,7 @@
 
 /// 选择如何将 [`DocumentContent`](easydoc_core::DocumentContent) 渲染为字符串。
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ViewMode {
     /// 纯文本：段落以换行连接，表格以逗号分隔。
     Plain,

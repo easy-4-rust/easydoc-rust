@@ -61,6 +61,7 @@ pub struct PromptMessage {
 /// 目前仅支持文本类型，未来可扩展图片等。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum PromptContent {
     /// 文本内容。
     #[serde(rename = "text")]
