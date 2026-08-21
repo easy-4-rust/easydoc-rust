@@ -32,8 +32,9 @@ pub fn extract_text_from_bytes(bytes: &[u8]) -> Result<String> {
     let format = detect_format_from_bytes(bytes).ok_or_else(|| {
         DocError::Format("unsupported document: could not detect DOCX/DOC magic bytes".to_owned())
     })?;
-    let doc = office_oxide::Document::from_reader(std::io::Cursor::new(bytes.to_vec()), to_oxide(format))
-        .map_err(|e| DocError::Document(format!("failed to open document from bytes: {e}")))?;
+    let doc =
+        office_oxide::Document::from_reader(std::io::Cursor::new(bytes.to_vec()), to_oxide(format))
+            .map_err(|e| DocError::Document(format!("failed to open document from bytes: {e}")))?;
     Ok(doc.plain_text())
 }
 

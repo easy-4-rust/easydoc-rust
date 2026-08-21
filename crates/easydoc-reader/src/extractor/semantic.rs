@@ -27,8 +27,11 @@ pub(crate) fn extract_document_from_bytes(bytes: &[u8]) -> Result<DocumentConten
         super::DocumentFormat::Docx => office_oxide::DocumentFormat::Docx,
         super::DocumentFormat::Doc => office_oxide::DocumentFormat::Doc,
     };
-    let document = office_oxide::Document::from_reader(std::io::Cursor::new(bytes.to_vec()), oxide_format)
-        .map_err(|error| DocError::Document(format!("failed to open document from bytes: {error}")))?;
+    let document =
+        office_oxide::Document::from_reader(std::io::Cursor::new(bytes.to_vec()), oxide_format)
+            .map_err(|error| {
+                DocError::Document(format!("failed to open document from bytes: {error}"))
+            })?;
     Ok(extract_document_ir(&document))
 }
 
