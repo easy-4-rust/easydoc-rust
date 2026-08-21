@@ -293,17 +293,20 @@ fn render_block(mut docx: Docx, block: &DocumentBlock) -> Result<Docx> {
                 docx = render_block(docx, inner)?;
             }
         }
-        DocumentBlock::Footnote { id: _, blocks } => {
-            // 脚注内容渲染为缩进段落
-            for inner in blocks {
-                docx = render_block(docx, inner)?;
-            }
+        DocumentBlock::Footnote { id, blocks } => {
+            // 脚注以 `[^id]: content` 文本段落写出，与 markdown_renderer
+            // 的输出格式对称，保证 MD→DOCX→MD 往返不丢失脚注语义。
+            let body = plain_blocks(blocks);
+            let mut p = docx_rs::Paragraph::new();
+            p = p.add_run(docx_rs::Run::new().add_text(format!("[^{id}]: {body}")));
+            docx = docx.add_paragraph(p);
         }
-        DocumentBlock::Endnote { id: _, blocks } => {
-            // 尾注内容渲染为缩进段落
-            for inner in blocks {
-                docx = render_block(docx, inner)?;
-            }
+        DocumentBlock::Endnote { id, blocks } => {
+            // 尾注同脚注，标记为 `[^endnote-{id}]`（与 renderer 一致）。
+            let body = plain_blocks(blocks);
+            let mut p = docx_rs::Paragraph::new();
+            p = p.add_run(docx_rs::Run::new().add_text(format!("[^endnote-{id}]: {body}")));
+            docx = docx.add_paragraph(p);
         }
         DocumentBlock::Section {
             blocks,
@@ -312,6 +315,34 @@ fn render_block(mut docx: Docx, block: &DocumentBlock) -> Result<Docx> {
             // 分区内容渲染为普通子块
             for inner in blocks {
                 docx = render_block(docx, inner)?;
+            }
+        }
+        DocumentBlock::Math {
+            omml: _,
+            latex,
+            display,
+        } => {
+            // docx-rs 不支持 OMML 数学公式；以 LaTeX 源码文本呈现，
+            // 保留公式内容供读回（display 公式前后加空行区分块级）。
+            // 依赖方向：writer 不依赖 markdown crate，故仅使用 latex 字段
+            // （markdown_import 生成的 Math 块总是携带 latex）。
+            let text = latex.clone().unwrap_or_default();
+            if !text.is_empty() {
+                let mut p = docx_rs::Paragraph::new();
+                if *display {
+                    p = p.add_run(
+                        docx_rs::Run::new()
+                            .add_text(format!("$${text}$$"))
+                            .fonts(RunFonts::new().ascii("Courier New")),
+                    );
+                } else {
+                    p = p.add_run(
+                        docx_rs::Run::new()
+                            .add_text(format!("${text}$"))
+                            .fonts(RunFonts::new().ascii("Courier New")),
+                    );
+                }
+                docx = docx.add_paragraph(p);
             }
         }
         _ => {
@@ -370,6 +401,28 @@ fn render_table(mut docx: Docx, table: &DocumentTable) -> Result<Docx> {
 
     docx = docx.add_table(docx_rs::Table::new(rows));
     Ok(docx)
+}
+
+/// 将块列表提取为纯文本（段落取 run 文本拼接，其他块递归）。
+///
+/// 用于脚注/尾注正文的扁平化输出，与 `markdown_renderer` 的
+/// `plain_blocks` 语义一致。
+fn plain_blocks(blocks: &[DocumentBlock]) -> String {
+    let mut out = String::new();
+    for block in blocks {
+        match block {
+            DocumentBlock::Paragraph(runs) | DocumentBlock::Heading { runs, .. } => {
+                for run in runs {
+                    out.push_str(&run.text);
+                }
+            }
+            DocumentBlock::Footnote { blocks, .. } | DocumentBlock::Endnote { blocks, .. } => {
+                out.push_str(&plain_blocks(blocks));
+            }
+            _ => {}
+        }
+    }
+    out
 }
 
 /// 将单个块渲染为段落（用于表格单元格内）。

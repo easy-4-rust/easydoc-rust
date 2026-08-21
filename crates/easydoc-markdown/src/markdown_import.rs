@@ -161,6 +161,8 @@ struct MarkdownParser<'a> {
     in_front_matter: bool,
     /// front matter 文本缓冲区。
     front_matter_buffer: String,
+    /// 脚注定义：`[^id]: text` 收集，供行内 `[^id]` 引用使用。
+    footnote_defs: std::collections::HashMap<String, String>,
 }
 
 impl<'a> MarkdownParser<'a> {
@@ -178,6 +180,7 @@ impl<'a> MarkdownParser<'a> {
             code_buffer: String::new(),
             in_front_matter: false,
             front_matter_buffer: String::new(),
+            footnote_defs: std::collections::HashMap::new(),
         }
     }
 
@@ -311,6 +314,24 @@ impl<'a> MarkdownParser<'a> {
                 continue;
             }
 
+            // 块级数学公式：`$$...$$`（整行）
+            if let Some(latex) = parse_display_math(trimmed) {
+                self.blocks.push(DocumentBlock::Math {
+                    omml: None,
+                    latex: Some(latex),
+                    display: true,
+                });
+                self.pos += 1;
+                continue;
+            }
+
+            // 脚注定义：`[^id]: text`
+            if let Some((id, text)) = parse_footnote_definition(trimmed) {
+                self.footnote_defs.insert(id, text);
+                self.pos += 1;
+                continue;
+            }
+
             // 普通段落：合并连续非空行直到遇到空行或其他块级元素
             self.parse_paragraph();
         }
@@ -333,6 +354,12 @@ impl<'a> MarkdownParser<'a> {
                 ))));
         }
 
+        // 收尾：将收集的脚注定义追加为 Footnote 块（保持定义顺序）
+        if !self.footnote_defs.is_empty() {
+            self.blocks
+                .extend(build_footnote_blocks(&self.footnote_defs));
+        }
+
         Ok(())
     }
 
@@ -343,7 +370,8 @@ impl<'a> MarkdownParser<'a> {
             let line = self.lines[self.pos];
             let trimmed = line.trim();
 
-            // 遇到空行、标题、代码块、表格、列表、分隔线、图片、引用块——停止
+            // 遇到空行、标题、代码块、表格、列表、分隔线、图片、引用块、
+            // 块级数学、脚注定义——停止
             if trimmed.is_empty()
                 || heading_level(trimmed).is_some()
                 || trimmed.starts_with("```")
@@ -353,6 +381,8 @@ impl<'a> MarkdownParser<'a> {
                 || is_task_list_item(trimmed)
                 || detect_list_item(line).is_some()
                 || trimmed.starts_with("![")
+                || parse_display_math(trimmed).is_some()
+                || parse_footnote_definition(trimmed).is_some()
             {
                 break;
             }
@@ -807,6 +837,26 @@ fn parse_inline(text: &str) -> Vec<DocumentTextRun> {
             continue;
         }
 
+        // `~~strikethrough~~`
+        if i + 1 < len && bytes[i] == b'~' && bytes[i + 1] == b'~' {
+            if let Some(end) = find_closing(text, i + 2, "~~") {
+                let inner = &text[i + 2..end];
+                if !inner.is_empty() {
+                    flush_buf(&mut buf, &mut runs);
+                    runs.push(DocumentTextRun {
+                        text: inner.to_owned(),
+                        strikethrough: true,
+                        ..DocumentTextRun::default()
+                    });
+                    i = end + 2;
+                    continue;
+                }
+            }
+            buf.push_str("~~");
+            i += 2;
+            continue;
+        }
+
         // `` `code` ``
         if bytes[i] == b'`' {
             if let Some(end) = find_closing(text, i + 1, "`") {
@@ -946,6 +996,60 @@ fn parse_image_line(line: &str) -> Option<DocumentImage> {
 }
 
 // ---------------------------------------------------------------------------
+// 数学公式与脚注解析
+// ---------------------------------------------------------------------------
+
+/// 解析整行展示公式：`$$...$$`。
+///
+/// 支持单行 `$$x^2$$` 与多行形式（以 `$$` 开头、`$$` 结尾），
+/// 返回 `$$` 之间的 LaTeX 内容。非公式行返回 `None`。
+fn parse_display_math(line: &str) -> Option<String> {
+    let trimmed = line.trim();
+    // 行首与行尾各一个 `$$`
+    if trimmed.starts_with("$$") && trimmed.ends_with("$$") && trimmed.len() > 4 {
+        let inner = &trimmed[2..trimmed.len() - 2];
+        // 不允许完全空白或嵌套（避免误判 `$$$$`）
+        if !inner.trim().is_empty() && !inner.contains("$$") {
+            return Some(inner.trim().to_owned());
+        }
+    }
+    None
+}
+
+/// 解析脚注定义行：`[^id]: text`。
+///
+/// 返回 `(id, text)`；非定义行返回 `None`。
+fn parse_footnote_definition(line: &str) -> Option<(String, String)> {
+    let trimmed = line.trim();
+    if !trimmed.starts_with("[^") {
+        return None;
+    }
+    let close = trimmed.find("]:")?;
+    let id = trimmed[2..close].to_owned();
+    if id.is_empty() {
+        return None;
+    }
+    let text = trimmed[close + 2..].trim().to_owned();
+    Some((id, text))
+}
+
+/// 将收集到的脚注定义转换为 `DocumentBlock::Footnote` 列表。
+///
+/// 脚注块 id 为 `u32`；按定义首次出现的顺序分配递增编号
+/// （与 OOXML footnote id 语义一致，从 1 开始）。
+fn build_footnote_blocks(defs: &std::collections::HashMap<String, String>) -> Vec<DocumentBlock> {
+    let mut ids: Vec<&String> = defs.keys().collect();
+    ids.sort();
+    ids.into_iter()
+        .enumerate()
+        .map(|(idx, id)| DocumentBlock::Footnote {
+            id: u32::try_from(idx + 1).unwrap_or(u32::MAX),
+            blocks: vec![DocumentBlock::Paragraph(parse_inline(defs[id].as_str()))],
+        })
+        .collect()
+}
+
+// ---------------------------------------------------------------------------
 // 测试
 // ---------------------------------------------------------------------------
 
@@ -1040,6 +1144,37 @@ mod tests {
                 let r = code_run.unwrap();
                 assert!(!r.bold);
                 assert!(!r.italic);
+            }
+            _ => panic!("expected Paragraph"),
+        }
+    }
+
+    #[test]
+    fn import_strikethrough() {
+        let md = "text ~~deleted~~ remains";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        assert_eq!(result.content.blocks.len(), 1);
+        match &result.content.blocks[0] {
+            DocumentBlock::Paragraph(runs) => {
+                let strike_run = runs.iter().find(|r| r.strikethrough);
+                assert!(strike_run.is_some(), "expected strikethrough run");
+                assert_eq!(strike_run.unwrap().text, "deleted");
+            }
+            _ => panic!("expected Paragraph"),
+        }
+    }
+
+    #[test]
+    fn import_unmatched_tilde_keeps_literal() {
+        // 不成对的 `~` 或 `~~~` 保持字面文本
+        let md = "single ~tilde~ and ~not closed";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        match &result.content.blocks[0] {
+            DocumentBlock::Paragraph(runs) => {
+                let all: String = runs.iter().map(|r| r.text.as_str()).collect();
+                assert!(all.contains("~tilde~"), "got: {all}");
+                assert!(all.contains("~not closed"), "got: {all}");
+                assert!(runs.iter().all(|r| !r.strikethrough));
             }
             _ => panic!("expected Paragraph"),
         }
@@ -1505,5 +1640,75 @@ mod tests {
         ));
         assert!(matches!(result.content.blocks[2], DocumentBlock::List(_)));
         assert!(matches!(result.content.blocks[3], DocumentBlock::Table(_)));
+    }
+
+    #[test]
+    fn import_display_math_block() {
+        let md = "text before\n\n$$\\int_0^1 x^2 dx$$\n\ntext after";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        let math = result
+            .content
+            .blocks
+            .iter()
+            .find(|b| matches!(b, DocumentBlock::Math { .. }))
+            .expect("expected a Math block");
+        match math {
+            DocumentBlock::Math {
+                latex,
+                display,
+                omml,
+            } => {
+                assert_eq!(latex.as_deref(), Some(r"\int_0^1 x^2 dx"));
+                assert!(display, "$$...$$ 应为展示公式");
+                assert!(omml.is_none(), "导入时无 OMML");
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn import_footnote_definitions() {
+        let md = "Text with a note[^1].\n\n[^1]: The footnote body.";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        let footnote = result
+            .content
+            .blocks
+            .iter()
+            .find(|b| matches!(b, DocumentBlock::Footnote { .. }))
+            .expect("expected a Footnote block");
+        match footnote {
+            DocumentBlock::Footnote { id, blocks } => {
+                assert_eq!(*id, 1, "脚注 id 从 1 开始");
+                assert_eq!(blocks.len(), 1);
+                let DocumentBlock::Paragraph(runs) = &blocks[0] else {
+                    panic!("footnote body should be a paragraph");
+                };
+                let text: String = runs.iter().map(|r| r.text.as_str()).collect();
+                assert_eq!(text, "The footnote body.");
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn import_footnote_multi_definition_order() {
+        let md = "A[^b] and B[^a].\n\n[^b]: second def\n[^a]: first def";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        let footnotes: Vec<&DocumentBlock> = result
+            .content
+            .blocks
+            .iter()
+            .filter(|b| matches!(b, DocumentBlock::Footnote { .. }))
+            .collect();
+        assert_eq!(footnotes.len(), 2, "两个脚注定义都应保留");
+        // 按 id 排序输出，保证确定性（"a" → 1, "b" → 2）
+        let ids: Vec<u32> = footnotes
+            .iter()
+            .map(|b| match b {
+                DocumentBlock::Footnote { id, .. } => *id,
+                _ => unreachable!(),
+            })
+            .collect();
+        assert_eq!(ids, vec![1, 2]);
     }
 }

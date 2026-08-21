@@ -136,3 +136,65 @@ fn converts_a_real_generated_docx_and_writes_atomically() {
         result.markdown
     );
 }
+
+#[test]
+fn markdown_import_to_docx_preserves_math_and_footnote() {
+    // MD → DocumentContent（导入）→ DOCX（writer 渲染）
+    let md = "# Formulas\n\nInline $x^2$ and block:\n\n$$\\sum_{i=1}^n i$$\n\nNote here[^1].\n\n[^1]: Details.";
+    let imported = easydoc_markdown::MarkdownImportBuilder::new(md)
+        .do_import()
+        .expect("import markdown");
+
+    // 数学块存在
+    assert!(
+        imported
+            .content
+            .blocks
+            .iter()
+            .any(|b| matches!(b, DocumentBlock::Math { .. })),
+        "expected Math block"
+    );
+    // 脚注块存在
+    let footnote = imported
+        .content
+        .blocks
+        .iter()
+        .find(|b| matches!(b, DocumentBlock::Footnote { .. }))
+        .expect("expected Footnote block");
+    let DocumentBlock::Footnote { id, blocks } = footnote else {
+        unreachable!()
+    };
+    assert_eq!(*id, 1);
+    assert_eq!(blocks.len(), 1);
+
+    // 渲染为 DOCX 再读回 Markdown，数学/脚注往返保留
+    let dir = tempfile::tempdir().expect("tempdir");
+    let docx_path = dir.path().join("roundtrip.docx");
+    easydoc_writer::content_renderer::render_document_content(&imported.content)
+        .expect("render docx")
+        .build()
+        .pack(std::fs::File::create(&docx_path).expect("create file"))
+        .expect("pack docx");
+
+    let back = MarkdownBuilder::new(&docx_path)
+        .do_convert()
+        .expect("convert back to markdown");
+    // renderer 对 Math（无 omml 但有 latex）输出 LaTeX；脚注输出 [^1]:
+    // 注意 `\` 与 `_` 会被 markdown 渲染转义（`\\sum`、`\_`）
+    assert!(
+        back.markdown.contains("sum") && back.markdown.contains("i=1"),
+        "math should round-trip, got: {}",
+        back.markdown
+    );
+    assert!(
+        back.markdown.contains("$$"),
+        "math block markers should be preserved, got: {}",
+        back.markdown
+    );
+    // 脚注定义以 `[^1]: Details.` 文本保留（方括号可能被 markdown 渲染转义）
+    assert!(
+        back.markdown.contains("Details.") && back.markdown.contains("^1"),
+        "footnote should round-trip, got: {}",
+        back.markdown
+    );
+}
