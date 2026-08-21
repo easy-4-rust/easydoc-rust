@@ -283,3 +283,38 @@ fn markdown_html_hr_and_img_blocks() {
         "expected Image"
     );
 }
+
+#[test]
+fn markdown_nested_blockquote_roundtrip() {
+    // 嵌套引用：MD → DocumentContent → DOCX → Markdown，内容保留
+    let md = "> outer\n>> inner\n> back";
+    let imported = easydoc_markdown::MarkdownImportBuilder::new(md)
+        .do_import()
+        .expect("import");
+
+    // 解析为嵌套 TextBox
+    let DocumentBlock::TextBox(blocks) = &imported.content.blocks[0] else {
+        panic!("expected TextBox for nested blockquote");
+    };
+    assert_eq!(blocks.len(), 3, "outer + nested + outer: {blocks:?}");
+
+    // 渲染为 DOCX 再读回，文本保留
+    let dir = tempfile::tempdir().expect("tempdir");
+    let docx_path = dir.path().join("bq_rt.docx");
+    easydoc_writer::content_renderer::render_document_content(&imported.content)
+        .expect("render docx")
+        .build()
+        .pack(std::fs::File::create(&docx_path).expect("create file"))
+        .expect("pack docx");
+
+    let back = MarkdownBuilder::new(&docx_path)
+        .do_convert()
+        .expect("convert back");
+    assert!(
+        back.markdown.contains("outer")
+            && back.markdown.contains("inner")
+            && back.markdown.contains("back"),
+        "nested blockquote text should survive roundtrip, got: {}",
+        back.markdown
+    );
+}

@@ -424,9 +424,13 @@ impl<'a> MarkdownParser<'a> {
         }
     }
 
-    /// 解析引用块：合并连续 `> ` 前缀行，去除前缀后作为斜体段落处理。
+    /// 解析引用块：合并连续 `> ` 前缀行。
+    ///
+    /// 支持嵌套引用（`>>` 前缀）：外层行生成 `DocumentBlock::TextBox`，
+    /// 内层行递归生成嵌套 `TextBox`，保持 `CommonMark` 的层级语义。
     fn parse_blockquote(&mut self) {
-        let mut runs = Vec::new();
+        // 收集 (深度, 内容) 列表
+        let mut items: Vec<(usize, String)> = Vec::new();
         while self.pos < self.lines.len() {
             let line = self.lines[self.pos];
             let trimmed = line.trim();
@@ -444,27 +448,20 @@ impl<'a> MarkdownParser<'a> {
                 break;
             }
 
-            // 去掉 `>` 前缀和前导空格
-            let inner = &trimmed[1..];
-            let inner = inner.strip_prefix(' ').unwrap_or(inner);
-
-            if !runs.is_empty() {
-                runs.push(DocumentTextRun {
-                    text: " ".to_owned(),
-                    ..DocumentTextRun::default()
-                });
-            }
-            // 引用内容以斜体呈现，表示引用样式
-            runs.push(DocumentTextRun {
-                text: inner.to_owned(),
-                italic: true,
-                ..DocumentTextRun::default()
-            });
+            // 统计 `>` 前缀深度（CommonMark：每层一个 `>`）
+            let depth = trimmed.chars().take_while(|&c| c == '>').count();
+            // 去掉全部 `>` 前缀和可选前导空格
+            let mut inner = &trimmed[depth..];
+            inner = inner.strip_prefix(' ').unwrap_or(inner);
+            items.push((depth, inner.to_owned()));
             self.pos += 1;
         }
-        if !runs.is_empty() {
-            self.blocks.push(DocumentBlock::Paragraph(runs));
+
+        if items.is_empty() {
+            return;
         }
+        let block = build_nested_blockquote(&items);
+        self.blocks.push(block);
     }
 
     /// 解析任务列表项：`- [ ] todo` / `- [x] done`，合并为无序列表。
@@ -1196,6 +1193,66 @@ fn parse_footnote_definition(line: &str) -> Option<(String, String)> {
     Some((id, text))
 }
 
+/// 将 `(深度, 内容)` 引用行列表构建为嵌套 `TextBox` 树。
+///
+/// 引用内容以斜体段落呈现（保持原有引用样式）；深度大于上一层的行
+/// 递归进入嵌套 TextBox，深度回落时回到外层。深度跳级时按当前最大
+/// 深度就近挂载（与列表 ilvl 的处理一致，不创建空容器）。
+fn build_nested_blockquote(items: &[(usize, String)]) -> DocumentBlock {
+    /// 递归构建：返回 (块列表, 处理后的行索引)
+    fn build_at(
+        items: &[(usize, String)],
+        start: usize,
+        base_depth: usize,
+    ) -> (Vec<DocumentBlock>, usize) {
+        let mut blocks = Vec::new();
+        let mut runs = Vec::new();
+        let mut i = start;
+
+        while i < items.len() {
+            let (depth, content) = &items[i];
+            if *depth < base_depth {
+                break; // 回到更外层
+            }
+            if *depth == base_depth {
+                // 当前层内容
+                if !runs.is_empty() {
+                    runs.push(DocumentTextRun {
+                        text: " ".to_owned(),
+                        ..DocumentTextRun::default()
+                    });
+                }
+                runs.push(DocumentTextRun {
+                    text: content.clone(),
+                    italic: true,
+                    ..DocumentTextRun::default()
+                });
+                i += 1;
+            } else {
+                // 更深层：flush 当前 runs，递归嵌套
+                if !runs.is_empty() {
+                    blocks.push(DocumentBlock::Paragraph(std::mem::take(&mut runs)));
+                }
+                let (nested_blocks, next) = build_at(items, i, *depth);
+                blocks.push(DocumentBlock::TextBox(nested_blocks));
+                i = next;
+            }
+        }
+        if !runs.is_empty() {
+            blocks.push(DocumentBlock::Paragraph(runs));
+        }
+        (blocks, i)
+    }
+
+    let (blocks, _) = build_at(items, 0, items[0].0);
+    // 单层无嵌套时直接返回段落（保持向后兼容），否则包一层 TextBox
+    if blocks.len() == 1 && matches!(blocks[0], DocumentBlock::Paragraph(_)) {
+        blocks.into_iter().next().unwrap()
+    } else {
+        DocumentBlock::TextBox(blocks)
+    }
+}
+
 /// 将收集到的脚注定义转换为 `DocumentBlock::Footnote` 列表。
 ///
 /// 脚注块 id 为 `u32`；按定义首次出现的顺序分配递增编号
@@ -1677,6 +1734,90 @@ mod tests {
             result.content.blocks[1],
             DocumentBlock::Paragraph(_)
         ));
+    }
+
+    #[test]
+    fn import_nested_blockquote_two_levels() {
+        // 嵌套引用：`>>` 内层生成嵌套 TextBox，外层行保持斜体段落
+        let md = "> outer\n>> inner\n> back";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        assert_eq!(result.content.blocks.len(), 1);
+        match &result.content.blocks[0] {
+            DocumentBlock::TextBox(blocks) => {
+                // 结构：外层段落(outer) + 嵌套TextBox(inner) + 外层段落(back)
+                assert_eq!(blocks.len(), 3, "blocks: {blocks:?}");
+                // 第一项：斜体 "outer"
+                match &blocks[0] {
+                    DocumentBlock::Paragraph(runs) => {
+                        assert!(runs.iter().any(|r| r.italic && r.text == "outer"));
+                    }
+                    other => panic!("expected Paragraph, got {other:?}"),
+                }
+                // 第二项：嵌套 TextBox 含 "inner"
+                match &blocks[1] {
+                    DocumentBlock::TextBox(inner) => {
+                        let inner_text: String = inner
+                            .iter()
+                            .filter_map(|b| match b {
+                                DocumentBlock::Paragraph(runs) => {
+                                    Some(runs.iter().map(|r| r.text.as_str()).collect::<String>())
+                                }
+                                _ => None,
+                            })
+                            .collect();
+                        assert!(inner_text.contains("inner"), "inner: {inner_text}");
+                    }
+                    other => panic!("expected nested TextBox, got {other:?}"),
+                }
+                // 第三项：斜体 "back"
+                match &blocks[2] {
+                    DocumentBlock::Paragraph(runs) => {
+                        assert!(runs.iter().any(|r| r.italic && r.text == "back"));
+                    }
+                    other => panic!("expected Paragraph, got {other:?}"),
+                }
+            }
+            other => panic!("expected TextBox for nested blockquote, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn import_nested_blockquote_three_levels() {
+        // 三层嵌套：outer >> middle >>> inner
+        let md = "> a\n>> b\n>>> c";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        let DocumentBlock::TextBox(blocks) = &result.content.blocks[0] else {
+            panic!("expected TextBox");
+        };
+        // 结构：TextBox[Paragraph(a), TextBox[Paragraph(b), TextBox[Paragraph(c)]]]
+        let DocumentBlock::TextBox(level2) = &blocks[1] else {
+            panic!("expected nested TextBox at level 2");
+        };
+        // level2 = [Paragraph(b), TextBox(c)]——取第二项为第三层
+        let DocumentBlock::TextBox(level3) = &level2[1] else {
+            panic!("expected nested TextBox at level 3");
+        };
+        let text3: String = level3
+            .iter()
+            .filter_map(|b| match b {
+                DocumentBlock::Paragraph(runs) => {
+                    Some(runs.iter().map(|r| r.text.as_str()).collect::<String>())
+                }
+                _ => None,
+            })
+            .collect();
+        assert!(text3.contains('c'), "level3: {text3}");
+    }
+
+    #[test]
+    fn import_nested_blockquote_single_level_is_paragraph() {
+        // 单层引用仍返回斜体段落（向后兼容）
+        let md = "> just one level";
+        let result = MarkdownImportBuilder::new(md).do_import().unwrap();
+        assert!(
+            matches!(result.content.blocks[0], DocumentBlock::Paragraph(_)),
+            "single-level blockquote should stay a Paragraph"
+        );
     }
 
     // === Task list ===
