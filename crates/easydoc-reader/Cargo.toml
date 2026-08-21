@@ -16,6 +16,7 @@ zip.workspace = true
 [dev-dependencies]
 tempfile.workspace = true
 proptest.workspace = true
+easydoc-writer = { path = "../easydoc-writer", version = "0.1.0-alpha.2" }
 
 [lints]
 workspace = true

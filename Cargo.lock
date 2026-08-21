@@ -373,6 +373,7 @@ name = "easydoc-reader"
 version = "0.1.0-alpha.2"
 dependencies = [
  "easydoc-core",
+ "easydoc-writer",
  "office_oxide",
  "proptest",
  "quick-xml",

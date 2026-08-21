@@ -6,10 +6,34 @@ use easydoc_core::{
 };
 use office_oxide::ir::{Element, InlineContent};
 
+use super::detect_format_from_bytes;
+
 /// 将 DOC/DOCX 解析为 easydoc 的后端无关语义模型。
 pub(crate) fn extract_document(path: &Path) -> Result<DocumentContent> {
     let document = office_oxide::Document::open(path)
         .map_err(|error| DocError::Document(format!("failed to open document: {error}")))?;
+    Ok(extract_document_ir(&document))
+}
+
+/// 从内存字节解析 DOC/DOCX 语义模型（无文件系统访问）。
+///
+/// 通过 magic bytes 检测格式后交给 `office_oxide::Document::from_reader`，
+/// 适用于 fuzz 目标与流式调用方。
+pub(crate) fn extract_document_from_bytes(bytes: &[u8]) -> Result<DocumentContent> {
+    let format = detect_format_from_bytes(bytes).ok_or_else(|| {
+        DocError::Format("unsupported document: could not detect DOCX/DOC magic bytes".to_owned())
+    })?;
+    let oxide_format = match format {
+        super::DocumentFormat::Docx => office_oxide::DocumentFormat::Docx,
+        super::DocumentFormat::Doc => office_oxide::DocumentFormat::Doc,
+    };
+    let document = office_oxide::Document::from_reader(std::io::Cursor::new(bytes.to_vec()), oxide_format)
+        .map_err(|error| DocError::Document(format!("failed to open document from bytes: {error}")))?;
+    Ok(extract_document_ir(&document))
+}
+
+/// 将 `office_oxide` 的 IR 统一转换为 easydoc 语义模型。
+fn extract_document_ir(document: &office_oxide::Document) -> DocumentContent {
     let ir = document.to_ir();
     let metadata = DocumentMeta {
         title: ir.metadata.title,
@@ -24,7 +48,7 @@ pub(crate) fn extract_document(path: &Path) -> Result<DocumentContent> {
         .flat_map(|section| section.elements.iter())
         .filter_map(convert_element)
         .collect();
-    Ok(DocumentContent { metadata, blocks })
+    DocumentContent { metadata, blocks }
 }
 
 fn convert_elements(elements: &[Element]) -> Vec<DocumentBlock> {

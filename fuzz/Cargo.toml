@@ -1,0 +1,25 @@
+[package]
+name = "easydoc-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+easydoc-core = { path = "../crates/easydoc-core" }
+easydoc-reader = { path = "../crates/easydoc-reader" }
+office_oxide = "0.1"
+
+# 防止被根 workspace 探测到：独立 workspace
+[[bin]]
+name = "fuzz_docx_xml"
+path = "fuzz_targets/fuzz_docx_xml.rs"
+
+[[bin]]
+name = "fuzz_docx_reader"
+path = "fuzz_targets/fuzz_docx_reader.rs"
+
+[workspace]

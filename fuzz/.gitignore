@@ -1,0 +1,8 @@
+# cargo-fuzz 崩溃产物（CI 上传用，不入库）
+artifacts/
+
+# 本地 fuzz 运行派生的语料文件（仅提交人工种子，派生文件不入库）
+corpus/fuzz_docx_xml/*
+!corpus/fuzz_docx_xml/seed_document.xml
+corpus/fuzz_docx_reader/*
+!corpus/fuzz_docx_reader/seed_minimal.docx
