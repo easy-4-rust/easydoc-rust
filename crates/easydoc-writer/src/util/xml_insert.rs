@@ -44,6 +44,51 @@ pub fn insert_after_nth(xml: &str, pattern: &str, n: usize, content: &str) -> St
     xml.to_string()
 }
 
+/// 在线性时间内将 `contents` 依次插入到 `pattern` 第 `n` 次出现之后。
+///
+/// 与反复调用 [`insert_after_nth`] 不同（每次 O(n) 扫描，累计 O(n²)），
+/// 本函数单次扫描 XML，按序定位所有插入点后一次性构建结果，整体 O(n)。
+///
+/// `contents` 中的元素按索引对应 `pattern` 的出现序号（0-indexed）；
+/// 出现次数不足的条目被忽略。
+///
+/// # Examples
+///
+/// ```
+/// use easydoc_writer::util::insert_many_after_nth;
+///
+/// let s = "<a/><b/><a/><b/><a/>";
+/// let out = insert_many_after_nth(s, "<b/>", &["!".to_owned(), "?".to_owned()]);
+/// assert_eq!(out, "<a/><b/>!<a/><b/>?<a/>");
+/// ```
+#[must_use]
+pub fn insert_many_after_nth(xml: &str, pattern: &str, contents: &[String]) -> String {
+    if contents.is_empty() {
+        return xml.to_owned();
+    }
+
+    let mut result =
+        String::with_capacity(xml.len() + contents.iter().map(String::len).sum::<usize>());
+    let mut search_from = 0usize;
+    let mut occurrence = 0usize;
+
+    while occurrence < contents.len() {
+        let Some(rel) = xml[search_from..].find(pattern) else {
+            // 剩余内容无更多匹配，追加到结尾
+            result.push_str(&xml[search_from..]);
+            return result;
+        };
+        let abs = search_from + rel;
+        result.push_str(&xml[search_from..abs + pattern.len()]);
+        result.push_str(&contents[occurrence]);
+        search_from = abs + pattern.len();
+        occurrence += 1;
+    }
+
+    result.push_str(&xml[search_from..]);
+    result
+}
+
 /// Inserts `<w:noWrap/>` into the cell-property XML fragment for a cell
 /// whose `wrap` attribute is `false` (i.e. text should **not** wrap).
 ///
@@ -109,5 +154,39 @@ mod tests {
     fn insert_after_nth_out_of_bounds() {
         let out = insert_after_nth("AA", "AA", 5, "!");
         assert_eq!(out, "AA");
+    }
+
+    #[test]
+    fn insert_many_basic() {
+        let out = insert_many_after_nth("<a/><b/><a/><b/><a/>", "<b/>", &["!".into(), "?".into()]);
+        assert_eq!(out, "<a/><b/>!<a/><b/>?<a/>");
+    }
+
+    #[test]
+    fn insert_many_empty_contents_returns_original() {
+        let xml = "<a/><b/><a/>";
+        let out = insert_many_after_nth(xml, "<b/>", &[]);
+        assert_eq!(out, xml);
+    }
+
+    #[test]
+    fn insert_many_more_contents_than_matches() {
+        // 出现次数不足：多余的 contents 被忽略
+        let out = insert_many_after_nth("<a/><b/>", "<b/>", &["!".into(), "?".into()]);
+        assert_eq!(out, "<a/><b/>!");
+    }
+
+    #[test]
+    fn insert_many_no_match_returns_original() {
+        let xml = "<a/><a/>";
+        let out = insert_many_after_nth(xml, "<b/>", &["!".into()]);
+        assert_eq!(out, xml);
+    }
+
+    #[test]
+    fn insert_many_preserves_remaining_tail() {
+        // 插入点之后的内容应完整保留
+        let out = insert_many_after_nth("<a/><b/>TAIL", "<b/>", &["!".into()]);
+        assert_eq!(out, "<a/><b/>!TAIL");
     }
 }

@@ -14,7 +14,7 @@ use easydoc_core::metadata::TableColumn;
 use easydoc_core::style::TableStyle;
 use easydoc_core::{DocError, DocxRow, Result};
 
-use crate::util::{insert_no_wrap, insert_num_fmt, parse_width};
+use crate::util::{insert_many_after_nth, parse_width};
 
 /// Executor for one-shot table writes.
 pub struct TableWriteExecutor<'a, T: DocxRow> {
@@ -132,31 +132,55 @@ impl<'a, T: DocxRow> TableWriteExecutor<'a, T> {
         let mut modified = xml;
 
         // Apply wrap (noWrap) to all visible cells -- header + data.
+        // 线性优化：一次扫描收集所有需要插入的 noWrap 片段，
+        // 单次批量插入（避免逐 cell 调用 insert_after_nth 的 O(n²) 扫描）。
         let total_cells = if self.need_header {
             num_visible * (1 + self.data.len())
         } else {
             num_visible * self.data.len()
         };
 
+        let tcw_count = modified.matches("<w:tcW").count();
+        let tcpr_count = modified.matches("<w:tcPr").count();
+        let rpr_count = modified.matches("<w:pPr><w:rPr").count();
+
+        let mut no_wrap_inserts: Vec<String> = Vec::new();
         for cell_idx in 0..total_cells {
             let col_idx = cell_idx % num_visible;
             let col = visible[col_idx];
             if !col.wrap {
-                modified = insert_no_wrap(&modified, cell_idx);
+                no_wrap_inserts.push("<w:noWrap/>".to_owned());
             }
+        }
+        if !no_wrap_inserts.is_empty() {
+            // 优先在 <w:tcW ... /> 后插入；数量不足时回退到 <w:tcPr>。
+            let pattern = if tcw_count >= no_wrap_inserts.len() {
+                "<w:tcW"
+            } else {
+                "<w:tcPr"
+            };
+            modified = insert_many_after_nth(&modified, pattern, &no_wrap_inserts);
         }
 
         // Apply numFmt to data cells only (skip header cells).
         let data_offset = if self.need_header { num_visible } else { 0 };
+        let mut num_fmt_inserts: Vec<String> = Vec::new();
         for (i, item) in self.data.iter().enumerate() {
             let cells = item.to_row()?;
             for (j, col) in visible.iter().enumerate() {
                 if let Some(ref fmt) = col.format {
                     let cell_idx = data_offset + i * num_visible + j;
-                    modified = insert_num_fmt(&modified, cell_idx, fmt);
+                    // 与 insert_num_fmt 的语义一致：仅在对应位置存在
+                    // <w:pPr><w:rPr> 时才插入（先收集，统一判断）
+                    if cell_idx < rpr_count {
+                        num_fmt_inserts.push(format!("<w:numFmt w:val=\"{fmt}\"/>"));
+                    }
                 }
             }
             let _ = cells; // keep ownership for potential future use
+        }
+        if !num_fmt_inserts.is_empty() {
+            modified = insert_many_after_nth(&modified, "<w:pPr><w:rPr", &num_fmt_inserts);
         }
 
         *document_xml = modified.into_bytes();
