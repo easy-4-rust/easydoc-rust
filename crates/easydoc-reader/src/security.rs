@@ -749,4 +749,68 @@ mod tests {
         // ZIP limits are maximized
         assert_eq!(policy.limits.max_entries, usize::MAX);
     }
+
+    // -----------------------------------------------------------------------
+    // XXE 预防审计（0.1.0 验收项）
+    //
+    // 结论：SAX 解析器（quick-xml）为流式解析器，不实现 DTD 外部实体解析，
+    // 对 `<!DOCTYPE>` / `<!ENTITY>` 声明静默跳过，天然免疫 XXE。
+    // 以下测试固化该结论，防止未来切换到实体解析型解析器时回归。
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn xxe_external_entity_not_resolved() {
+        // 经典 XXE：外部实体引用 file:///etc/passwd。若被解析，blocks 中会
+        // 出现文件内容；安全行为是实体不被展开、不崩溃、不泄露。
+        let xxe = br#"<?xml version="1.0"?>
+<!DOCTYPE w:document [ <!ENTITY xxe SYSTEM "file:///etc/passwd"> ]>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body><w:p><w:r><w:t>&xxe;</w:t></w:r></w:p></w:body>
+</w:document>"#;
+        let mut reader = crate::DocxSaxReader::from_reader(&xxe[..]);
+        let blocks = reader.read_blocks().expect("should parse without panic");
+        let all = format!("{blocks:?}");
+        assert!(
+            !all.contains("root:") && !all.contains("/etc/passwd"),
+            "external entity must not be resolved: {all}"
+        );
+    }
+
+    #[test]
+    fn xxe_internal_entity_not_resolved() {
+        // 内部实体：即使定义了实体，也不应被展开（防止信息泄露与实体膨胀）。
+        let xxe = br#"<?xml version="1.0"?>
+<!DOCTYPE w:document [ <!ENTITY secret "LEAKED"> ]>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body><w:p><w:r><w:t>&secret;</w:t></w:r></w:p></w:body>
+</w:document>"#;
+        let mut reader = crate::DocxSaxReader::from_reader(&xxe[..]);
+        let blocks = reader.read_blocks().expect("should parse without panic");
+        let all = format!("{blocks:?}");
+        assert!(
+            !all.contains("LEAKED"),
+            "internal entity must not be expanded: {all}"
+        );
+    }
+
+    #[test]
+    fn xxe_billion_laughs_does_not_amplify() {
+        // Billion Laughs：嵌套实体膨胀攻击。流式解析器应快速返回，
+        // 不产生内存放大或 CPU 膨胀。
+        let xxe = br#"<?xml version="1.0"?>
+<!DOCTYPE w:document [
+  <!ENTITY a "aaaaaaaaaa"><!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">
+  <!ENTITY c "&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;">
+]>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body><w:p><w:r><w:t>&c;</w:t></w:r></w:p></w:body>
+</w:document>"#;
+        let mut reader = crate::DocxSaxReader::from_reader(&xxe[..]);
+        let blocks = reader.read_blocks().expect("should parse without panic");
+        let all = format!("{blocks:?}");
+        assert!(
+            !all.contains("aaaaaaaaaa"),
+            "entity amplification must be prevented: {all}"
+        );
+    }
 }

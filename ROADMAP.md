@@ -120,7 +120,7 @@ For the full list of changes in each release, see [CHANGELOG.md](CHANGELOG.md).
 
 ### Security audit
 
-- XML External Entity (XXE) prevention audit
+- [x] XML External Entity (XXE) prevention audit — quick-xml 流式解析器不解析 DTD 外部实体，已用 3 个测试固化（external/internal/billion-laughs，见 `crates/easydoc-reader/src/security.rs`）
 - Dependency vulnerability review (cargo-audit + manual)
 - Threat model documentation
 
