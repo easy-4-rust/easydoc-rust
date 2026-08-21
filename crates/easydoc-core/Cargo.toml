@@ -9,9 +9,10 @@ repository.workspace = true
 
 [features]
 default = []
-serde = ["dep:serde", "dep:serde_json"]
+serde = ["dep:serde", "dep:serde_json", "dep:base64"]
 
 [dependencies]
+base64 = { workspace = true, optional = true }
 chrono.workspace = true
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }

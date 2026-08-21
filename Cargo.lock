@@ -297,6 +297,7 @@ dependencies = [
 name = "easydoc-core"
 version = "0.1.0-alpha.2"
 dependencies = [
+ "base64",
  "chrono",
  "serde",
  "serde_json",

@@ -120,7 +120,11 @@ pub struct ToolsCapability {
 /// 资源能力声明。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceCapabilities {
-    /// 是否支持 `resources/subscribe` 通知（当前不支持）。
+    /// 是否支持 `resources/subscribe` 通知。
+    ///
+    /// 服务器接受 `resources/subscribe` / `resources/unsubscribe` 请求并
+    /// 校验资源 URI 存在性；同步 stdio 模型下不主动推送
+    /// `notifications/resources/updated`。
     #[serde(default, skip_serializing_if = "is_false")]
     pub subscribe: bool,
 }

@@ -83,6 +83,9 @@ pub fn handle_request_with_config(
         "tools/call" => handle_tools_call(&id, &request.params),
         "resources/list" => handle_resources_list(&id, config),
         "resources/read" => handle_resources_read(&id, &request.params, config),
+        "resources/subscribe" | "resources/unsubscribe" => {
+            handle_resources_subscribe(&id, &request.params, config)
+        }
         "prompts/list" => handle_prompts_list(&id, config),
         "prompts/get" => handle_prompts_get(&id, &request.params, config),
         other => {
@@ -175,7 +178,7 @@ fn handle_initialize(id: &serde_json::Value) -> JsonRpcResponse {
             tools: ToolsCapability {
                 list_changed: false,
             },
-            resources: Some(ResourceCapabilities { subscribe: false }),
+            resources: Some(ResourceCapabilities { subscribe: true }),
             prompts: Some(PromptsCapability {
                 list_changed: false,
             }),
@@ -273,6 +276,43 @@ fn handle_resources_read(
             id.clone(),
             crate::protocol::INTERNAL_ERROR,
             format!("resource read error: {e:#}"),
+        ),
+    }
+}
+
+/// 处理 `resources/subscribe` 与 `resources/unsubscribe` 请求。
+///
+/// 校验请求的 URI 是否为服务器已知资源，返回空结果（MCP 规范要求）。
+/// 服务器使用同步 stdio 模型，不主动推送 `notifications/resources/updated`，
+/// 客户端需自行在 subscribe 后重新 `resources/read` 获取最新内容。
+fn handle_resources_subscribe(
+    id: &serde_json::Value,
+    params: &serde_json::Value,
+    config: &ServerConfig,
+) -> JsonRpcResponse {
+    let params: ReadResourceParams = match serde_json::from_value(params.clone()) {
+        Ok(p) => p,
+        Err(e) => {
+            return JsonRpcResponse::error(
+                id.clone(),
+                INVALID_PARAMS,
+                format!("invalid resources/subscribe params: {e}"),
+            );
+        }
+    };
+
+    // 仅确认 URI 存在；不维护订阅集合（无变化推送）
+    match config.provider.read(&params.uri) {
+        Ok(Some(_)) => JsonRpcResponse::success(id.clone(), serde_json::json!({})),
+        Ok(None) => JsonRpcResponse::error(
+            id.clone(),
+            -32002,
+            format!("resource not found: {}", params.uri),
+        ),
+        Err(e) => JsonRpcResponse::error(
+            id.clone(),
+            crate::protocol::INTERNAL_ERROR,
+            format!("resource subscribe error: {e:#}"),
         ),
     }
 }

@@ -296,11 +296,12 @@ fn resources_capability_declared_in_initialize() {
     assert!(resp["error"].is_null());
     let caps = &resp["result"]["capabilities"];
 
-    // resources 能力应被声明（subscribe: false 被 skip_serializing_if 跳过）
+    // resources 能力应被声明（subscribe: true，支持 resources/subscribe）
     assert!(
         caps["resources"].is_object(),
         "resources capability not declared"
     );
+    assert_eq!(caps["resources"]["subscribe"], true);
 
     // prompts 能力应被声明
     assert!(
@@ -655,6 +656,79 @@ fn resources_read_invalid_params_returns_error() {
     // 缺少 uri 参数
     let resp = call_with_config(
         r#"{"jsonrpc":"2.0","id":32,"method":"resources/read","params":{}}"#,
+        &config,
+    );
+
+    assert!(!resp["error"].is_null(), "expected error for missing uri");
+    assert_eq!(resp["error"]["code"], -32602); // INVALID_PARAMS
+}
+
+#[test]
+fn resources_subscribe_known_uri_succeeds() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = create_test_docx(dir.path(), "watch.docx");
+    let config = make_config(dir.path());
+
+    let uri = format!("file://{}", path.display());
+    let req = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 33,
+        "method": "resources/subscribe",
+        "params": { "uri": uri }
+    });
+    let resp = call_with_config(&serde_json::to_string(&req).unwrap(), &config);
+
+    assert!(resp["error"].is_null(), "error: {}", resp["error"]);
+    // MCP 规范：subscribe 成功返回空 result
+    assert_eq!(resp["result"], serde_json::json!({}));
+}
+
+#[test]
+fn resources_subscribe_unknown_uri_returns_error() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let config = make_config(dir.path());
+
+    let req = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 34,
+        "method": "resources/subscribe",
+        "params": { "uri": "file:///nonexistent/path/doc.docx" }
+    });
+    let resp = call_with_config(&serde_json::to_string(&req).unwrap(), &config);
+
+    assert!(
+        !resp["error"].is_null(),
+        "expected error for missing resource"
+    );
+    assert_eq!(resp["error"]["code"], -32002);
+}
+
+#[test]
+fn resources_unsubscribe_known_uri_succeeds() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = create_test_docx(dir.path(), "unwatch.docx");
+    let config = make_config(dir.path());
+
+    let uri = format!("file://{}", path.display());
+    let req = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 35,
+        "method": "resources/unsubscribe",
+        "params": { "uri": uri }
+    });
+    let resp = call_with_config(&serde_json::to_string(&req).unwrap(), &config);
+
+    assert!(resp["error"].is_null(), "error: {}", resp["error"]);
+    assert_eq!(resp["result"], serde_json::json!({}));
+}
+
+#[test]
+fn resources_subscribe_invalid_params_returns_error() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let config = make_config(dir.path());
+
+    let resp = call_with_config(
+        r#"{"jsonrpc":"2.0","id":36,"method":"resources/subscribe","params":{}}"#,
         &config,
     );
 

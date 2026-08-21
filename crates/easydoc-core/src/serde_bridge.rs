@@ -124,18 +124,129 @@ impl<'de> Deserialize<'de> for DocumentTextRun {
 // DocumentImage
 // ===========================================================================
 
+/// 图片字节的 serde 辅助类型。
+///
+/// 序列化为 base64 字符串（紧凑、可读），反序列化时兼容两种格式：
+/// - 新格式：base64 字符串（`"iVBORw0KGgo..."`）
+/// - 旧格式：数字数组（`[137, 80, 78, 71, ...]`），保证向后兼容
+mod bytes_or_b64 {
+    use base64::Engine as _;
+    use base64::engine::general_purpose::STANDARD as B64;
+    use serde::{Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S: Serializer>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&B64.encode(bytes))
+    }
+
+    /// 将 `&[u8]` 包装为可序列化为 base64 字符串的值。
+    ///
+    /// 供 `SerializeStruct::serialize_field` 使用（`serialize_field` 接收
+    /// `&T: Serialize`，无法直接调用自由函数）。
+    pub struct AsBase64<'a>(pub &'a [u8]);
+
+    impl Serialize for AsBase64<'_> {
+        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            serialize(self.0, serializer)
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
+        struct BytesOrB64;
+
+        impl<'de> serde::de::Visitor<'de> for BytesOrB64 {
+            type Value = Vec<u8>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("base64 string or array of byte integers")
+            }
+
+            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Vec<u8>, E> {
+                B64.decode(value).map_err(serde::de::Error::custom)
+            }
+
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                mut seq: A,
+            ) -> Result<Vec<u8>, A::Error> {
+                let mut out = Vec::new();
+                while let Some(v) = seq.next_element::<u8>()? {
+                    out.push(v);
+                }
+                Ok(out)
+            }
+        }
+
+        deserializer.deserialize_any(BytesOrB64)
+    }
+}
+
 /// 内部辅助结构，用于 `DocumentImage` 的 serde 序列化 / 反序列化。
 ///
-/// `data` 字段（`Option<Vec<u8>>`）在 JSON 中序列化为数字数组。
+/// `data` 字段（`Option<Vec<u8>>`）序列化为 base64 字符串。
 #[derive(Serialize, Deserialize)]
 #[serde(rename = "DocumentImage")]
 struct ImageHelper {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     alt_text: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "opt_bytes_or_b64"
+    )]
     data: Option<Vec<u8>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     extension: Option<String>,
+}
+
+/// `Option<Vec<u8>>` 版本的 base64 桥接。
+mod opt_bytes_or_b64 {
+    use serde::{Deserializer, Serializer};
+
+    use super::bytes_or_b64;
+
+    /// serde `with` 模块要求此签名（`serialize_field` 传入 `&Option<T>`），
+    /// 故 `&Option<Vec<u8>>` 是刻意为之，而非可改进的惯用性。
+    #[allow(clippy::ref_option)]
+    pub fn serialize<S: Serializer>(
+        value: &Option<Vec<u8>>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        match value.as_deref() {
+            Some(bytes) => bytes_or_b64::serialize(bytes, serializer),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<Vec<u8>>, D::Error> {
+        struct OptBytes;
+
+        impl<'de> serde::de::Visitor<'de> for OptBytes {
+            type Value = Option<Vec<u8>>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("base64 string, array of byte integers, or null")
+            }
+
+            fn visit_none<E: serde::de::Error>(self) -> Result<Option<Vec<u8>>, E> {
+                Ok(None)
+            }
+
+            fn visit_unit<E: serde::de::Error>(self) -> Result<Option<Vec<u8>>, E> {
+                Ok(None)
+            }
+
+            fn visit_some<D2: Deserializer<'de>>(
+                self,
+                deserializer: D2,
+            ) -> Result<Option<Vec<u8>>, D2::Error> {
+                bytes_or_b64::deserialize(deserializer).map(Some)
+            }
+        }
+
+        deserializer.deserialize_option(OptBytes)
+    }
 }
 
 impl Serialize for DocumentImage {
@@ -478,7 +589,7 @@ impl Serialize for DocumentBlock {
                     s.serialize_field("alt_text", alt)?;
                 }
                 if let Some(data) = &img.data {
-                    s.serialize_field("data", data)?;
+                    s.serialize_field("data", &bytes_or_b64::AsBase64(data))?;
                 }
                 if let Some(ext) = &img.extension {
                     s.serialize_field("extension", ext)?;
@@ -611,7 +722,7 @@ enum BlockHelper {
     Image {
         #[serde(default)]
         alt_text: Option<String>,
-        #[serde(default)]
+        #[serde(default, with = "opt_bytes_or_b64")]
         data: Option<Vec<u8>>,
         #[serde(default)]
         extension: Option<String>,
@@ -870,6 +981,70 @@ mod tests {
                 alt_text: Some("photo".into()),
                 data: Some(vec![0x89, 0x50, 0x4E, 0x47]),
                 extension: Some("png".into()),
+            })],
+        };
+        let json = to_json(&content).expect("serialize");
+        let back: DocumentContent = from_json(&json).expect("deserialize");
+        assert_eq!(content, back);
+    }
+
+    #[test]
+    fn image_data_serializes_as_base64() {
+        let content = DocumentContent {
+            metadata: DocumentMeta::default(),
+            blocks: vec![DocumentBlock::Image(DocumentImage {
+                alt_text: None,
+                data: Some(vec![0x89, 0x50, 0x4E, 0x47]),
+                extension: Some("png".into()),
+            })],
+        };
+        let json = to_json(&content).expect("serialize");
+        // PNG magic `89 50 4E 47` base64 编码为 `iVBORw==`
+        assert!(
+            json.contains("iVBORw=="),
+            "data 应为 base64 字符串，实际 JSON: {json}"
+        );
+        // 不应再出现数字数组形式
+        assert!(!json.contains(r#""data": [137, 80, 78, 71]"#));
+        assert!(!json.contains("[137, 80, 78, 71]"));
+    }
+
+    #[test]
+    fn image_data_accepts_legacy_byte_array() {
+        // 旧格式：data 为数字数组（0.1.0-alpha.2 及之前的 JSON）
+        let legacy = r#"{
+            "metadata": {},
+            "blocks": [
+                {
+                    "type": "image",
+                    "alt_text": "photo",
+                    "data": [137, 80, 78, 71],
+                    "extension": "png"
+                }
+            ]
+        }"#;
+        let content: DocumentContent =
+            serde_json::from_str(legacy).expect("legacy format should parse");
+        assert_eq!(content.blocks.len(), 1);
+        match &content.blocks[0] {
+            DocumentBlock::Image(image) => {
+                assert_eq!(image.data.as_deref(), Some(&[0x89, 0x50, 0x4E, 0x47][..]));
+            }
+            other => panic!("expected image block, got {other:?}"),
+        }
+        // 旧格式读回后重新序列化应输出新 base64 格式
+        let json = to_json(&content).expect("reserialize");
+        assert!(json.contains("iVBORw=="));
+    }
+
+    #[test]
+    fn image_data_none_roundtrip() {
+        let content = DocumentContent {
+            metadata: DocumentMeta::default(),
+            blocks: vec![DocumentBlock::Image(DocumentImage {
+                alt_text: Some("no bytes".into()),
+                data: None,
+                extension: None,
             })],
         };
         let json = to_json(&content).expect("serialize");

@@ -20,6 +20,7 @@ license = "Apache-2.0"
 repository = "https://github.com/easy-4-rust/easydoc-rust"
 
 [workspace.dependencies]
+base64 = "0.22"
 chrono = { version = "0.4.45", default-features = false, features = ["std"] }
 docx-rs = "0.4"
 office_oxide = "0.1"
