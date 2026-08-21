@@ -367,6 +367,40 @@ fn attach_to_nested(parent: &mut DocumentListItem, new_item: DocumentListItem, i
     }
 }
 
+/// 计算表格中 vMerge restart 单元格的实际跨行数。
+///
+/// SAX 解析期间 restart 单元格的 `row_span` 被设为 1（仅标记合并起点），
+/// continue 单元格为 0。本函数在表格解析完成后扫描各行，将 restart
+/// 单元格的 `row_span` 修正为实际跨行数（自身 + 后续 continue 行数），
+/// 使语义模型与写入端（writer 按 `row_span > 1` 输出 vMerge restart）
+/// 保持一致，保证读→写往返不丢失纵向合并。
+fn resolve_vmerge_row_spans(table: &mut easydoc_core::DocumentTable) {
+    for row_idx in 0..table.rows.len() {
+        for col_idx in 0..table.rows[row_idx].cells.len() {
+            if table.rows[row_idx].cells[col_idx].row_span == 0 {
+                continue; // continue 单元格：保持 0 作为合并标记
+            }
+            // 仅对可能是 restart 的单元格（当前 row_span >= 1）向下累加。
+            // 普通单元格 row_span == 1 且下方同行列无 continue 时不受影响。
+            let mut span = 1;
+            for below in &table.rows[row_idx + 1..] {
+                let is_continue = below
+                    .cells
+                    .iter()
+                    .any(|c| c.row_span == 0 && c.blocks.is_empty());
+                if is_continue {
+                    span += 1;
+                } else {
+                    break;
+                }
+            }
+            if span > 1 {
+                table.rows[row_idx].cells[col_idx].row_span = span;
+            }
+        }
+    }
+}
+
 /// Resolves hyperlink rIds to URLs in all runs of all list items.
 fn resolve_hyperlinks_in_items(
     items: &mut [DocumentListItem],
@@ -1326,7 +1360,8 @@ fn handle_end(
         }
         W_TBL => {
             if let Some(ParseState::Table { rows, .. }) = stack.pop() {
-                let table = easydoc_core::DocumentTable { rows };
+                let mut table = easydoc_core::DocumentTable { rows };
+                resolve_vmerge_row_spans(&mut table);
                 if inside_table(stack) {
                     // Nested table -- store as a block in the parent cell.
                     if let Some(ParseState::Table {
@@ -2337,8 +2372,8 @@ mod tests {
         let easydoc_core::DocumentBlock::Table(table) = &content.blocks[0] else {
             panic!("expected Table")
         };
-        // Row 0, cell 0: restart => row_span = 1.
-        assert_eq!(table.rows[0].cells[0].row_span, 1);
+        // Row 0, cell 0: restart 跨 2 行 => row_span = 2（含自身 + 下方 continue）。
+        assert_eq!(table.rows[0].cells[0].row_span, 2);
         // Row 1, cell 0: continue => row_span = 0 (merged into cell above).
         assert_eq!(table.rows[1].cells[0].row_span, 0);
     }
@@ -2379,8 +2414,8 @@ mod tests {
         let easydoc_core::DocumentBlock::Table(table) = &content.blocks[0] else {
             panic!("expected Table")
         };
-        // Row 0: restart => row_span = 1.
-        assert_eq!(table.rows[0].cells[0].row_span, 1);
+        // Row 0: restart 跨 3 行 => row_span = 3（含自身 + 两个 continue）。
+        assert_eq!(table.rows[0].cells[0].row_span, 3);
         // Row 1: no val => continue => row_span = 0.
         assert_eq!(table.rows[1].cells[0].row_span, 0);
         // Row 2: no val => continue => row_span = 0.
@@ -2424,12 +2459,87 @@ mod tests {
         let easydoc_core::DocumentBlock::Table(table) = &content.blocks[0] else {
             panic!("expected Table")
         };
-        // Row 0, cell 0: gridSpan=2 + vMerge=restart => column_span=2, row_span=1.
+        // Row 0, cell 0: gridSpan=2 + vMerge=restart => column_span=2, row_span=2（跨两行）。
         assert_eq!(table.rows[0].cells[0].column_span, 2);
-        assert_eq!(table.rows[0].cells[0].row_span, 1);
+        assert_eq!(table.rows[0].cells[0].row_span, 2);
         // Row 1, cell 0: gridSpan=2 + vMerge=continue => column_span=2, row_span=0.
         assert_eq!(table.rows[1].cells[0].column_span, 2);
         assert_eq!(table.rows[1].cells[0].row_span, 0);
+    }
+
+    #[test]
+    fn vmerge_three_row_merge_sets_restart_span_three() {
+        // restart + 两个 continue 行：restart 的 row_span 应为 3。
+        let xml = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tr>
+        <w:tc>
+          <w:tcPr><w:vMerge w:val="restart"/></w:tcPr>
+          <w:p><w:r><w:t>Head</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc><w:p><w:r><w:t>A</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc>
+          <w:tcPr><w:vMerge w:val="continue"/></w:tcPr>
+          <w:p/>
+        </w:tc>
+        <w:tc><w:p><w:r><w:t>B</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc>
+          <w:tcPr><w:vMerge w:val="continue"/></w:tcPr>
+          <w:p/>
+        </w:tc>
+        <w:tc><w:p><w:r><w:t>C</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>"#;
+        let mut reader = DocxSaxReader::from_reader(&xml[..]);
+        let mut collector = ContentCollector::new();
+        reader.read_events(&mut collector).unwrap();
+        let content = collector.into_content();
+
+        let easydoc_core::DocumentBlock::Table(table) = &content.blocks[0] else {
+            panic!("expected Table")
+        };
+        assert_eq!(table.rows[0].cells[0].row_span, 3, "restart 应跨 3 行");
+        assert_eq!(table.rows[1].cells[0].row_span, 0, "continue 保持 0");
+        assert_eq!(table.rows[2].cells[0].row_span, 0, "continue 保持 0");
+    }
+
+    #[test]
+    fn vmerge_single_row_restart_stays_one() {
+        // 只有 restart 无 continue：row_span 保持 1（无纵向合并）。
+        let xml = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tr>
+        <w:tc>
+          <w:tcPr><w:vMerge w:val="restart"/></w:tcPr>
+          <w:p><w:r><w:t>Solo</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc><w:p><w:r><w:t>X</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>"#;
+        let mut reader = DocxSaxReader::from_reader(&xml[..]);
+        let mut collector = ContentCollector::new();
+        reader.read_events(&mut collector).unwrap();
+        let content = collector.into_content();
+
+        let easydoc_core::DocumentBlock::Table(table) = &content.blocks[0] else {
+            panic!("expected Table")
+        };
+        assert_eq!(
+            table.rows[0].cells[0].row_span, 1,
+            "无 continue 时 restart 保持 1"
+        );
     }
 
     #[test]

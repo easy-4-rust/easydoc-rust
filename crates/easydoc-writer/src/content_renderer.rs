@@ -356,6 +356,13 @@ fn render_table(mut docx: Docx, table: &DocumentTable) -> Result<Docx> {
             if cell.column_span > 1 {
                 tc = tc.grid_span(cell.column_span as usize);
             }
+            // 纵向合并映射：row_span == 0 表示 vMerge continue（合并到上方
+            // 单元格），row_span > 1 表示 vMerge restart（向下跨 N-1 行）。
+            if cell.row_span == 0 {
+                tc = tc.vertical_merge(docx_rs::VMergeType::Continue);
+            } else if cell.row_span > 1 {
+                tc = tc.vertical_merge(docx_rs::VMergeType::Restart);
+            }
             cells.push(tc);
         }
         rows.push(docx_rs::TableRow::new(cells));
@@ -643,6 +650,64 @@ mod coverage_tests {
         };
         let docx = render_document_content(&content).unwrap();
         let _ = docx;
+    }
+
+    #[test]
+    fn render_table_vertical_merge_emits_vmerge_xml() {
+        // 两行一列：第一行 restart（row_span=2），第二行 continue（row_span=0）。
+        let content = DocumentContent {
+            blocks: vec![DocumentBlock::Table(DocumentTable {
+                rows: vec![
+                    DocumentTableRow {
+                        cells: vec![DocumentTableCell {
+                            blocks: vec![DocumentBlock::Paragraph(vec![make_text_run("Merged")])],
+                            column_span: 1,
+                            row_span: 2,
+                        }],
+                        is_header: false,
+                    },
+                    DocumentTableRow {
+                        cells: vec![DocumentTableCell {
+                            blocks: vec![],
+                            column_span: 1,
+                            row_span: 0,
+                        }],
+                        is_header: false,
+                    },
+                ],
+            })],
+            ..Default::default()
+        };
+        let docx = render_document_content(&content).unwrap();
+        let xml = String::from_utf8(docx.build().document).expect("document.xml is UTF-8");
+        // restart 单元格输出 <w:vMerge w:val="restart"/>，continue 输出 <w:vMerge w:val="continue"/>
+        assert!(
+            xml.contains("vMerge") && xml.contains("restart") && xml.contains("continue"),
+            "document.xml should contain vMerge restart+continue, got: {xml}"
+        );
+    }
+
+    #[test]
+    fn render_table_plain_cells_have_no_vmerge() {
+        let content = DocumentContent {
+            blocks: vec![DocumentBlock::Table(DocumentTable {
+                rows: vec![DocumentTableRow {
+                    cells: vec![DocumentTableCell {
+                        blocks: vec![DocumentBlock::Paragraph(vec![make_text_run("Plain")])],
+                        column_span: 1,
+                        row_span: 1,
+                    }],
+                    is_header: false,
+                }],
+            })],
+            ..Default::default()
+        };
+        let docx = render_document_content(&content).unwrap();
+        let xml = String::from_utf8(docx.build().document).expect("document.xml is UTF-8");
+        assert!(
+            !xml.contains("vMerge"),
+            "plain cells should not emit vMerge, got: {xml}"
+        );
     }
 
     #[test]
