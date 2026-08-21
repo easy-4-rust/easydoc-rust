@@ -11,6 +11,7 @@ pub mod content_renderer;
 mod doc_editor;
 mod executor;
 mod handler;
+pub mod math_omml;
 mod style;
 pub mod util;
 

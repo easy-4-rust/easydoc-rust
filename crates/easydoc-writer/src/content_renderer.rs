@@ -16,6 +16,32 @@ use easydoc_core::{
 const BULLET_NUM_ID: usize = 10;
 /// Ordered (decimal) list numbering ID (references `numbering.xml` abstractNum 1).
 const DECIMAL_NUM_ID: usize = 11;
+
+// 渲染期间收集的数学公式：`(标记, latex, 是否块级)`。
+// 线程本地收集：`render_document_content` 渲染 Math 块时写入，调用方
+// 打包前用 `take_rendered_math` 取出并替换占位标记为原生 OMML。
+// 库为同步单线程使用模型，`RefCell` 无并发访问。
+thread_local! {
+    static RENDERED_MATH: std::cell::RefCell<Vec<(String, String, bool)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// 生成下一个 Math 占位标记（`@@EASYDOC_MATH_n@@`）。
+fn render_math_marker() -> String {
+    let n = RENDERED_MATH.with(|cell| cell.borrow().len());
+    format!("@@EASYDOC_MATH_{n}@@")
+}
+
+/// 取出本次渲染收集的数学公式列表 `(标记, latex, display)`。
+///
+/// 调用方应在 `render_document_content` 之后、打包之前调用；
+/// 随后用 [`crate::math_omml::postprocess_math_xml`] 把 document.xml
+/// 中的占位标记替换为原生 `<m:oMath>` 元素。
+#[must_use]
+pub fn take_rendered_math() -> Vec<(String, String, bool)> {
+    RENDERED_MATH.with(|cell| std::mem::take(&mut *cell.borrow_mut()))
+}
+
 /// Starting abstract numbering ID for dynamically created numbering definitions
 /// (used when `start_number` differs from 1).
 const DYNAMIC_ABSTRACT_NUM_START: usize = 100;
@@ -322,26 +348,21 @@ fn render_block(mut docx: Docx, block: &DocumentBlock) -> Result<Docx> {
             latex,
             display,
         } => {
-            // docx-rs 不支持 OMML 数学公式；以 LaTeX 源码文本呈现，
-            // 保留公式内容供读回（display 公式前后加空行区分块级）。
-            // 依赖方向：writer 不依赖 markdown crate，故仅使用 latex 字段
-            // （markdown_import 生成的 Math 块总是携带 latex）。
+            // docx-rs 不支持 OMML；Math 块渲染为带唯一标记的占位段落，
+            // latex 存入线程本地收集器，由调用方在打包前调用
+            // [`take_rendered_math`] 取出并替换为原生 `<m:oMath>`。
             let text = latex.clone().unwrap_or_default();
             if !text.is_empty() {
+                let marker = render_math_marker();
                 let mut p = docx_rs::Paragraph::new();
-                if *display {
-                    p = p.add_run(
-                        docx_rs::Run::new()
-                            .add_text(format!("$${text}$$"))
-                            .fonts(RunFonts::new().ascii("Courier New")),
-                    );
-                } else {
-                    p = p.add_run(
-                        docx_rs::Run::new()
-                            .add_text(format!("${text}$"))
-                            .fonts(RunFonts::new().ascii("Courier New")),
-                    );
-                }
+                p = p.add_run(
+                    docx_rs::Run::new()
+                        .add_text(&marker)
+                        .fonts(RunFonts::new().ascii("Courier New")),
+                );
+                RENDERED_MATH.with(|cell| {
+                    cell.borrow_mut().push((marker, text, *display));
+                });
                 docx = docx.add_paragraph(p);
             }
         }

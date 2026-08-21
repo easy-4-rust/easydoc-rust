@@ -94,7 +94,7 @@ fn render_code_block_emits_code() {
 }
 
 #[test]
-fn render_math_block_emits_latex_text() {
+fn render_math_block_emits_marker_and_collects_latex() {
     let content = DocumentContent {
         blocks: vec![DocumentBlock::Math {
             omml: None,
@@ -104,11 +104,16 @@ fn render_math_block_emits_latex_text() {
         ..Default::default()
     };
     let xml = render_xml(&content);
-    assert!(xml.contains(r"\frac{1}{2}"), "xml: {xml}");
+    // Math 块渲染为占位标记，latex 存入 take_rendered_math
+    assert!(xml.contains("@@EASYDOC_MATH"), "xml: {xml}");
+    let math = easydoc_writer::content_renderer::take_rendered_math();
+    assert_eq!(math.len(), 1);
+    assert_eq!(math[0].1, r"\frac{1}{2}");
+    assert!(math[0].2); // display
 }
 
 #[test]
-fn render_inline_math_block() {
+fn render_inline_math_block_collects_display_false() {
     let content = DocumentContent {
         blocks: vec![DocumentBlock::Math {
             omml: None,
@@ -118,7 +123,11 @@ fn render_inline_math_block() {
         ..Default::default()
     };
     let xml = render_xml(&content);
-    assert!(xml.contains("x^2"), "xml: {xml}");
+    assert!(xml.contains("@@EASYDOC_MATH"), "xml: {xml}");
+    let math = easydoc_writer::content_renderer::take_rendered_math();
+    assert_eq!(math.len(), 1);
+    assert_eq!(math[0].1, "x^2");
+    assert!(!math[0].2); // inline
 }
 
 #[test]

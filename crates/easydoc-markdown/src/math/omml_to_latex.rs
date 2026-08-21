@@ -533,9 +533,15 @@ impl OmmlConverter {
     }
 
     /// `<m:nary>` -- n-ary operator (sum, integral, product, etc.).
+    ///
+    /// 结构：`<m:nary><m:naryPr><m:chr m:val="∑"/></m:naryPr>
+    /// <m:sub>lower</m:sub><m:sup>upper</m:sup><m:e>base</m:e></m:nary>`
+    /// LaTeX 输出：`\sum_{lower}^{upper}base`。
     fn process_nary<R: BufRead>(&mut self, reader: &mut Reader<R>) -> easydoc_core::Result<String> {
-        let mut parts = Vec::new();
         let mut bo = String::new();
+        let mut sub = String::new();
+        let mut sup = String::new();
+        let mut base = String::new();
         let mut buf = Vec::new();
         loop {
             match reader.read_event_into(&mut buf) {
@@ -552,8 +558,11 @@ impl OmmlConverter {
                                     .map_or_else(|| chr.clone(), |s| (*s).to_owned());
                             }
                         }
+                        "sub" => sub = self.process_children_to_string(reader)?,
+                        "sup" => sup = self.process_children_to_string(reader)?,
+                        "e" => base = self.process_children_to_string(reader)?,
                         _ => {
-                            parts.push(self.process_children_to_string(reader)?);
+                            let _ = self.process_children_to_string(reader)?;
                         }
                     }
                 }
@@ -567,7 +576,17 @@ impl OmmlConverter {
             }
             buf.clear();
         }
-        Ok(format!("{bo}{}", parts.join("")))
+        // 组装：\sum_{sub}^{sup}base（无上下标时省略）
+        let mut result = bo;
+        if !sub.is_empty() || !sup.is_empty() {
+            result.push_str("_{");
+            result.push_str(&sub);
+            result.push_str("}^{");
+            result.push_str(&sup);
+            result.push('}');
+        }
+        result.push_str(&base);
+        Ok(result)
     }
 
     /// `<m:func>` -- function application (sin, cos, etc.).

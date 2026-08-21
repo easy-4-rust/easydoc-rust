@@ -2,6 +2,7 @@
 
 #![deny(unsafe_code)]
 
+mod comrak_import;
 mod conversion_warning;
 mod extracted_asset;
 mod markdown_builder;
@@ -11,6 +12,7 @@ mod markdown_renderer;
 mod markdown_result;
 pub mod math;
 
+pub use comrak_import::import_with_comrak;
 pub use conversion_warning::ConversionWarning;
 pub use extracted_asset::ExtractedAsset;
 pub use markdown_builder::MarkdownBuilder;

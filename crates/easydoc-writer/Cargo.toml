@@ -12,6 +12,7 @@ easydoc-core = { path = "../easydoc-core", version = "0.1.0-alpha.2" }
 easydoc-ooxml = { path = "../easydoc-ooxml", version = "0.1.0-alpha.2" }
 docx-rs.workspace = true
 office_oxide.workspace = true
+tex2word-math = "1.0.6"
 
 [dev-dependencies]
 tempfile.workspace = true

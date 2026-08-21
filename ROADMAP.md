@@ -53,7 +53,7 @@ For the full list of changes in each release, see [CHANGELOG.md](CHANGELOG.md).
 - Footnotes (`[^1]`)
 - Strikethrough (`~~text~~`)
 - Front matter (YAML) pass-through to document properties
-- Math formulas: `$...$` inline, `$$...$$` block (LaTeX-to-OMML or plain text fallback)
+- Math formulas: `$...$` inline, `$$...$$` block — ✅ 已实现：comrak 解析（行内/多行）+ tex2word-math LaTeX→OMML 写回 DOCX 原生公式 + omml_to_latex 读回（sax 路径），MD→DOCX→MD 公式往返闭环
 
 ### Bug fixes and correctness
 

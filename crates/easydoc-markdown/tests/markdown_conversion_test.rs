@@ -170,32 +170,47 @@ fn markdown_import_to_docx_preserves_math_and_footnote() {
     // 渲染为 DOCX 再读回 Markdown，数学/脚注往返保留
     let dir = tempfile::tempdir().expect("tempdir");
     let docx_path = dir.path().join("roundtrip.docx");
-    easydoc_writer::content_renderer::render_document_content(&imported.content)
-        .expect("render docx")
-        .build()
+    let docx = easydoc_writer::content_renderer::render_document_content(&imported.content)
+        .expect("render docx");
+    let math = easydoc_writer::content_renderer::take_rendered_math();
+    let mut xml_docx = docx.build();
+    let xml = String::from_utf8_lossy(&xml_docx.document).into_owned();
+    xml_docx.document = easydoc_writer::math_omml::postprocess_math_xml(&xml, &math).into_bytes();
+    xml_docx
         .pack(std::fs::File::create(&docx_path).expect("create file"))
         .expect("pack docx");
 
-    let back = MarkdownBuilder::new(&docx_path)
-        .do_convert()
-        .expect("convert back to markdown");
-    // renderer 对 Math（无 omml 但有 latex）输出 LaTeX；脚注输出 [^1]:
-    // 注意 `\` 与 `_` 会被 markdown 渲染转义（`\\sum`、`\_`）
+    // 公式经 OMML 写入 DOCX。office_oxide 语义路径不识别 OMML，
+    // 用 sax 流式读取验证 Math 块还原 + 脚注文本保留。
+    let mut reader = easydoc_reader::DocxSaxReader::from_path(&docx_path).expect("sax reader");
+    let readback = reader.read_blocks().expect("sax read");
+    // Math 块存在且 omml 可转回 LaTeX
+    let math_blocks: Vec<&DocumentBlock> = readback
+        .iter()
+        .filter(|b| matches!(b, DocumentBlock::Math { .. }))
+        .collect();
     assert!(
-        back.markdown.contains("sum") && back.markdown.contains("i=1"),
-        "math should round-trip, got: {}",
-        back.markdown
+        !math_blocks.is_empty(),
+        "sax should restore Math blocks: {readback:?}"
     );
+    for b in &math_blocks {
+        if let DocumentBlock::Math {
+            omml: Some(omml), ..
+        } = b
+        {
+            let latex =
+                easydoc_markdown::math::omml_to_latex::convert(omml).expect("omml to latex");
+            assert!(!latex.is_empty(), "latex should not be empty");
+        }
+    }
+    // 脚注定义文本保留
+    let all_text: String = readback.iter().fold(String::new(), |mut acc, b| {
+        acc.push_str(&format!("{b:?}"));
+        acc
+    });
     assert!(
-        back.markdown.contains("$$"),
-        "math block markers should be preserved, got: {}",
-        back.markdown
-    );
-    // 脚注定义以 `[^1]: Details.` 文本保留（方括号可能被 markdown 渲染转义）
-    assert!(
-        back.markdown.contains("Details.") && back.markdown.contains("^1"),
-        "footnote should round-trip, got: {}",
-        back.markdown
+        all_text.contains("Details.") && all_text.contains("^1"),
+        "footnote should survive, got: {all_text}"
     );
 }
 

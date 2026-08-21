@@ -242,8 +242,15 @@ impl EasyDoc {
     /// ZIP 或 I/O 错误时返回错误。
     pub fn write_content(content: &DocumentContent, output: impl AsRef<Path>) -> Result<()> {
         let docx = easydoc_writer::content_renderer::render_document_content(content)?;
+        let math = easydoc_writer::content_renderer::take_rendered_math();
+        let mut xml_docx = docx.build();
+        if !math.is_empty() {
+            let xml = String::from_utf8_lossy(&xml_docx.document).into_owned();
+            xml_docx.document =
+                easydoc_writer::math_omml::postprocess_math_xml(&xml, &math).into_bytes();
+        }
         easydoc_ooxml::AtomicFile::write(output.as_ref(), |file| {
-            docx.build()
+            xml_docx
                 .pack(file)
                 .map_err(|e| easydoc_core::DocError::Zip(e.to_string()))
         })
@@ -256,9 +263,16 @@ impl EasyDoc {
     /// ZIP 错误时返回错误。
     pub fn write_content_to_bytes(content: &DocumentContent) -> Result<Vec<u8>> {
         let docx = easydoc_writer::content_renderer::render_document_content(content)?;
+        let math = easydoc_writer::content_renderer::take_rendered_math();
+        let mut xml_docx = docx.build();
+        if !math.is_empty() {
+            let xml = String::from_utf8_lossy(&xml_docx.document).into_owned();
+            xml_docx.document =
+                easydoc_writer::math_omml::postprocess_math_xml(&xml, &math).into_bytes();
+        }
         let mut buf = Vec::new();
         let cursor = std::io::Cursor::new(&mut buf);
-        docx.build()
+        xml_docx
             .pack(cursor)
             .map_err(|e| easydoc_core::DocError::Zip(e.to_string()))?;
         Ok(buf)
