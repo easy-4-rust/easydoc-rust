@@ -11,6 +11,7 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 easydoc-core = { path = "../crates/easydoc-core" }
 easydoc-reader = { path = "../crates/easydoc-reader" }
+easydoc-markdown = { path = "../crates/easydoc-markdown" }
 office_oxide = "0.1"
 
 # 防止被根 workspace 探测到：独立 workspace
@@ -21,5 +22,9 @@ path = "fuzz_targets/fuzz_docx_xml.rs"
 [[bin]]
 name = "fuzz_docx_reader"
 path = "fuzz_targets/fuzz_docx_reader.rs"
+
+[[bin]]
+name = "fuzz_markdown_import"
+path = "fuzz_targets/fuzz_markdown_import.rs"
 
 [workspace]

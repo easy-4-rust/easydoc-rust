@@ -6,3 +6,5 @@ corpus/fuzz_docx_xml/*
 !corpus/fuzz_docx_xml/seed_document.xml
 corpus/fuzz_docx_reader/*
 !corpus/fuzz_docx_reader/seed_minimal.docx
+corpus/fuzz_markdown_import/*
+!corpus/fuzz_markdown_import/seed_basic.md

@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [fuzz_docx_xml, fuzz_docx_reader]
+        target: [fuzz_docx_xml, fuzz_docx_reader, fuzz_markdown_import]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
