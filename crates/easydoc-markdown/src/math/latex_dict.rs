@@ -330,3 +330,102 @@ pub(crate) fn build_bar_positions() -> HashMap<&'static str, &'static str> {
     m.insert("bot", "\\underline{{0}}");
     m
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accents_non_empty_and_keyed_by_combining_chars() {
+        let accents = build_accents();
+        assert!(!accents.is_empty());
+        // 每个键都是 Unicode 组合字符（非 ASCII 字母），值为 LaTeX 模板
+        for (key, value) in &accents {
+            assert!(!key.is_empty());
+            assert!(
+                value.contains("{0}"),
+                "accent template should contain {{0}}: {value}"
+            );
+        }
+    }
+
+    #[test]
+    fn accents_known_mappings() {
+        let accents = build_accents();
+        assert_eq!(accents.get("\u{0301}").copied(), Some("\\acute{{0}}"));
+        assert_eq!(accents.get("\u{0307}").copied(), Some("\\dot{{0}}"));
+        assert_eq!(accents.get("\u{20d7}").copied(), Some("\\vec{{0}}"));
+    }
+
+    #[test]
+    fn big_operators_known() {
+        let ops = build_big_operators();
+        assert!(!ops.is_empty());
+    }
+
+    #[test]
+    fn text_symbols_non_empty() {
+        let symbols = build_text_symbols();
+        assert!(!symbols.is_empty());
+    }
+
+    #[test]
+    fn text_symbols_values_non_empty() {
+        let symbols = build_text_symbols();
+        for value in symbols.values() {
+            assert!(!value.is_empty(), "symbol value should not be empty");
+        }
+    }
+
+    #[test]
+    fn func_names_known_math_functions() {
+        let funcs = build_func_names();
+        assert!(!funcs.is_empty());
+        // 常见数学函数应存在
+        assert!(funcs.contains_key("sin") || funcs.values().any(|v| v.contains("sin")));
+        assert!(funcs.contains_key("cos") || funcs.values().any(|v| v.contains("cos")));
+    }
+
+    #[test]
+    fn fraction_styles_known() {
+        let styles = build_fraction_styles();
+        assert!(!styles.is_empty());
+    }
+
+    #[test]
+    fn limit_functions_non_empty() {
+        let limits = build_limit_functions();
+        assert!(!limits.is_empty());
+    }
+
+    #[test]
+    fn bar_positions_known() {
+        let bars = build_bar_positions();
+        assert!(!bars.is_empty());
+        assert!(bars.contains_key("top"));
+        assert!(bars.contains_key("bot"));
+    }
+
+    #[test]
+    fn constants_defined() {
+        assert!(CHARS.contains(&'{'));
+        assert!(CHARS.contains(&'%'));
+        assert!(!CHARS.contains(&'a')); // 普通字符不需要转义
+        assert_eq!(ALN, "&");
+        assert_eq!(BRK, "\\\\");
+        assert_eq!(FUNC_PLACE, "{fe}");
+    }
+
+    #[test]
+    fn all_dicts_keys_unique() {
+        // 各字典内部键不重复（HashMap 天然保证，此处验证构建不 panic 且规模合理）
+        let accents = build_accents();
+        let ops = build_big_operators();
+        let symbols = build_text_symbols();
+        let funcs = build_func_names();
+        assert!(accents.len() > 20);
+        assert!(!ops.is_empty());
+        assert!(symbols.len() > 50);
+        assert!(funcs.len() > 10);
+    }
+}

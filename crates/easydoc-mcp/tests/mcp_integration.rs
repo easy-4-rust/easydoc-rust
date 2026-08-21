@@ -461,9 +461,78 @@ fn notification_produces_no_response() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// round-trip: create → read
-// ---------------------------------------------------------------------------
+#[test]
+fn extract_images_on_docx_without_images_returns_empty() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = create_test_docx(dir.path());
+    let out_dir = dir.path().join("imgs");
+    let req = format!(
+        r#"{{"jsonrpc":"2.0","id":40,"method":"tools/call","params":{{"name":"extract_images","arguments":{{"path":"{}","output_dir":"{}"}}}}}}"#,
+        json_path(&path),
+        json_path(&out_dir)
+    );
+    let resp = call(&req);
+    // 无图片时返回空列表（isError=false 或结果含 0）
+    let text = resp["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains('0') || text.contains("[]"), "text: {text}");
+}
+
+#[test]
+fn read_docx_nonexistent_file_returns_error() {
+    let req = r#"{"jsonrpc":"2.0","id":41,"method":"tools/call","params":{"name":"read_docx","arguments":{"path":"/nonexistent/file.docx"}}}"#;
+    let resp = call(req);
+    assert!(
+        resp["result"]["isError"] == true,
+        "expected tool error for missing file, got: {resp}"
+    );
+}
+
+#[test]
+fn read_table_nonexistent_file_returns_error() {
+    let req = r#"{"jsonrpc":"2.0","id":42,"method":"tools/call","params":{"name":"read_table","arguments":{"path":"/nonexistent/table.docx"}}}"#;
+    let resp = call(req);
+    assert_eq!(resp["result"]["isError"], true);
+}
+
+#[test]
+fn create_docx_missing_arguments_returns_error() {
+    let req = r#"{"jsonrpc":"2.0","id":43,"method":"tools/call","params":{"name":"create_docx_from_data","arguments":{}}}"#;
+    let resp = call(req);
+    assert_eq!(
+        resp["result"]["isError"], true,
+        "expected tool error for missing args, got: {resp}"
+    );
+}
+
+#[test]
+fn convert_to_markdown_nonexistent_returns_error() {
+    let req = r#"{"jsonrpc":"2.0","id":44,"method":"tools/call","params":{"name":"convert_to_markdown","arguments":{"path":"/nonexistent/doc.docx"}}}"#;
+    let resp = call(req);
+    assert_eq!(resp["result"]["isError"], true);
+}
+
+#[test]
+fn read_docx_blocks_empty_arguments_error() {
+    let req = r#"{"jsonrpc":"2.0","id":45,"method":"tools/call","params":{"name":"read_docx_blocks","arguments":{}}}"#;
+    let resp = call(req);
+    assert_eq!(resp["result"]["isError"], true);
+}
+
+#[test]
+fn tools_list_schema_is_valid_json_schema() {
+    let resp = call(r#"{"jsonrpc":"2.0","id":46,"method":"tools/list"}"#);
+    let tools = resp["result"]["tools"].as_array().unwrap();
+    for tool in tools {
+        // 每个工具都有 inputSchema（JSON Schema 对象）
+        let schema = &tool["inputSchema"];
+        assert!(
+            schema.is_object(),
+            "tool {} missing inputSchema",
+            tool["name"]
+        );
+        assert!(schema.get("type").is_some() || schema.get("properties").is_some());
+    }
+}
 
 #[test]
 fn round_trip_create_and_read() {
@@ -486,4 +555,58 @@ fn round_trip_create_and_read() {
     let read_resp = call(&read_req);
     let text = read_resp["result"]["content"][0]["text"].as_str().unwrap();
     assert!(text.contains("Round Trip"));
+}
+
+#[test]
+fn tools_call_with_empty_arguments_object() {
+    // 工具调用参数为空对象（无 path）应返回工具错误而非 panic
+    let resp = call(
+        r#"{"jsonrpc":"2.0","id":60,"method":"tools/call","params":{"name":"read_docx","arguments":{}}}"#,
+    );
+    assert_eq!(resp["result"]["isError"], true);
+}
+
+#[test]
+fn tools_call_unknown_argument_ignored_or_error() {
+    // 未知参数不应 panic（容忍或报错皆可）
+    let resp = call(
+        r#"{"jsonrpc":"2.0","id":61,"method":"tools/call","params":{"name":"read_docx","arguments":{"path":"/x.docx","bogus":1}}}"#,
+    );
+    assert!(resp["result"].is_object() || !resp["error"].is_null());
+}
+
+#[test]
+fn read_docx_empty_string_path() {
+    let resp = call(
+        r#"{"jsonrpc":"2.0","id":62,"method":"tools/call","params":{"name":"read_docx","arguments":{"path":""}}}"#,
+    );
+    assert_eq!(resp["result"]["isError"], true);
+}
+
+#[test]
+fn tools_list_tool_names_unique() {
+    let resp = call(r#"{"jsonrpc":"2.0","id":63,"method":"tools/list"}"#);
+    let tools = resp["result"]["tools"].as_array().unwrap();
+    let mut names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
+    let original_len = names.len();
+    names.sort_unstable();
+    names.dedup();
+    assert_eq!(names.len(), original_len, "tool names should be unique");
+}
+
+#[test]
+fn convert_to_markdown_empty_path() {
+    let resp = call(
+        r#"{"jsonrpc":"2.0","id":64,"method":"tools/call","params":{"name":"convert_to_markdown","arguments":{"path":""}}}"#,
+    );
+    assert_eq!(resp["result"]["isError"], true);
+}
+
+#[test]
+fn read_table_with_invalid_path_type() {
+    // path 传数字类型 → 参数校验错误
+    let resp = call(
+        r#"{"jsonrpc":"2.0","id":65,"method":"tools/call","params":{"name":"read_table","arguments":{"path":123}}}"#,
+    );
+    assert_eq!(resp["result"]["isError"], true);
 }

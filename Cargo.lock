@@ -287,6 +287,7 @@ dependencies = [
  "easydoc-reader",
  "easydoc-template",
  "easydoc-writer",
+ "proptest",
  "serde",
  "serde_json",
  "tempfile",
@@ -388,6 +389,7 @@ version = "0.1.0-alpha.2"
 dependencies = [
  "easydoc-core",
  "easydoc-ooxml",
+ "easydoc-reader",
  "easydoc-writer",
  "serde",
  "serde_json",

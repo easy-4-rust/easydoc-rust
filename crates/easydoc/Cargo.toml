@@ -22,6 +22,7 @@ serde.workspace = true
 [dev-dependencies]
 easydoc-core = { path = "../easydoc-core", version = "0.1.0-alpha.2" }
 criterion = { version = "0.5", features = ["html_reports"] }
+proptest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true

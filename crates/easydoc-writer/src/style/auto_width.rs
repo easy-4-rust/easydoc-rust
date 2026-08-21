@@ -26,8 +26,10 @@ impl AutoWidthStrategy {
     /// Calculates the width for a column based on its content.
     #[must_use]
     pub fn calculate_width(&self, max_content_length: usize) -> u32 {
-        let char_width = 240; // approximate twips per character at 11pt
-        let width = max_content_length as u32 * char_width;
+        let char_width = 240u32; // approximate twips per character at 11pt
+        // 防止 usize→u32 截断溢出：先 clamp 长度再乘
+        let clamped_len = u32::try_from(max_content_length).unwrap_or(u32::MAX);
+        let width = clamped_len.saturating_mul(char_width);
         width.clamp(self.min_width, self.max_width)
     }
 }

@@ -1356,4 +1356,156 @@ mod tests {
         let result = convert(&xml).unwrap();
         assert_eq!(result, r"\underbrace{x+y}");
     }
+    // === 批量补充：常见 OMML 数学结构（0.1.0 测试扩充） ===
+
+    #[test]
+    fn fraction_simple_basic() {
+        let xml = omath(
+            "<m:f><m:num><m:r><m:t>1</m:t></m:r></m:num><m:den><m:r><m:t>2</m:t></m:r></m:den></m:f>",
+        );
+        let result = convert(&xml).unwrap();
+        assert!(result.contains("frac"), "got: {result}");
+        assert!(
+            result.contains('1') && result.contains('2'),
+            "got: {result}"
+        );
+    }
+
+    #[test]
+    fn subscript_simple() {
+        let xml = omath(
+            "<m:sSub><m:e><m:r><m:t>x</m:t></m:r></m:e><m:sub><m:r><m:t>i</m:t></m:r></m:sub></m:sSub>",
+        );
+        let result = convert(&xml).unwrap();
+        assert!(
+            result.contains('x') && result.contains('i'),
+            "got: {result}"
+        );
+        assert!(
+            result.contains('_'),
+            "expected subscript underscore, got: {result}"
+        );
+    }
+
+    #[test]
+    fn superscript_simple() {
+        let xml = omath(
+            "<m:sSup><m:e><m:r><m:t>x</m:t></m:r></m:e><m:sup><m:r><m:t>2</m:t></m:r></m:sup></m:sSup>",
+        );
+        let result = convert(&xml).unwrap();
+        assert!(
+            result.contains('x') && result.contains('2'),
+            "got: {result}"
+        );
+        assert!(
+            result.contains('^'),
+            "expected superscript caret, got: {result}"
+        );
+    }
+
+    #[test]
+    fn sub_sup_combined() {
+        let xml = omath(
+            "<m:sSubSup><m:e><m:r><m:t>x</m:t></m:r></m:e><m:sub><m:r><m:t>a</m:t></m:r></m:sub><m:sup><m:r><m:t>b</m:t></m:r></m:sup></m:sSubSup>",
+        );
+        let result = convert(&xml).unwrap();
+        assert!(result.contains('x'), "got: {result}");
+        assert!(
+            result.contains('a') && result.contains('b'),
+            "got: {result}"
+        );
+    }
+
+    #[test]
+    fn radical_simple_basic() {
+        let xml = omath(
+            "<m:rad><m:deg><m:r><m:t>3</m:t></m:r></m:deg><m:e><m:r><m:t>x</m:t></m:r></m:e></m:rad>",
+        );
+        let result = convert(&xml).unwrap();
+        assert!(
+            result.contains("sqrt") || result.contains("root"),
+            "got: {result}"
+        );
+        assert!(result.contains('x'), "got: {result}");
+    }
+
+    #[test]
+    fn nary_summation() {
+        let xml = omath(
+            "<m:nary><m:naryPr><m:chr m:val=\"∑\"/></m:naryPr><m:sub><m:r><m:t>i=1</m:t></m:r></m:sub><m:sup><m:r><m:t>n</m:t></m:r></m:sup><m:e><m:r><m:t>x_i</m:t></m:r></m:e></m:nary>",
+        );
+        let result = convert(&xml).unwrap();
+        assert!(
+            result.contains("sum") || result.contains("∑"),
+            "got: {result}"
+        );
+    }
+
+    #[test]
+    fn delimiter_paren_with_content_basic() {
+        let xml = omath(
+            "<m:d><m:dPr><m:begChr m:val=\"(\"/><m:endChr m:val=\")\"/></m:dPr><m:e><m:r><m:t>x</m:t></m:r></m:e></m:d>",
+        );
+        let result = convert(&xml).unwrap();
+        assert!(
+            result.contains("left") || result.contains('('),
+            "got: {result}"
+        );
+        assert!(result.contains('x'), "got: {result}");
+    }
+
+    #[test]
+    fn function_name_application() {
+        let xml = omath(
+            "<m:func><m:fName><m:r><m:t>sin</m:t></m:r></m:fName><m:e><m:r><m:t>x</m:t></m:r></m:e></m:func>",
+        );
+        let result = convert(&xml).unwrap();
+        assert!(result.contains("sin"), "got: {result}");
+        assert!(result.contains('x'), "got: {result}");
+    }
+
+    #[test]
+    fn matrix_2x2_basic() {
+        let xml = omath(
+            "<m:m><m:mr><m:e><m:r><m:t>a</m:t></m:r></m:e><m:e><m:r><m:t>b</m:t></m:r></m:e></m:mr><m:mr><m:e><m:r><m:t>c</m:t></m:r></m:e><m:e><m:r><m:t>d</m:t></m:r></m:e></m:mr></m:m>",
+        );
+        let result = convert(&xml).unwrap();
+        assert!(
+            result.contains('a') && result.contains('d'),
+            "got: {result}"
+        );
+        assert!(
+            result.contains('&') || result.contains("\\\\"),
+            "matrix should have separators, got: {result}"
+        );
+    }
+
+    #[test]
+    fn nested_fraction_in_fraction() {
+        let xml = omath(
+            "<m:f><m:num><m:f><m:num><m:r><m:t>1</m:t></m:r></m:num><m:den><m:r><m:t>2</m:t></m:r></m:den></m:f></m:num><m:den><m:r><m:t>3</m:t></m:r></m:den></m:f>",
+        );
+        let result = convert(&xml).unwrap();
+        assert!(
+            result.matches("frac").count() >= 2,
+            "expected nested frac, got: {result}"
+        );
+    }
+
+    #[test]
+    fn empty_run_produces_nothing() {
+        let xml = omath("<m:r><m:t></m:t></m:r>");
+        let result = convert(&xml).unwrap();
+        assert!(result.trim().is_empty(), "got: {result}");
+    }
+
+    #[test]
+    fn mixed_text_and_math() {
+        let xml = omath(
+            "<m:r><m:t>x</m:t></m:r><m:f><m:num><m:r><m:t>1</m:t></m:r></m:num><m:den><m:r><m:t>y</m:t></m:r></m:den></m:f>",
+        );
+        let result = convert(&xml).unwrap();
+        assert!(result.contains('x'), "got: {result}");
+        assert!(result.contains('y'), "got: {result}");
+    }
 }

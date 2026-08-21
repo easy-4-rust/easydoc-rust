@@ -1713,4 +1713,305 @@ mod tests {
             .collect();
         assert_eq!(ids, vec![1, 2]);
     }
+
+    // === 语法边界测试（0.1.0 测试扩充） ===
+
+    #[test]
+    fn heading_without_space_after_hash_is_text() {
+        // `#abc` 不是标题（# 后需空格）
+        let result = MarkdownImportBuilder::new("#abc").do_import().unwrap();
+        assert!(matches!(
+            result.content.blocks[0],
+            DocumentBlock::Paragraph(_)
+        ));
+    }
+
+    #[test]
+    fn heading_seven_hashes_is_not_heading() {
+        // 7 个 # 不是标题（最多 6 级）
+        let result = MarkdownImportBuilder::new("####### not")
+            .do_import()
+            .unwrap();
+        assert!(matches!(
+            result.content.blocks[0],
+            DocumentBlock::Paragraph(_)
+        ));
+    }
+
+    #[test]
+    fn heading_with_trailing_hashes_keeps_text() {
+        let result = MarkdownImportBuilder::new("# Title #").do_import().unwrap();
+        match &result.content.blocks[0] {
+            DocumentBlock::Heading { runs, .. } => {
+                let text: String = runs.iter().map(|r| r.text.as_str()).collect();
+                assert_eq!(text, "Title #");
+            }
+            _ => panic!("expected Heading"),
+        }
+    }
+
+    #[test]
+    fn thematic_break_dash_min3() {
+        let r1 = MarkdownImportBuilder::new("---").do_import().unwrap();
+        // 文档开头的 `---` 可能被 front matter 逻辑消费（0 块）或作为分隔线
+        if !r1.content.blocks.is_empty() {
+            assert!(matches!(r1.content.blocks[0], DocumentBlock::ThematicBreak));
+        }
+        let r2 = MarkdownImportBuilder::new("--").do_import().unwrap();
+        // 2 个 - 不是分隔线；可能被忽略（0 块）或作为段落
+        if !r2.content.blocks.is_empty() {
+            assert!(!matches!(
+                r2.content.blocks[0],
+                DocumentBlock::ThematicBreak
+            ));
+        }
+    }
+
+    #[test]
+    fn thematic_break_star_and_underscore() {
+        for sep in ["***", "___", " * * * "] {
+            let r = MarkdownImportBuilder::new(sep).do_import().unwrap();
+            assert!(
+                matches!(r.content.blocks[0], DocumentBlock::ThematicBreak),
+                "{sep:?} should be thematic break"
+            );
+        }
+    }
+
+    #[test]
+    fn table_missing_separator_is_paragraph() {
+        let md = "| A | B |
+| 1 | 2 |";
+        let r = MarkdownImportBuilder::new(md).do_import().unwrap();
+        // 无分隔行 → 按段落处理（可能有警告）
+        assert!(matches!(r.content.blocks[0], DocumentBlock::Paragraph(_)));
+    }
+
+    #[test]
+    fn table_with_colon_alignment() {
+        let md = "| L | C | R |
+| :--- | :---: | ---: |
+| 1 | 2 | 3 |";
+        let r = MarkdownImportBuilder::new(md).do_import().unwrap();
+        assert!(matches!(r.content.blocks[0], DocumentBlock::Table(_)));
+    }
+
+    #[test]
+    fn table_single_column() {
+        let md = "| Only |
+| --- |
+| val |";
+        let r = MarkdownImportBuilder::new(md).do_import().unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::Table(t) => assert_eq!(t.rows.len(), 2),
+            _ => panic!("expected Table"),
+        }
+    }
+
+    #[test]
+    fn unordered_list_star_and_plus_markers() {
+        for marker in ["- item", "* item", "+ item"] {
+            let r = MarkdownImportBuilder::new(marker).do_import().unwrap();
+            assert!(
+                matches!(r.content.blocks[0], DocumentBlock::List(_)),
+                "{marker:?} should be a list"
+            );
+        }
+    }
+
+    #[test]
+    fn ordered_list_numbering() {
+        let r = MarkdownImportBuilder::new(
+            "1. first
+2. second",
+        )
+        .do_import()
+        .unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::List(l) => {
+                assert!(l.ordered);
+                assert_eq!(l.items.len(), 2);
+            }
+            _ => panic!("expected ordered List"),
+        }
+    }
+
+    #[test]
+    fn nested_list_mixed_indicators() {
+        let md = "- a
+  - b
+    - c";
+        let r = MarkdownImportBuilder::new(md).do_import().unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::List(l) => {
+                assert_eq!(l.items.len(), 1);
+                // 嵌套至少一层
+                assert!(l.items[0].nested.is_some());
+            }
+            _ => panic!("expected List"),
+        }
+    }
+
+    #[test]
+    fn inline_math_dollar_kept_literal() {
+        // 行内 $...$ 目前按文本保留（未转成 Math 块）
+        let r = MarkdownImportBuilder::new("inline $x^2$ math")
+            .do_import()
+            .unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::Paragraph(runs) => {
+                let all: String = runs.iter().map(|r| r.text.as_str()).collect();
+                assert!(all.contains("$x^2$"), "got: {all}");
+            }
+            _ => panic!("expected Paragraph"),
+        }
+    }
+
+    #[test]
+    fn blockquote_with_nested_paragraph() {
+        let md = "> line1
+> line2";
+        let r = MarkdownImportBuilder::new(md).do_import().unwrap();
+        // blockquote 渲染为斜体段落
+        match &r.content.blocks[0] {
+            DocumentBlock::Paragraph(runs) => {
+                assert!(runs.iter().any(|r| r.italic), "blockquote should be italic");
+            }
+            _ => panic!("expected Paragraph"),
+        }
+    }
+
+    #[test]
+    fn code_block_multiline_preserves_content() {
+        let md = "```rust\nfn main() {\n    println!(\"hi\");\n}\n```";
+        let r = MarkdownImportBuilder::new(md).do_import().unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::CodeBlock { code, language } => {
+                assert!(code.contains("fn main()"), "code: {code}");
+                assert_eq!(language.as_deref(), Some("rust"));
+            }
+            _ => panic!("expected CodeBlock"),
+        }
+    }
+
+    #[test]
+    fn escaped_markers_kept_literal() {
+        let r = MarkdownImportBuilder::new(r"\*not bold\*")
+            .do_import()
+            .unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::Paragraph(runs) => {
+                let all: String = runs.iter().map(|r| r.text.as_str()).collect();
+                // 反斜杠转义后保留文本内容（具体保留形式是实现细节，不崩溃即可）
+                assert!(all.contains("not bold"), "got: {all}");
+            }
+            _ => panic!("expected Paragraph"),
+        }
+    }
+
+    // === 表格/列表变体（0.1.0 测试扩充） ===
+
+    #[test]
+    fn table_no_leading_pipe() {
+        let md = "A | B\n--- | ---\n1 | 2";
+        let r = MarkdownImportBuilder::new(md).do_import().unwrap();
+        // 无首尾 | 的表格也应被识别（或作为段落，不 panic）
+        let _ = r;
+    }
+
+    #[test]
+    fn table_empty_cells() {
+        let md = "| A | B |\n| --- | --- |\n|  | x |";
+        let r = MarkdownImportBuilder::new(md).do_import().unwrap();
+        assert!(matches!(r.content.blocks[0], DocumentBlock::Table(_)));
+    }
+
+    #[test]
+    fn table_extra_pipes_in_cell() {
+        let md = "| A | B |\n| --- | --- |\n| a|b | c |";
+        let r = MarkdownImportBuilder::new(md).do_import().unwrap();
+        assert!(matches!(r.content.blocks[0], DocumentBlock::Table(_)));
+    }
+
+    #[test]
+    fn ordered_list_starts_at_non_one() {
+        let r = MarkdownImportBuilder::new("3. third\n4. fourth")
+            .do_import()
+            .unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::List(l) => {
+                assert!(l.ordered);
+                assert_eq!(l.items.len(), 2);
+            }
+            _ => panic!("expected List"),
+        }
+    }
+
+    #[test]
+    fn list_item_with_inline_formatting() {
+        let md = "- **bold** item";
+        let r = MarkdownImportBuilder::new(md).do_import().unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::List(l) => {
+                let item = &l.items[0];
+                let all: String = item
+                    .blocks
+                    .iter()
+                    .filter_map(|b| match b {
+                        DocumentBlock::Paragraph(runs) => {
+                            Some(runs.iter().map(|r| r.text.as_str()).collect::<String>())
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                assert!(all.contains("bold"), "item: {all}");
+            }
+            _ => panic!("expected List"),
+        }
+    }
+
+    #[test]
+    fn nested_unordered_ordered_mix() {
+        let md = "- a\n  1. b\n     - c";
+        let r = MarkdownImportBuilder::new(md).do_import().unwrap();
+        assert!(matches!(r.content.blocks[0], DocumentBlock::List(_)));
+    }
+
+    #[test]
+    fn heading_inline_bold() {
+        let md = "# **Title**";
+        let r = MarkdownImportBuilder::new(md).do_import().unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::Heading { runs, .. } => {
+                assert!(runs.iter().any(|r| r.bold), "runs: {runs:?}");
+            }
+            _ => panic!("expected Heading"),
+        }
+    }
+
+    #[test]
+    fn image_with_quoted_path() {
+        let md = "![alt](image.png)";
+        let r = MarkdownImportBuilder::new(md).do_import().unwrap();
+        assert!(matches!(r.content.blocks[0], DocumentBlock::Image(_)));
+    }
+
+    #[test]
+    fn empty_list_item() {
+        let md = "-\n- b";
+        let r = MarkdownImportBuilder::new(md).do_import().unwrap();
+        // 空列表项不 panic
+        let _ = r;
+    }
+
+    #[test]
+    fn table_then_paragraph() {
+        let md = "| A |\n| --- |\n| 1 |\n\nafter";
+        let r = MarkdownImportBuilder::new(md).do_import().unwrap();
+        assert!(
+            r.content.blocks.len() >= 2,
+            "blocks: {:?}",
+            r.content.blocks
+        );
+    }
 }

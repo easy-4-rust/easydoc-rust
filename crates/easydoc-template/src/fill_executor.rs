@@ -373,16 +373,27 @@ fn find_matching_close(xml: &str, tag_start: usize, tag_name: &str) -> Result<us
 
         let remaining = &xml[pos..];
 
+        // 精确匹配 `<w:tr` 后跟边界字符（`>`、空格、`/`），排除 `<w:trPr` 等
+        // 前缀相同但名称更长的标签（否则 `<w:trPr>` 会被误当 `<w:tr>` 计数）。
         if remaining.starts_with(&open_tag) {
+            let after_name = remaining.as_bytes()[open_tag.len()];
+            let is_exact_tag = matches!(after_name, b'>' | b' ' | b'/');
+            if !is_exact_tag {
+                pos += 1;
+                continue;
+            }
             // Check if it's self-closing: <w:tr ... />
+            // 注意：tag_content 需包含 `>`，否则 `<w:trPr />` 会因
+            // ends_with("/>") 判 false 而被误当作非自闭合标签，
+            // 导致嵌套表格/行属性场景深度计数错误（unclosed tag bug）。
             let tag_end = remaining.find('>').unwrap_or(remaining.len());
-            let tag_content = &remaining[..tag_end];
+            let tag_content = &remaining[..=tag_end];
             if tag_content.ends_with(self_close) {
                 // Self-closing, don't change depth
                 pos += tag_end + 1;
             } else {
                 depth += 1;
-                pos += open_tag.len();
+                pos += tag_end + 1;
             }
         } else if remaining.starts_with(&close_tag) {
             depth -= 1;
@@ -520,6 +531,34 @@ mod expanded_tests {
         let start = xml.find("<w:tr>").unwrap();
         let close = find_matching_close(xml, start, "w:tr").unwrap();
         assert_eq!(close, xml.len());
+    }
+
+    #[test]
+    fn find_matching_close_trpr_self_closing_prefix() {
+        // 回归：`<w:trPr />` 以 `<w:tr` 开头，若自闭合检测错误会误增
+        // 深度导致 "unclosed tag <w:tr>"（docx-rs 生成的表格行真实场景）。
+        let xml = "<w:tbl><w:tr><w:trPr /><w:tc><w:p>{.items}</w:p></w:tc></w:tr></w:tbl>";
+        let start = xml.find("<w:tr>").unwrap();
+        let close = find_matching_close(xml, start, "w:tr").unwrap();
+        assert_eq!(&xml[close - 7..close], "</w:tr>");
+    }
+
+    #[test]
+    fn find_matching_close_tr_with_attributes() {
+        // 带属性的 <w:tr w:rsidR="..."> 也能正确配对
+        let xml = r#"<w:tbl><w:tr w:rsidR="00AA"><w:tc><w:p>x</w:p></w:tc></w:tr></w:tbl>"#;
+        let start = xml.find("<w:tr").unwrap();
+        let close = find_matching_close(xml, start, "w:tr").unwrap();
+        assert_eq!(&xml[close - 7..close], "</w:tr>");
+    }
+
+    #[test]
+    fn find_matching_close_nested_trpr() {
+        // trPr 非自闭合形态也应正确（保守场景）
+        let xml = "<w:tr><w:trPr><w:cnfStyle/></w:trPr><w:tc><w:p>x</w:p></w:tc></w:tr>";
+        let start = xml.find("<w:tr>").unwrap();
+        let close = find_matching_close(xml, start, "w:tr").unwrap();
+        assert_eq!(&xml[close - 7..close], "</w:tr>");
     }
 
     #[test]

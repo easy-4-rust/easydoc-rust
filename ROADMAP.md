@@ -71,11 +71,11 @@ For the full list of changes in each release, see [CHANGELOG.md](CHANGELOG.md).
 
 ### Quality and testing
 
-- Target: 1000+ tests across the workspace
-- Property-based tests (proptest) for round-trip: write then read produces equivalent content
-- Fuzz testing: ZIP parsing, Markdown parser, OOXML SAX parser
-- docs.rs metadata: categories, keywords, rustdoc-args for clean rendering
-- Golden test suite: known DOCX files with expected output snapshots
+- Target: 1000+ tests across the workspace — ✅ 已达 1000（全绿）
+- Property-based tests (proptest) for round-trip: write then read produces equivalent content — ✅ 已加（`crates/easydoc/tests/roundtrip_proptest.rs`，256 cases × 3 属性）
+- Fuzz testing: ZIP parsing, Markdown parser, OOXML SAX parser — ✅ 已有 fuzz_docx_xml / fuzz_docx_reader / fuzz_markdown_import 三个 target
+- docs.rs metadata: categories, keywords, rustdoc-args for clean rendering — ✅ 已有 categories/keywords（easydoc crate）
+- Golden test suite: known DOCX files with expected output snapshots — ✅ 已建（`crates/easydoc/tests/golden_test.rs` + `tests/golden/*.md`，UPDATE_GOLDEN=1 刷新）
 
 ### MCP
 

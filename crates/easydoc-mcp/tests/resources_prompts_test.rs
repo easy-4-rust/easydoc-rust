@@ -782,3 +782,98 @@ fn resources_and_prompts_coexist_with_tools() {
     assert!(resp["error"].is_null());
     assert_eq!(resp["result"]["prompts"].as_array().unwrap().len(), 4);
 }
+
+#[test]
+fn resources_list_recursive_structure() {
+    let (dir, _) = create_test_dir_structure();
+    let config = make_config(dir.path());
+
+    let resp = call_with_config(
+        r#"{"jsonrpc":"2.0","id":50,"method":"resources/list"}"#,
+        &config,
+    );
+    assert!(resp["error"].is_null());
+    // 递归目录包含子目录中的 docx
+    let resources = resp["result"]["resources"].as_array().unwrap();
+    assert!(!resources.is_empty());
+}
+
+#[test]
+fn resources_read_file_with_special_chars() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = create_test_docx(dir.path(), "my file.docx");
+    let config = make_config(dir.path());
+
+    let uri = format!("file://{}", path.display());
+    let req = serde_json::json!({
+        "jsonrpc": "2.0", "id": 51,
+        "method": "resources/read",
+        "params": { "uri": uri }
+    });
+    let resp = call_with_config(&serde_json::to_string(&req).unwrap(), &config);
+    assert!(resp["error"].is_null(), "error: {}", resp["error"]);
+}
+
+#[test]
+fn prompts_get_extra_args_ignored() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let config = make_config(dir.path());
+
+    let resp = call_with_config(
+        r#"{"jsonrpc":"2.0","id":52,"method":"prompts/get","params":{"name":"summarize_document","arguments":{"path":"/x.docx","extra":"ignored"}}}"#,
+        &config,
+    );
+    // 额外参数不应导致错误（按实现容忍或报错都可接受，但需有响应）
+    assert!(resp["result"].is_object() || !resp["error"].is_null());
+}
+
+#[test]
+fn resources_list_no_trailing_uri_issues() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    create_test_docx(dir.path(), "a.docx");
+    create_test_docx(dir.path(), "b.docx");
+    let config = make_config(dir.path());
+
+    let resp = call_with_config(
+        r#"{"jsonrpc":"2.0","id":53,"method":"resources/list"}"#,
+        &config,
+    );
+    let resources = resp["result"]["resources"].as_array().unwrap();
+    // 两个 docx 都应被列出
+    assert!(resources.len() >= 2);
+}
+
+#[test]
+fn resources_read_directory_uri_errors() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let config = make_config(dir.path());
+    let uri = format!("file://{}", dir.path().display());
+    let req = serde_json::json!({
+        "jsonrpc": "2.0", "id": 54,
+        "method": "resources/read",
+        "params": { "uri": uri }
+    });
+    let resp = call_with_config(&serde_json::to_string(&req).unwrap(), &config);
+    // 目录 URI 读取应报错（不是文件）
+    assert!(!resp["error"].is_null(), "expected error for directory URI");
+}
+
+#[test]
+fn resources_list_uri_field_present() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    create_test_docx(dir.path(), "x.docx");
+    let config = make_config(dir.path());
+
+    let resp = call_with_config(
+        r#"{"jsonrpc":"2.0","id":55,"method":"resources/list"}"#,
+        &config,
+    );
+    let resources = resp["result"]["resources"].as_array().unwrap();
+    for r in resources {
+        assert!(r.get("uri").is_some(), "resource missing uri: {r}");
+        assert!(
+            r.get("mimeType").is_some(),
+            "resource missing mimeType: {r}"
+        );
+    }
+}

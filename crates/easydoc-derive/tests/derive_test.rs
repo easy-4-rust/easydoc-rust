@@ -563,3 +563,59 @@ fn from_row_with_converters_insufficient_cells_errors() {
     let msg = format!("{}", result.unwrap_err());
     assert!(msg.contains("not enough cells"));
 }
+
+#[test]
+fn to_row_from_row_roundtrip_string() {
+    let _registry = ConverterRegistry::new();
+    let row = ReportRow {
+        name: "Alice".into(),
+        score: 42,
+    };
+    let cells = row.to_row().expect("to_row");
+    let back = ReportRow::from_row(&RowData::new(cells)).expect("from_row");
+    assert_eq!(back.name, "Alice");
+    assert_eq!(back.score, 42);
+}
+
+#[test]
+fn to_row_from_row_roundtrip_int() {
+    let registry = ConverterRegistry::new();
+    let row = ReportRow {
+        name: "Bob".into(),
+        score: 0,
+    };
+    let cells = row.to_row().expect("to_row");
+    let back =
+        ReportRow::from_row_with_converters(&RowData::new(cells), &registry).expect("from_row");
+    assert_eq!(back.name, "Bob");
+    assert_eq!(back.score, 0);
+}
+
+#[test]
+fn to_row_from_row_roundtrip_negative() {
+    let row = ReportRow {
+        name: "Neg".into(),
+        score: -5,
+    };
+    let cells = row.to_row().expect("to_row");
+    let back = ReportRow::from_row(&RowData::new(cells)).expect("from_row");
+    assert_eq!(back.score, -5);
+}
+
+#[test]
+fn to_row_cell_count_matches_schema() {
+    let row = ReportRow {
+        name: "x".into(),
+        score: 1,
+    };
+    let cells = row.to_row().expect("to_row");
+    assert_eq!(cells.len(), ReportRow::schema().len());
+}
+
+#[derive(DocxRow)]
+struct ReportRow {
+    #[docx(name = "姓名", order = 0)]
+    name: String,
+    #[docx(name = "分数", order = 1)]
+    score: i32,
+}
