@@ -141,7 +141,6 @@ impl<'a, T: DocxRow> TableWriteExecutor<'a, T> {
         };
 
         let tcw_count = modified.matches("<w:tcW").count();
-        let tcpr_count = modified.matches("<w:tcPr").count();
         let rpr_count = modified.matches("<w:pPr><w:rPr").count();
 
         let mut no_wrap_inserts: Vec<String> = Vec::new();
