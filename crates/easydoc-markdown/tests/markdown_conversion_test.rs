@@ -198,3 +198,88 @@ fn markdown_import_to_docx_preserves_math_and_footnote() {
         back.markdown
     );
 }
+
+#[test]
+fn markdown_html_tags_roundtrip_through_docx() {
+    // MD（含 HTML 标签）→ DocumentContent → DOCX → Markdown，内容保留
+    let md = "<strong>bold</strong> and <em>italic</em> and <a href=\"https://e.com\">link</a>";
+    let imported = easydoc_markdown::MarkdownImportBuilder::new(md)
+        .do_import()
+        .expect("import");
+
+    // 解析出 bold/italic/hyperlink run
+    let DocumentBlock::Paragraph(runs) = &imported.content.blocks[0] else {
+        panic!("expected Paragraph");
+    };
+    assert!(
+        runs.iter().any(|r| r.bold && r.text == "bold"),
+        "runs: {runs:?}"
+    );
+    assert!(
+        runs.iter().any(|r| r.italic && r.text == "italic"),
+        "runs: {runs:?}"
+    );
+    assert!(
+        runs.iter()
+            .any(|r| r.hyperlink.as_deref() == Some("https://e.com") && r.text == "link"),
+        "runs: {runs:?}"
+    );
+
+    // 渲染为 DOCX 再读回，文本保留
+    let dir = tempfile::tempdir().expect("tempdir");
+    let docx_path = dir.path().join("html_rt.docx");
+    easydoc_writer::content_renderer::render_document_content(&imported.content)
+        .expect("render docx")
+        .build()
+        .pack(std::fs::File::create(&docx_path).expect("create file"))
+        .expect("pack docx");
+
+    let back = MarkdownBuilder::new(&docx_path)
+        .do_convert()
+        .expect("convert back");
+    assert!(
+        back.markdown.contains("bold") && back.markdown.contains("italic"),
+        "text should survive roundtrip, got: {}",
+        back.markdown
+    );
+}
+
+#[test]
+fn markdown_html_br_roundtrip() {
+    let md = "line one<br>line two";
+    let imported = easydoc_markdown::MarkdownImportBuilder::new(md)
+        .do_import()
+        .expect("import");
+    let DocumentBlock::Paragraph(runs) = &imported.content.blocks[0] else {
+        panic!("expected Paragraph");
+    };
+    let all: String = runs.iter().map(|r| r.text.as_str()).collect();
+    assert!(
+        all.contains("line one") && all.contains("line two"),
+        "all: {all}"
+    );
+}
+
+#[test]
+fn markdown_html_hr_and_img_blocks() {
+    let md = "before\n\n<hr>\n\n<img src=\"pic.png\" alt=\"A pic\">\n\nafter";
+    let imported = easydoc_markdown::MarkdownImportBuilder::new(md)
+        .do_import()
+        .expect("import");
+    assert!(
+        imported
+            .content
+            .blocks
+            .iter()
+            .any(|b| matches!(b, DocumentBlock::ThematicBreak)),
+        "expected ThematicBreak"
+    );
+    assert!(
+        imported
+            .content
+            .blocks
+            .iter()
+            .any(|b| matches!(b, DocumentBlock::Image(_))),
+        "expected Image"
+    );
+}

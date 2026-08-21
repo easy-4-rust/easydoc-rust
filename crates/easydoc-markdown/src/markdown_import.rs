@@ -274,8 +274,28 @@ impl<'a> MarkdownParser<'a> {
             }
 
             // 水平分隔线
-            if is_thematic_break(trimmed) {
+            if is_thematic_break(trimmed)
+                || trimmed.eq_ignore_ascii_case("<hr>")
+                || trimmed.eq_ignore_ascii_case("<hr/>")
+                || trimmed.eq_ignore_ascii_case("<hr />")
+            {
                 self.blocks.push(DocumentBlock::ThematicBreak);
+                self.pos += 1;
+                continue;
+            }
+
+            // 块级 HTML 图片：`<img src="..." alt="...">`（独立行）
+            if trimmed.starts_with("<img") {
+                if let Some(image) = parse_html_image(trimmed) {
+                    if image.alt_text.is_none() {
+                        self.push_warning(ImportWarning::ImageMissingAlt);
+                    }
+                    self.blocks.push(DocumentBlock::Image(image));
+                } else {
+                    // 无法解析的 <img> 按普通段落处理
+                    self.parse_paragraph();
+                    continue;
+                }
                 self.pos += 1;
                 continue;
             }
@@ -799,6 +819,47 @@ fn parse_inline(text: &str) -> Vec<DocumentTextRun> {
             continue;
         }
 
+        // HTML 内联标签：`<strong>` / `<b>`、`<em>` / `<i>`、`<code>`、
+        // `<a href="...">text</a>`、`<br>` / `<br/>`
+        if bytes[i] == b'<'
+            && let Some((tag_name, attr, inner, end)) = parse_html_inline(text, i)
+        {
+            flush_buf(&mut buf, &mut runs);
+            match tag_name.as_str() {
+                "strong" | "b" => runs.push(DocumentTextRun {
+                    text: inner,
+                    bold: true,
+                    ..DocumentTextRun::default()
+                }),
+                "em" | "i" => runs.push(DocumentTextRun {
+                    text: inner,
+                    italic: true,
+                    ..DocumentTextRun::default()
+                }),
+                "code" => runs.push(DocumentTextRun {
+                    text: inner,
+                    ..DocumentTextRun::default()
+                }),
+                "a" => runs.push(DocumentTextRun {
+                    text: inner,
+                    hyperlink: attr.filter(|href| !href.is_empty()),
+                    ..DocumentTextRun::default()
+                }),
+                "br" => runs.push(DocumentTextRun {
+                    text: "\n".to_owned(),
+                    ..DocumentTextRun::default()
+                }),
+                _ => {
+                    // 未知标签：原样保留为文本
+                    buf.push_str(&text[i..end]);
+                    i = end;
+                    continue;
+                }
+            }
+            i = end;
+            continue;
+        }
+
         // `**bold**`
         if i + 2 < len && bytes[i] == b'*' && bytes[i + 1] == b'*' {
             if let Some(end) = find_closing(text, i + 2, "**") {
@@ -995,6 +1056,106 @@ fn parse_image_line(line: &str) -> Option<DocumentImage> {
         data: None,
         extension,
     })
+}
+
+/// 解析 HTML `<img>` 标签：`<img src="..." alt="..." />`。
+///
+/// 支持带引号/不带引号的属性值，`>` 或 `/>` 结尾。返回图片块；
+/// 无 `src` 或格式非法时返回 `None`。
+fn parse_html_image(line: &str) -> Option<DocumentImage> {
+    let trimmed = line.trim();
+    let rest = trimmed.strip_prefix("<img")?.trim_start();
+    // 提取属性直到标签结束
+    let end = rest.find('>')?;
+    let attrs = &rest[..end];
+    let src = extract_html_attr(attrs, "src")?;
+    let alt = extract_html_attr(attrs, "alt");
+    let extension = src
+        .rsplit('.')
+        .next()
+        .map(|e| e.trim_end_matches('/').to_owned())
+        .filter(|e| !e.is_empty() && !e.contains('"'));
+    Some(DocumentImage {
+        alt_text: alt.filter(|a| !a.is_empty()),
+        data: None,
+        extension,
+    })
+}
+
+/// 从 HTML 标签属性字符串中提取指定属性的值。
+///
+/// 支持 `name="value"`、`name='value'` 与 `name=value` 三种形式。
+fn extract_html_attr(attrs: &str, name: &str) -> Option<String> {
+    let name_eq = format!("{name}=");
+    let lower = attrs.to_ascii_lowercase();
+    let pos = lower.find(&name_eq)?;
+    let rest = attrs[pos + name_eq.len()..].trim_start();
+    if let Some(stripped) = rest.strip_prefix('"') {
+        let end = stripped.find('"')?;
+        Some(stripped[..end].to_owned())
+    } else if let Some(stripped) = rest.strip_prefix('\'') {
+        let end = stripped.find('\'')?;
+        Some(stripped[..end].to_owned())
+    } else {
+        let end = rest
+            .find(|c: char| c.is_whitespace() || c == '>')
+            .unwrap_or(rest.len());
+        Some(rest[..end].to_owned())
+    }
+}
+
+/// 解析 `text[pos..]` 处的内联 HTML 标签。
+///
+/// 返回 `(标签名, 属性值, 内部文本, 结束偏移)`，其中属性值目前仅提取
+/// `href`（用于 `<a>`），其余标签为 `None`。支持成对标签
+/// `<tag>inner</tag>` 与自闭合 `<br/>` / `<br>`。非 HTML 起始返回 `None`。
+fn parse_html_inline(text: &str, pos: usize) -> Option<(String, Option<String>, String, usize)> {
+    let rest = &text[pos..];
+    if !rest.starts_with('<') {
+        return None;
+    }
+    // 提取标签名
+    let name_start = 1;
+    let name_end = rest[name_start..]
+        .find(|c: char| !c.is_ascii_alphanumeric())
+        .map(|i| name_start + i)?;
+    if name_end == name_start {
+        return None;
+    }
+    let tag_name = rest[name_start..name_end].to_ascii_lowercase();
+    if !matches!(
+        tag_name.as_str(),
+        "strong" | "b" | "em" | "i" | "code" | "a" | "br"
+    ) {
+        return None;
+    }
+
+    // 找到开标签结束 `>`
+    let open_end = rest[name_end..].find('>')? + name_end;
+    let open_tag = &rest[..=open_end];
+
+    // 自闭合：<br/> 或 <br>
+    if tag_name == "br" {
+        return Some((tag_name, None, String::new(), pos + open_end + 1));
+    }
+    if open_tag.trim_end().ends_with("/>") {
+        return Some((tag_name, None, String::new(), pos + open_end + 1));
+    }
+
+    // 提取 href 属性（仅 <a>）
+    let attr = if tag_name == "a" {
+        extract_html_attr(&open_tag[1..open_end], "href")
+    } else {
+        None
+    };
+
+    // 找闭合标签 `</tag>`
+    let close_tag = format!("</{tag_name}>");
+    let after_open = &text[pos + open_end + 1..];
+    let close_rel = after_open.find(&close_tag)?;
+    let inner = after_open[..close_rel].to_owned();
+    let end = pos + open_end + 1 + close_rel + close_tag.len();
+    Some((tag_name, attr, inner, end))
 }
 
 // ---------------------------------------------------------------------------
@@ -2013,5 +2174,196 @@ mod tests {
             "blocks: {:?}",
             r.content.blocks
         );
+    }
+
+    // === HTML 内联标签（0.1.0 测试扩充） ===
+
+    #[test]
+    fn html_strong_creates_bold_run() {
+        let r = MarkdownImportBuilder::new("text <strong>bold</strong> end")
+            .do_import()
+            .unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::Paragraph(runs) => {
+                let bold = runs.iter().find(|r| r.bold).expect("bold run");
+                assert_eq!(bold.text, "bold");
+            }
+            _ => panic!("expected Paragraph"),
+        }
+    }
+
+    #[test]
+    fn html_b_tag_creates_bold_run() {
+        let r = MarkdownImportBuilder::new("<b>bold</b>")
+            .do_import()
+            .unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::Paragraph(runs) => {
+                assert!(runs.iter().any(|r| r.bold && r.text == "bold"));
+            }
+            _ => panic!("expected Paragraph"),
+        }
+    }
+
+    #[test]
+    fn html_em_creates_italic_run() {
+        let r = MarkdownImportBuilder::new("text <em>italic</em> end")
+            .do_import()
+            .unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::Paragraph(runs) => {
+                let ital = runs.iter().find(|r| r.italic).expect("italic run");
+                assert_eq!(ital.text, "italic");
+            }
+            _ => panic!("expected Paragraph"),
+        }
+    }
+
+    #[test]
+    fn html_i_tag_creates_italic_run() {
+        let r = MarkdownImportBuilder::new("<i>it</i>").do_import().unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::Paragraph(runs) => {
+                assert!(runs.iter().any(|r| r.italic && r.text == "it"));
+            }
+            _ => panic!("expected Paragraph"),
+        }
+    }
+
+    #[test]
+    fn html_code_creates_plain_run() {
+        let r = MarkdownImportBuilder::new("use <code>println!</code> now")
+            .do_import()
+            .unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::Paragraph(runs) => {
+                assert!(runs.iter().any(|r| r.text == "println!"));
+            }
+            _ => panic!("expected Paragraph"),
+        }
+    }
+
+    #[test]
+    fn html_anchor_creates_hyperlink() {
+        let r = MarkdownImportBuilder::new("see <a href=\"https://e.com\">site</a>")
+            .do_import()
+            .unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::Paragraph(runs) => {
+                let link = runs
+                    .iter()
+                    .find(|r| r.hyperlink.is_some())
+                    .expect("hyperlink run");
+                assert_eq!(link.text, "site");
+                assert_eq!(link.hyperlink.as_deref(), Some("https://e.com"));
+            }
+            _ => panic!("expected Paragraph"),
+        }
+    }
+
+    #[test]
+    fn html_br_creates_newline_run() {
+        let r = MarkdownImportBuilder::new("line1<br>line2")
+            .do_import()
+            .unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::Paragraph(runs) => {
+                let all: String = runs.iter().map(|r| r.text.as_str()).collect();
+                assert!(all.contains("line1") && all.contains("line2"), "all: {all}");
+                assert!(
+                    all.contains('\n') || runs.iter().any(|r| r.text == "\n"),
+                    "no newline: {all:?}"
+                );
+            }
+            _ => panic!("expected Paragraph"),
+        }
+    }
+
+    #[test]
+    fn html_br_self_closing() {
+        let r = MarkdownImportBuilder::new("a<br/>b").do_import().unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::Paragraph(runs) => {
+                let all: String = runs.iter().map(|r| r.text.as_str()).collect();
+                assert!(all.contains('a') && all.contains('b'), "all: {all}");
+            }
+            _ => panic!("expected Paragraph"),
+        }
+    }
+
+    #[test]
+    fn html_mixed_tags_in_paragraph() {
+        let md = "<strong>bold</strong> and <em>italic</em> and <code>code</code>";
+        let r = MarkdownImportBuilder::new(md).do_import().unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::Paragraph(runs) => {
+                assert!(runs.iter().any(|r| r.bold && r.text == "bold"));
+                assert!(runs.iter().any(|r| r.italic && r.text == "italic"));
+                assert!(runs.iter().any(|r| r.text == "code"));
+            }
+            _ => panic!("expected Paragraph"),
+        }
+    }
+
+    #[test]
+    fn html_hr_block() {
+        let r = MarkdownImportBuilder::new("before\n\n<hr>\n\nafter")
+            .do_import()
+            .unwrap();
+        assert!(
+            r.content
+                .blocks
+                .iter()
+                .any(|b| matches!(b, DocumentBlock::ThematicBreak)),
+            "expected ThematicBreak from <hr>, blocks: {:?}",
+            r.content.blocks
+        );
+    }
+
+    #[test]
+    fn html_img_block() {
+        let r =
+            MarkdownImportBuilder::new("before\n\n<img src=\"pic.png\" alt=\"A pic\">\n\nafter")
+                .do_import()
+                .unwrap();
+        assert!(
+            r.content
+                .blocks
+                .iter()
+                .any(|b| matches!(b, DocumentBlock::Image(_))),
+            "expected Image from <img>, blocks: {:?}",
+            r.content.blocks
+        );
+    }
+
+    #[test]
+    fn html_unknown_tag_kept_literal() {
+        let r = MarkdownImportBuilder::new("keep <unknown>as text</unknown>")
+            .do_import()
+            .unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::Paragraph(runs) => {
+                let all: String = runs.iter().map(|r| r.text.as_str()).collect();
+                assert!(all.contains("unknown"), "all: {all}");
+            }
+            _ => panic!("expected Paragraph"),
+        }
+    }
+
+    #[test]
+    fn html_nested_tags_outer_applied() {
+        // 当前实现：外层标签内容按字面文本保留（不递归解析内层标签）
+        let r = MarkdownImportBuilder::new("<strong><em>both</em></strong>")
+            .do_import()
+            .unwrap();
+        match &r.content.blocks[0] {
+            DocumentBlock::Paragraph(runs) => {
+                let bold = runs.iter().find(|r| r.bold).expect("bold run");
+                assert!(bold.text.contains("both"), "bold text: {}", bold.text);
+                // 内层 <em> 标签文本按字面保留（未递归解析）
+                assert!(!runs.iter().any(|r| r.italic), "runs: {runs:?}");
+            }
+            _ => panic!("expected Paragraph"),
+        }
     }
 }

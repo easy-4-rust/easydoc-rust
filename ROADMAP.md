@@ -22,7 +22,7 @@ For the full list of changes in each release, see [CHANGELOG.md](CHANGELOG.md).
 
 **Known issues carried forward to 0.1.0:**
 
-- MD-to-DOCX missing: HTML tags, blockquotes `>`, task lists `- [ ]`, footnotes, strikethrough, front matter, math `$...$` — ✅ 已补齐 strikethrough / 块级数学 `$$...$$` / 脚注（0.1.0-alpha.3 前完成；HTML 标签内联渲染仍在 0.1.0 目标）
+- MD-to-DOCX missing: HTML tags, blockquotes `>`, task lists `- [ ]`, footnotes, strikethrough, front matter, math `$...$` — ✅ 全部补齐：strikethrough / 块级数学 `$$...$$` / 脚注 / HTML 内联标签（`<strong>`/`<b>`/`<em>`/`<i>`/`<code>`/`<a>`/`<br>`）+ 块级 `<hr>`/`<img>`，含往返测试
 - serde `Vec<u8>` serializes as JSON array instead of base64 — ✅ 已改为 base64（向后兼容旧数字数组）
 - MCP `resources/subscribe` notification not implemented — ✅ 已实现 subscribe/unsubscribe（同步 stdio 模型不推送变化通知）
 - Nested list: unbalanced ilvl (e.g. 0 to 2 skipping 1) creates empty intermediate containers — ✅ 已确认不创建空容器（跳级时直接挂载最近层级，有测试覆盖）
@@ -47,7 +47,7 @@ For the full list of changes in each release, see [CHANGELOG.md](CHANGELOG.md).
 
 ### Markdown-to-DOCX completion
 
-- HTML tags: `<br>`, `<hr>`, `<em>`, `<strong>`, `<code>`, `<a>`, `<img>`
+- HTML tags: `<br>`, `<hr>`, `<em>`, `<strong>`, `<code>`, `<a>`, `<img>` — ✅ 已实现（内联 `<strong>`/`<b>`/`<em>`/`<i>`/`<code>`/`<a href>`/`<br>` → run 属性；块级 `<hr>` → ThematicBreak、`<img>` → Image）
 - Blockquotes (`>`) with nesting
 - Task lists (`- [ ]`, `- [x]`)
 - Footnotes (`[^1]`)
