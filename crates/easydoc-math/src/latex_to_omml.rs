@@ -346,12 +346,23 @@ impl Parser {
     }
 
     /// 读取 n-ary 算子的 `_下限`/`^上限`（顺序任意）。
+    ///
+    /// 跳过 `\limits`/`\nolimits` 布局修饰符（n-ary 的 `limLoc` 已编码
+    /// 布局信息，修饰符仅需消费无需输出）。
     #[allow(clippy::type_complexity)]
     fn parse_nary_limits(&mut self) -> PResult<(Option<Box<Node>>, Option<Box<Node>>)> {
         let mut sub = None;
         let mut sup = None;
         loop {
             self.skip_space();
+            if self.at_command("limits") {
+                self.i += "\\limits".len();
+                continue;
+            }
+            if self.at_command("nolimits") {
+                self.i += "\\nolimits".len();
+                continue;
+            }
             match self.peek() {
                 Some('_') => {
                     self.i += 1;

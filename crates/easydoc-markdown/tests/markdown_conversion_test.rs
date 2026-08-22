@@ -185,7 +185,8 @@ fn markdown_import_to_docx_preserves_math_and_footnote() {
     // 用 sax 流式读取验证 Math 块还原 + 脚注文本保留。
     let mut reader = easydoc_reader::DocxSaxReader::from_path(&docx_path).expect("sax reader");
     let readback = reader.read_blocks().expect("sax read");
-    // Math 块存在且 omml 可转回 LaTeX
+    // Math 块存在且 omml 可转回 LaTeX（精确断言；内联 $x^2$ 在导入时作为
+    // 段落文本保留，仅块级 $\sum_{i=1}^n i$ 成为 Math 块）
     let math_blocks: Vec<&DocumentBlock> = readback
         .iter()
         .filter(|b| matches!(b, DocumentBlock::Math { .. }))
@@ -194,6 +195,7 @@ fn markdown_import_to_docx_preserves_math_and_footnote() {
         !math_blocks.is_empty(),
         "sax should restore Math blocks: {readback:?}"
     );
+    let mut roundtrip_latex = Vec::new();
     for b in &math_blocks {
         if let DocumentBlock::Math {
             omml: Some(omml), ..
@@ -202,8 +204,11 @@ fn markdown_import_to_docx_preserves_math_and_footnote() {
             let latex =
                 easydoc_markdown::math::omml_to_latex::convert(omml).expect("omml to latex");
             assert!(!latex.is_empty(), "latex should not be empty");
+            roundtrip_latex.push(latex);
         }
     }
+    assert_eq!(roundtrip_latex.len(), 1, "one display formula roundtripped");
+    assert_eq!(roundtrip_latex[0], r"\sum_{i=1}^{n}i");
     // 脚注定义文本保留
     let all_text: String = readback.iter().fold(String::new(), |mut acc, b| {
         let _ = write!(acc, "{b:?}");

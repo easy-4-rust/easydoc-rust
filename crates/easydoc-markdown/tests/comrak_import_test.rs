@@ -298,7 +298,8 @@ fn comrak_math_roundtrip_through_docx_omml() {
         "sax should restore 2 Math blocks: {readback:?}"
     );
 
-    // Math 块 omml 可转换回 LaTeX（公式往返闭环）
+    // Math 块 omml 可转换回 LaTeX（公式往返闭环，精确断言——两方向均为自研转换器）
+    let mut roundtrip_latex = Vec::new();
     for b in &readback {
         if let DocumentBlock::Math {
             omml: Some(omml), ..
@@ -307,8 +308,12 @@ fn comrak_math_roundtrip_through_docx_omml() {
             let latex =
                 easydoc_markdown::math::omml_to_latex::convert(omml).expect("omml to latex");
             assert!(!latex.is_empty(), "latex should not be empty");
+            roundtrip_latex.push(latex);
         }
     }
+    assert_eq!(roundtrip_latex.len(), 2, "two formulas roundtripped");
+    assert_eq!(roundtrip_latex[0], r"\frac{a}{b}");
+    assert_eq!(roundtrip_latex[1], r"\int_{0}^{1}x^{2}dx");
 }
 
 /// 解压 docx 读取 document.xml。

@@ -4,7 +4,9 @@
 //! for inclusion in Markdown `$...$` or `$$...$$`.
 //!
 //! Ported from the Python `markitdown` project (`omml.py`), which itself was
-//! adapted from [dwml](https://github.com/xiilei/dwml).
+//! adapted from [dwml](https://github.com/xiilei/dwml)。结构语义（phantom/
+//! borderBox/run 样式）参考 [litchi](https://crates.io/crates/litchi)
+//! （Apache-2.0）。来源与版权详见仓库根 `THIRD_PARTY.md`。
 
 use std::collections::HashMap;
 use std::io::BufRead;
@@ -15,9 +17,10 @@ use quick_xml::events::Event;
 
 use super::latex_dict::{
     self, ACCENT_DEFAULT, ALN, ARRAY_TEMPLATE, BAR_POS_DEFAULT, BRK, CHARS, DELIMITER_DEFAULT_LEFT,
-    DELIMITER_DEFAULT_RIGHT, DELIMITER_NULL, DELIMITER_TEMPLATE, FRACTION_DEFAULT, FUNC_PLACE,
-    GROUP_CHR_DEFAULT, LIM_ARROW_FROM, LIM_ARROW_TO, LIM_UPPER_TEMPLATE, MATRIX_TEMPLATE,
-    RADICAL_DEFAULT_TEMPLATE, RADICAL_DEG_TEMPLATE, SUB_TEMPLATE, SUP_TEMPLATE, run_style_command,
+    DELIMITER_DEFAULT_RIGHT, DELIMITER_NULL, DELIMITER_STACK_TEMPLATE, DELIMITER_TEMPLATE,
+    FRACTION_DEFAULT, FUNC_PLACE, GROUP_CHR_DEFAULT, LIM_ARROW_FROM, LIM_ARROW_TO,
+    LIM_UPPER_TEMPLATE, MATRIX_TEMPLATE, RADICAL_DEFAULT_TEMPLATE, RADICAL_DEG_TEMPLATE,
+    SUB_TEMPLATE, SUP_TEMPLATE, run_style_command,
 };
 
 /// The OMML XML namespace prefix as it appears in prefixed documents (`m:`).
@@ -52,6 +55,11 @@ struct OmmlConverter {
 }
 
 /// Parsed properties from an `<m:xxxPr>` element.
+///
+/// 属性既可能出现在 Pr 元素的**自身属性**上（`<m:dPr m:begChr="["/>`，
+/// 真实 Word 的常见形式），也可能出现在**子元素带 `m:val`** 上
+/// （`<m:dPr><m:begChr m:val="["/></m:dPr>`，本项目自产 OMML 的形式）；
+/// [`OmmlConverter::fill_pr`] 两种形式都读取。
 struct PrProps {
     /// Raw `chr` attribute value.
     chr: Option<String>,
@@ -63,6 +71,22 @@ struct PrProps {
     end_chr: Option<String>,
     /// Raw `type` attribute value.
     typ: Option<String>,
+    /// Raw `sepChr` attribute value（分隔符内堆叠元素之间的分隔符）。
+    sep_chr: Option<String>,
+    /// Raw `limLoc` attribute value（n-ary 上下限位置：`undOvr`/`subSup`）。
+    lim_loc: Option<String>,
+    /// Raw `subHide` attribute value（n-ary 下标隐藏）。
+    sub_hide: Option<String>,
+    /// Raw `supHide` attribute value（n-ary 上标隐藏）。
+    sup_hide: Option<String>,
+    /// Raw `grow` attribute value（n-ary 是否拉伸）。
+    grow: Option<String>,
+    /// Raw `opEmu` attribute value（box 运算符模拟器）。
+    op_emu: Option<String>,
+    /// Raw `noBreak` attribute value（box 禁止换行）。
+    no_break: Option<String>,
+    /// Raw `diff` attribute value（box 微分算子）。
+    diff: Option<String>,
 }
 
 impl PrProps {
@@ -73,6 +97,14 @@ impl PrProps {
             beg_chr: None,
             end_chr: None,
             typ: None,
+            sep_chr: None,
+            lim_loc: None,
+            sub_hide: None,
+            sup_hide: None,
+            grow: None,
+            op_emu: None,
+            no_break: None,
+            diff: None,
         }
     }
 }
@@ -172,8 +204,12 @@ impl OmmlConverter {
         reader: &mut Reader<R>,
     ) -> easydoc_core::Result<Option<String>> {
         match stag {
-            "oMath" | "e" | "num" | "den" | "deg" | "box" | "sSub" | "sSup" | "sSubSup" => {
+            "oMath" | "e" | "num" | "den" | "deg" | "sSub" | "sSup" | "sSubSup" => {
                 let latex = self.process_children_to_string(reader)?;
+                Ok(Some(latex))
+            }
+            "box" => {
+                let latex = self.process_box(reader)?;
                 Ok(Some(latex))
             }
             "spre" => {
@@ -289,6 +325,51 @@ impl OmmlConverter {
         Ok(format!("\\boxed{{{inner}}}"))
     }
 
+    /// `<m:box>` -- 盒装表达式。
+    ///
+    /// 解析 `boxPr`：`opEmu`（运算符模拟器，内容按大算子行为）→ `\mathop{...}`；
+    /// `noBreak`（禁止换行）/`diff`（微分算子）对 LaTeX 文本输出无影响，保持内容。
+    fn process_box<R: BufRead>(&mut self, reader: &mut Reader<R>) -> easydoc_core::Result<String> {
+        let mut inner = String::new();
+        let mut pr = PrProps::empty();
+        let mut buf = Vec::new();
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Ok(Event::Start(e)) => {
+                    let tag = local_name(&e);
+                    match tag.as_str() {
+                        "e" => inner = self.process_children_to_string(reader)?,
+                        "boxPr" => {
+                            self.fill_pr(&e, reader, &mut pr)?;
+                        }
+                        _ => {
+                            let _ = self.process_children_to_string(reader)?;
+                        }
+                    }
+                }
+                Ok(Event::Empty(e)) => {
+                    let tag = local_name(&e);
+                    if tag == "boxPr" {
+                        apply_pr_attrs(&e, &mut pr);
+                    }
+                }
+                Ok(Event::End(_) | Event::Eof) => break,
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(easydoc_core::DocError::Format(format!(
+                        "OMML XML parse error: {e}"
+                    )));
+                }
+            }
+            buf.clear();
+        }
+        if pr.op_emu.as_deref() == Some("1") {
+            Ok(format!("\\mathop{{{inner}}}"))
+        } else {
+            Ok(inner)
+        }
+    }
+
     // -----------------------------------------------------------------------
     // OMML element handlers
     // -----------------------------------------------------------------------
@@ -385,11 +466,17 @@ impl OmmlConverter {
                         "num" => num = self.process_children_to_string(reader)?,
                         "den" => den = self.process_children_to_string(reader)?,
                         "fPr" => {
-                            self.fill_pr(reader, &mut pr)?;
+                            self.fill_pr(&e, reader, &mut pr)?;
                         }
                         _ => {
                             let _ = self.process_children_to_string(reader)?;
                         }
+                    }
+                }
+                Ok(Event::Empty(e)) => {
+                    let tag = local_name(&e);
+                    if tag == "fPr" {
+                        apply_pr_attrs(&e, &mut pr);
                     }
                 }
                 Ok(Event::End(_) | Event::Eof) => break,
@@ -466,11 +553,17 @@ impl OmmlConverter {
                     match tag.as_str() {
                         "e" => texts.push(self.process_children_to_string(reader)?),
                         "dPr" => {
-                            self.fill_pr(reader, &mut pr)?;
+                            self.fill_pr(&e, reader, &mut pr)?;
                         }
                         _ => {
                             let _ = self.process_children_to_string(reader)?;
                         }
+                    }
+                }
+                Ok(Event::Empty(e)) => {
+                    let tag = local_name(&e);
+                    if tag == "dPr" {
+                        apply_pr_attrs(&e, &mut pr);
                     }
                 }
                 Ok(Event::End(_) | Event::Eof) => break,
@@ -507,11 +600,20 @@ impl OmmlConverter {
         } else {
             right
         };
-        let text = texts.join("");
-        let result = DELIMITER_TEMPLATE
-            .replace("{left}", &left)
-            .replace("{text}", &text)
-            .replace("{right}", &right);
+        // 多个 `<m:e>` 表示上下堆叠（如 \left(\begin{matrix}..\end{matrix}\right)）；
+        // `sepChr`（分隔符内堆叠元素的分隔字符）在 LaTeX 中由矩阵行换行承担，不单独输出。
+        let text = texts.join(BRK);
+        let result = if texts.len() > 1 {
+            DELIMITER_STACK_TEMPLATE
+                .replace("{left}", &left)
+                .replace("{text}", &text)
+                .replace("{right}", &right)
+        } else {
+            DELIMITER_TEMPLATE
+                .replace("{left}", &left)
+                .replace("{text}", &text)
+                .replace("{right}", &right)
+        };
         Ok(format!("{pr_text}{result}"))
     }
 
@@ -530,11 +632,17 @@ impl OmmlConverter {
                     match tag.as_str() {
                         "e" => inner = self.process_children_to_string(reader)?,
                         "accPr" => {
-                            self.fill_pr(reader, &mut pr)?;
+                            self.fill_pr(&e, reader, &mut pr)?;
                         }
                         _ => {
                             let _ = self.process_children_to_string(reader)?;
                         }
+                    }
+                }
+                Ok(Event::Empty(e)) => {
+                    let tag = local_name(&e);
+                    if tag == "accPr" {
+                        apply_pr_attrs(&e, &mut pr);
                     }
                 }
                 Ok(Event::End(_) | Event::Eof) => break,
@@ -567,11 +675,17 @@ impl OmmlConverter {
                     match tag.as_str() {
                         "e" => inner = self.process_children_to_string(reader)?,
                         "barPr" => {
-                            self.fill_pr(reader, &mut pr)?;
+                            self.fill_pr(&e, reader, &mut pr)?;
                         }
                         _ => {
                             let _ = self.process_children_to_string(reader)?;
                         }
+                    }
+                }
+                Ok(Event::Empty(e)) => {
+                    let tag = local_name(&e);
+                    if tag == "barPr" {
+                        apply_pr_attrs(&e, &mut pr);
                     }
                 }
                 Ok(Event::End(_) | Event::Eof) => break,
@@ -596,12 +710,15 @@ impl OmmlConverter {
     ///
     /// 结构：`<m:nary><m:naryPr><m:chr m:val="∑"/></m:naryPr>
     /// <m:sub>lower</m:sub><m:sup>upper</m:sup><m:e>base</m:e></m:nary>`
-    /// LaTeX 输出：`\sum_{lower}^{upper}base`。
+    /// LaTeX 输出：`\sum_{lower}^{upper}base`，并按 `limLoc` 在非默认布局时
+    /// 显式输出 `\limits`/`\nolimits`，按 `subHide`/`supHide` 省略上下标。
     fn process_nary<R: BufRead>(&mut self, reader: &mut Reader<R>) -> easydoc_core::Result<String> {
         let mut bo = String::new();
+        let mut op_chr = String::new();
         let mut sub = String::new();
         let mut sup = String::new();
         let mut base = String::new();
+        let mut pr = PrProps::empty();
         let mut buf = Vec::new();
         loop {
             match reader.read_event_into(&mut buf) {
@@ -609,9 +726,9 @@ impl OmmlConverter {
                     let tag = local_name(&e);
                     match tag.as_str() {
                         "naryPr" => {
-                            let mut pr = PrProps::empty();
-                            self.fill_pr(reader, &mut pr)?;
+                            self.fill_pr(&e, reader, &mut pr)?;
                             if let Some(chr) = &pr.chr {
+                                op_chr.clone_from(chr);
                                 bo = self
                                     .big_operators
                                     .get(chr.as_str())
@@ -626,6 +743,19 @@ impl OmmlConverter {
                         }
                     }
                 }
+                Ok(Event::Empty(e)) => {
+                    let tag = local_name(&e);
+                    if tag == "naryPr" {
+                        apply_pr_attrs(&e, &mut pr);
+                        if let Some(chr) = &pr.chr {
+                            op_chr.clone_from(chr);
+                            bo = self
+                                .big_operators
+                                .get(chr.as_str())
+                                .map_or_else(|| chr.clone(), |s| (*s).to_owned());
+                        }
+                    }
+                }
                 Ok(Event::End(_) | Event::Eof) => break,
                 Ok(_) => {}
                 Err(e) => {
@@ -636,14 +766,34 @@ impl OmmlConverter {
             }
             buf.clear();
         }
-        // 组装：\sum_{sub}^{sup}base（无上下标时省略）
-        let mut result = bo;
+        // subHide/supHide=1 时省略对应上下标（即使子元素存在内容）
+        if pr.sub_hide.as_deref() == Some("1") {
+            sub.clear();
+        }
+        if pr.sup_hide.as_deref() == Some("1") {
+            sup.clear();
+        }
+        // 组装：\sum\limits_{sub}^{sup}base（无上下标时省略）
+        let mut result = bo.clone();
         if !sub.is_empty() || !sup.is_empty() {
+            // limLoc 仅在偏离该算子 LaTeX 默认布局时显式写出：
+            // 求和类默认 \limits，积分类默认 \nolimits；bo 须为已知命令。
+            let wants_limits = pr.lim_loc.as_deref() == Some("undOvr");
+            if bo.starts_with('\\') && wants_limits == is_integral_operator(&op_chr) {
+                if wants_limits {
+                    result.push_str("\\limits");
+                } else {
+                    result.push_str("\\nolimits");
+                }
+            }
             result.push_str("_{");
             result.push_str(&sub);
             result.push_str("}^{");
             result.push_str(&sup);
             result.push('}');
+        } else if bo.starts_with('\\') && !base.is_empty() {
+            // 命令后无上下标直接接基式会拼成 \sumx 之类的非法命令，补空格分隔
+            result.push(' ');
         }
         result.push_str(&base);
         Ok(result)
@@ -739,11 +889,17 @@ impl OmmlConverter {
                     match tag.as_str() {
                         "e" => inner = self.process_children_to_string(reader)?,
                         "groupChrPr" => {
-                            self.fill_pr(reader, &mut pr)?;
+                            self.fill_pr(&e, reader, &mut pr)?;
                         }
                         _ => {
                             let _ = self.process_children_to_string(reader)?;
                         }
+                    }
+                }
+                Ok(Event::Empty(e)) => {
+                    let tag = local_name(&e);
+                    if tag == "groupChrPr" {
+                        apply_pr_attrs(&e, &mut pr);
                     }
                 }
                 Ok(Event::End(_) | Event::Eof) => break,
@@ -994,53 +1150,39 @@ impl OmmlConverter {
     // Property parsing
     // -----------------------------------------------------------------------
 
-    /// Fill a `PrProps` struct from the children of an `xxxPr` element.
-    /// Consumes through the matching end-tag.
+    /// Fill a `PrProps` struct from an `xxxPr` element.
+    ///
+    /// 同时读取两种属性形式：
+    /// 1. Pr 元素**自身属性**（`<m:dPr m:begChr="["/>`，真实 Word 的常见形式）；
+    /// 2. **子元素带 `m:val`**（`<m:dPr><m:begChr m:val="["/></m:dPr>`，
+    ///    本项目自产 OMML 的形式）。
+    ///
+    /// 对 Start 形式的 Pr，消费到匹配的 end-tag。
     fn fill_pr<R: BufRead>(
         &mut self,
+        e: &BytesStart,
         reader: &mut Reader<R>,
         pr: &mut PrProps,
     ) -> easydoc_core::Result<()> {
+        apply_pr_attrs(e, pr);
         let mut buf = Vec::new();
         loop {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Start(e)) => {
                     let tag = local_name(&e);
-                    match tag.as_str() {
-                        "chr" | "pos" | "begChr" | "endChr" | "type" => {
-                            if let Some(val) = attr_val(&e, "val") {
-                                match tag.as_str() {
-                                    "chr" => pr.chr = Some(val),
-                                    "pos" => pr.pos = Some(val),
-                                    "begChr" => pr.beg_chr = Some(val),
-                                    "endChr" => pr.end_chr = Some(val),
-                                    "type" => pr.typ = Some(val),
-                                    _ => {}
-                                }
-                            }
-                            let _ = self.process_children_to_string(reader)?;
-                        }
-                        _ => {
-                            let _ = self.process_children_to_string(reader)?;
-                        }
+                    if PR_FIELDS.contains(&tag.as_str())
+                        && let Some(val) = attr_val(&e, "val")
+                    {
+                        apply_pr_field(pr, &tag, val);
                     }
+                    let _ = self.process_children_to_string(reader)?;
                 }
                 Ok(Event::Empty(e)) => {
                     let tag = local_name(&e);
-                    match tag.as_str() {
-                        "chr" | "pos" | "begChr" | "endChr" | "type" => {
-                            if let Some(val) = attr_val(&e, "val") {
-                                match tag.as_str() {
-                                    "chr" => pr.chr = Some(val),
-                                    "pos" => pr.pos = Some(val),
-                                    "begChr" => pr.beg_chr = Some(val),
-                                    "endChr" => pr.end_chr = Some(val),
-                                    "type" => pr.typ = Some(val),
-                                    _ => {}
-                                }
-                            }
-                        }
-                        _ => {}
+                    if PR_FIELDS.contains(&tag.as_str())
+                        && let Some(val) = attr_val(&e, "val")
+                    {
+                        apply_pr_field(pr, &tag, val);
                     }
                 }
                 Ok(Event::End(_) | Event::Eof) => break,
@@ -1095,6 +1237,50 @@ fn attr_val(e: &BytesStart, name: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// `<m:xxxPr>` 可解析的属性名全集（自身属性形式与子元素 `m:val` 形式共用）。
+const PR_FIELDS: &[&str] = &[
+    "chr", "pos", "begChr", "endChr", "type", "sepChr", "limLoc", "subHide", "supHide", "grow",
+    "opEmu", "noBreak", "diff",
+];
+
+/// n-ary 算子是否为积分类（LaTeX 默认上下限置于角标 `\nolimits`）；
+/// 求和/乘积类默认置于上下 `\limits`。
+fn is_integral_operator(chr: &str) -> bool {
+    matches!(
+        chr,
+        "\u{222b}" | "\u{222c}" | "\u{222d}" | "\u{222e}" | "\u{222f}" | "\u{2230}"
+    )
+}
+
+/// 把一个属性字段写入 `PrProps`。
+fn apply_pr_field(pr: &mut PrProps, tag: &str, val: String) {
+    match tag {
+        "chr" => pr.chr = Some(val),
+        "pos" => pr.pos = Some(val),
+        "begChr" => pr.beg_chr = Some(val),
+        "endChr" => pr.end_chr = Some(val),
+        "type" => pr.typ = Some(val),
+        "sepChr" => pr.sep_chr = Some(val),
+        "limLoc" => pr.lim_loc = Some(val),
+        "subHide" => pr.sub_hide = Some(val),
+        "supHide" => pr.sup_hide = Some(val),
+        "grow" => pr.grow = Some(val),
+        "opEmu" => pr.op_emu = Some(val),
+        "noBreak" => pr.no_break = Some(val),
+        "diff" => pr.diff = Some(val),
+        _ => {}
+    }
+}
+
+/// 读取 Pr 元素**自身属性**形式的所有字段（`<m:dPr m:begChr="["/>`）。
+fn apply_pr_attrs(e: &BytesStart, pr: &mut PrProps) {
+    for tag in PR_FIELDS {
+        if let Some(val) = attr_val(e, tag) {
+            apply_pr_field(pr, tag, val);
+        }
+    }
 }
 
 /// Capture the run style from an `<m:sty>` / `<m:scr>` element into the
@@ -1718,5 +1904,173 @@ mod tests {
         let xml = omath("<m:r><m:t>a%b</m:t></m:r>");
         let result = convert(&xml).unwrap();
         assert_eq!(result, "a\\%b");
+    }
+
+    // ===== A1: 属性形式 Pr（真实 Word 产出 `<m:dPr m:begChr="["/>`）=====
+
+    #[test]
+    fn delimiter_attr_form_pr() {
+        // 真实 Word 的空元素属性形式：<m:dPr m:begChr="[" m:endChr="]"/>
+        let xml = omath(
+            "<m:d><m:dPr m:begChr=\"[\" m:endChr=\"]\"/><m:e><m:r><m:t>x</m:t></m:r></m:e></m:d>",
+        );
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\left[x\right]");
+    }
+
+    #[test]
+    fn delimiter_attr_form_start_tag() {
+        // Start 标签自身带属性（非 Empty 形式）
+        let xml = omath(
+            "<m:d><m:dPr m:begChr=\"{\" m:endChr=\"}\"></m:dPr><m:e><m:r><m:t>x</m:t></m:r></m:e></m:d>",
+        );
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\left\{x\right\}");
+    }
+
+    #[test]
+    fn nary_attr_form_pr() {
+        // 属性形式的 naryPr：chr/limLoc 直接从属性读取
+        let xml = omath(
+            "<m:nary><m:naryPr m:chr=\"∫\" m:limLoc=\"subSup\"/>\
+             <m:sub><m:r><m:t>0</m:t></m:r></m:sub>\
+             <m:sup><m:r><m:t>1</m:t></m:r></m:sup>\
+             <m:e><m:r><m:t>x</m:t></m:r></m:e></m:nary>",
+        );
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\int_{0}^{1}x");
+    }
+
+    #[test]
+    fn fraction_attr_form_pr() {
+        // 属性形式的 fPr：type 直接从属性读取
+        let xml = omath(
+            "<m:f><m:fPr m:type=\"noBar\"/><m:num><m:r><m:t>a</m:t></m:r></m:num>\
+             <m:den><m:r><m:t>b</m:t></m:r></m:den></m:f>",
+        );
+        let result = convert(&xml).unwrap();
+        assert!(
+            result.contains("genfrac"),
+            "noBar 应输出 \\genfrac：{result}"
+        );
+    }
+
+    // ===== A2: m:box / boxPr =====
+
+    #[test]
+    fn box_passthrough_content() {
+        let xml = omath("<m:box><m:e><m:r><m:t>x+y</m:t></m:r></m:e></m:box>");
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, "x+y");
+    }
+
+    #[test]
+    fn box_op_emu_wraps_mathop() {
+        let xml =
+            omath("<m:box><m:boxPr m:opEmu=\"1\"/><m:e><m:r><m:t>max</m:t></m:r></m:e></m:box>");
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\mathop{max}");
+    }
+
+    // ===== A3: m:d 多 e 堆叠 =====
+
+    #[test]
+    fn delimiter_stacked_multiple_e() {
+        let xml = omath(
+            "<m:d><m:dPr m:begChr=\"(\" m:endChr=\")\"/>\
+             <m:e><m:r><m:t>a</m:t></m:r></m:e>\
+             <m:e><m:r><m:t>b</m:t></m:r></m:e>\
+             <m:e><m:r><m:t>c</m:t></m:r></m:e></m:d>",
+        );
+        let result = convert(&xml).unwrap();
+        assert_eq!(
+            result, r"\left(\begin{matrix}a\\b\\c\end{matrix}\right)",
+            "多 e 应上下堆叠：{result}"
+        );
+    }
+
+    // ===== A4: m:naryPr limLoc / subHide / supHide =====
+
+    #[test]
+    fn nary_lim_loc_undovr_int_emits_limits() {
+        // 积分默认 \nolimits；显式 undOvr 时输出 \limits
+        let xml = omath(
+            "<m:nary><m:naryPr m:chr=\"∫\" m:limLoc=\"undOvr\"/>\
+             <m:sub><m:r><m:t>0</m:t></m:r></m:sub>\
+             <m:sup><m:r><m:t>1</m:t></m:r></m:sup>\
+             <m:e><m:r><m:t>x</m:t></m:r></m:e></m:nary>",
+        );
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\int\limits_{0}^{1}x");
+    }
+
+    #[test]
+    fn nary_sub_sup_hide_omits_scripts() {
+        let xml = omath(
+            "<m:nary><m:naryPr m:chr=\"∑\" m:subHide=\"1\" m:supHide=\"1\"/>\
+             <m:sub><m:r><m:t>i</m:t></m:r></m:sub>\
+             <m:sup><m:r><m:t>n</m:t></m:r></m:sup>\
+             <m:e><m:r><m:t>x</m:t></m:r></m:e></m:nary>",
+        );
+        let result = convert(&xml).unwrap();
+        assert_eq!(
+            result, r"\sum x",
+            "隐藏上下标后不应输出 _{{...}}^{{...}}：{result}"
+        );
+    }
+
+    #[test]
+    fn nary_sum_default_no_limits_marker() {
+        // 求和默认 \limits，不显式输出，保持简洁
+        let xml = omath(
+            "<m:nary><m:naryPr><m:chr m:val=\"∑\"/><m:limLoc m:val=\"undOvr\"/></m:naryPr>\
+             <m:sub><m:r><m:t>i</m:t></m:r></m:sub>\
+             <m:sup><m:r><m:t>n</m:t></m:r></m:sup>\
+             <m:e><m:r><m:t>x</m:t></m:r></m:e></m:nary>",
+        );
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\sum_{i}^{n}x");
+    }
+
+    // ===== A5: 字母表补全 =====
+
+    #[test]
+    fn bold_italic_alphabet() {
+        // 数学粗斜体 A（U+1D468）与 a（U+1D482）
+        let xml = omath("<m:r><m:t>\u{1d468}\u{1d482}</m:t></m:r>");
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\boldsymbol{A}\boldsymbol{a}");
+    }
+
+    #[test]
+    fn sans_serif_alphabet() {
+        // 数学无衬线 A（U+1D5A0）
+        let xml = omath("<m:r><m:t>\u{1d5a0}</m:t></m:r>");
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\mathsf{A}");
+    }
+
+    #[test]
+    fn monospace_alphabet() {
+        // 数学等宽 a（U+1D68A）
+        let xml = omath("<m:r><m:t>\u{1d68a}</m:t></m:r>");
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\mathtt{a}");
+    }
+
+    #[test]
+    fn double_struck_uppercase() {
+        // 数学双空 S（U+1D54A）
+        let xml = omath("<m:r><m:t>\u{1d54a}</m:t></m:r>");
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\mathbb{S}");
+    }
+
+    #[test]
+    fn math_digits() {
+        // 数学粗体数字 0（U+1D7CE）与双空 1（U+1D7D9）
+        let xml = omath("<m:r><m:t>\u{1d7ce}\u{1d7d9}</m:t></m:r>");
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\mathbf{0}\mathbb{1}");
     }
 }
