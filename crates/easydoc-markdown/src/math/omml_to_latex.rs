@@ -17,7 +17,7 @@ use super::latex_dict::{
     self, ACCENT_DEFAULT, ALN, ARRAY_TEMPLATE, BAR_POS_DEFAULT, BRK, CHARS, DELIMITER_DEFAULT_LEFT,
     DELIMITER_DEFAULT_RIGHT, DELIMITER_NULL, DELIMITER_TEMPLATE, FRACTION_DEFAULT, FUNC_PLACE,
     GROUP_CHR_DEFAULT, LIM_ARROW_FROM, LIM_ARROW_TO, LIM_UPPER_TEMPLATE, MATRIX_TEMPLATE,
-    RADICAL_DEFAULT_TEMPLATE, RADICAL_DEG_TEMPLATE, SUB_TEMPLATE, SUP_TEMPLATE,
+    RADICAL_DEFAULT_TEMPLATE, RADICAL_DEG_TEMPLATE, SUB_TEMPLATE, SUP_TEMPLATE, run_style_command,
 };
 
 /// The OMML XML namespace prefix as it appears in prefixed documents (`m:`).
@@ -42,7 +42,7 @@ pub fn convert(omml: &str) -> easydoc_core::Result<String> {
 
 /// Stateful converter holding lazily-built symbol tables.
 struct OmmlConverter {
-    text_symbols: HashMap<&'static str, &'static str>,
+    text_symbols: HashMap<String, String>,
     big_operators: HashMap<&'static str, &'static str>,
     accents: HashMap<&'static str, &'static str>,
     func_names: HashMap<&'static str, &'static str>,
@@ -180,6 +180,14 @@ impl OmmlConverter {
                 let latex = self.process_spre(reader)?;
                 Ok(Some(latex))
             }
+            "phant" => {
+                let latex = self.process_phantom(reader)?;
+                Ok(Some(latex))
+            }
+            "borderBox" => {
+                let latex = self.process_border_box(reader)?;
+                Ok(Some(latex))
+            }
             "r" => {
                 let latex = self.process_run(reader)?;
                 Ok(Some(latex))
@@ -259,6 +267,28 @@ impl OmmlConverter {
         }
     }
 
+    /// `<m:phant>` -- phantom：内容不可见但占据空间（常用于对齐排版）。
+    ///
+    /// 参考 litchi 的 `MathNode::Phantom` 处理，输出 `\phantom{...}`。
+    fn process_phantom<R: BufRead>(
+        &mut self,
+        reader: &mut Reader<R>,
+    ) -> easydoc_core::Result<String> {
+        let inner = self.process_children_to_string(reader)?;
+        Ok(format!("\\phantom{{{inner}}}"))
+    }
+
+    /// `<m:borderBox>` -- 边框盒子：内容外加方框。
+    ///
+    /// 参考 litchi 的 `MathNode::BorderBox` 处理，输出 `\boxed{...}`。
+    fn process_border_box<R: BufRead>(
+        &mut self,
+        reader: &mut Reader<R>,
+    ) -> easydoc_core::Result<String> {
+        let inner = self.process_children_to_string(reader)?;
+        Ok(format!("\\boxed{{{inner}}}"))
+    }
+
     // -----------------------------------------------------------------------
     // OMML element handlers
     // -----------------------------------------------------------------------
@@ -266,12 +296,17 @@ impl OmmlConverter {
     /// `<m:r>` -- text run. Maps each character through the symbol table and
     /// escapes LaTeX special characters.
     ///
-    /// Consumes through the closing `</m:r>` tag (depth-tracked).
+    /// Consumes through the closing `</m:r>` tag (depth-tracked). Honors the
+    /// run style from `<m:rPr>`: `<m:sty>` (`p`/`b`/`i`/`bi`) and `<m:scr>`
+    /// (double-struck, script, ...) wrap the run text in the corresponding
+    /// LaTeX style command (`\mathrm{}`, `\mathbf{}`, ...).
     fn process_run<R: BufRead>(&mut self, reader: &mut Reader<R>) -> easydoc_core::Result<String> {
         let mut text_parts = Vec::new();
         let mut buf = Vec::new();
         let mut in_text = false;
         let mut depth = 1_u32;
+        let mut sty_cmd: Option<&'static str> = None;
+        let mut scr_cmd: Option<&'static str> = None;
         loop {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Start(e)) => {
@@ -279,6 +314,14 @@ impl OmmlConverter {
                     let tag = local_name(&e);
                     if tag == "t" {
                         in_text = true;
+                    } else if tag == "sty" || tag == "scr" {
+                        capture_run_style(&e, &tag, &mut sty_cmd, &mut scr_cmd);
+                    }
+                }
+                Ok(Event::Empty(e)) => {
+                    let tag = local_name(&e);
+                    if tag == "sty" || tag == "scr" {
+                        capture_run_style(&e, &tag, &mut sty_cmd, &mut scr_cmd);
                     }
                 }
                 Ok(Event::Text(t)) if in_text => {
@@ -289,7 +332,7 @@ impl OmmlConverter {
                         let s = c.encode_utf8(&mut char_buf);
                         match self.text_symbols.get(s) {
                             Some(replacement) => mapped.push_str(replacement),
-                            None => mapped.push_str(s),
+                            None => mapped.push_str(&escape_char(c)),
                         }
                     }
                     text_parts.push(mapped);
@@ -311,7 +354,16 @@ impl OmmlConverter {
             }
             buf.clear();
         }
-        Ok(escape_latex(&text_parts.join("")))
+        let content = text_parts.join("");
+        if content.is_empty() {
+            return Ok(content);
+        }
+        // `<m:scr>` 语义更丰富，优先级高于 `<m:sty>`。
+        let cmd = scr_cmd.or(sty_cmd);
+        Ok(match cmd {
+            Some(cmd) => format!("{cmd}{{{content}}}"),
+            None => content,
+        })
     }
 
     /// `<m:f>` -- fraction. Extracts `<m:num>` and `<m:den>` children and
@@ -431,27 +483,35 @@ impl OmmlConverter {
             }
             buf.clear();
         }
-        let left = pr.beg_chr.as_deref().map_or(DELIMITER_DEFAULT_LEFT, |v| {
-            self.text_symbols.get(v).map_or(v, |s| *s)
-        });
-        let right = pr.end_chr.as_deref().map_or(DELIMITER_DEFAULT_RIGHT, |v| {
-            self.text_symbols.get(v).map_or(v, |s| *s)
-        });
+        let left = match pr.beg_chr.as_deref() {
+            Some(v) => match self.text_symbols.get(v) {
+                Some(s) => s.clone(),
+                None => escape_latex(v),
+            },
+            None => DELIMITER_DEFAULT_LEFT.to_owned(),
+        };
+        let right = match pr.end_chr.as_deref() {
+            Some(v) => match self.text_symbols.get(v) {
+                Some(s) => s.clone(),
+                None => escape_latex(v),
+            },
+            None => DELIMITER_DEFAULT_RIGHT.to_owned(),
+        };
         let left = if left.is_empty() {
-            DELIMITER_NULL
+            DELIMITER_NULL.to_owned()
         } else {
-            &escape_latex(left)
+            left
         };
         let right = if right.is_empty() {
-            DELIMITER_NULL
+            DELIMITER_NULL.to_owned()
         } else {
-            &escape_latex(right)
+            right
         };
         let text = texts.join("");
         let result = DELIMITER_TEMPLATE
-            .replace("{left}", left)
+            .replace("{left}", &left)
             .replace("{text}", &text)
-            .replace("{right}", right);
+            .replace("{right}", &right);
         Ok(format!("{pr_text}{result}"))
     }
 
@@ -1037,6 +1097,27 @@ fn attr_val(e: &BytesStart, name: &str) -> Option<String> {
     None
 }
 
+/// Capture the run style from an `<m:sty>` / `<m:scr>` element into the
+/// corresponding slot. `<m:scr>` wins over `<m:sty>` when both are present.
+fn capture_run_style(
+    e: &BytesStart,
+    tag: &str,
+    sty_cmd: &mut Option<&'static str>,
+    scr_cmd: &mut Option<&'static str>,
+) {
+    let Some(val) = attr_val(e, "val") else {
+        return;
+    };
+    let Some(cmd) = run_style_command(&val) else {
+        return;
+    };
+    if tag == "scr" {
+        *scr_cmd = Some(cmd);
+    } else {
+        *sty_cmd = Some(cmd);
+    }
+}
+
 /// Escape LaTeX special characters in a text string.
 ///
 /// Characters `{ } _ ^ # & $ % ~` are backslash-escaped unless already preceded
@@ -1064,6 +1145,21 @@ fn escape_latex(input: &str) -> String {
         }
     }
     output
+}
+
+/// Escape a single LaTeX special character (`{ } _ ^ # & $ % ~`).
+///
+/// 与 `escape_latex` 的区别：`process_run` 中已映射的符号（如 `\mathbf{A}`）
+/// 原样输出、不再转义，只有未映射的字符走这里逐个转义。
+fn escape_char(c: char) -> String {
+    if CHARS.contains(&c) {
+        let mut out = String::with_capacity(2);
+        out.push('\\');
+        out.push(c);
+        out
+    } else {
+        c.to_string()
+    }
 }
 
 #[cfg(test)]
@@ -1526,5 +1622,101 @@ mod tests {
         let result = convert(&xml).unwrap();
         assert!(result.contains('x'), "got: {result}");
         assert!(result.contains('y'), "got: {result}");
+    }
+
+    #[test]
+    fn phantom_hides_content() {
+        // m:phant 的内容不可见但占据空间 → \phantom{...}（参考 litchi）
+        let xml = omath("<m:phant><m:e><m:r><m:t>x</m:t></m:r></m:e></m:phant>");
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\phantom{x}");
+    }
+
+    #[test]
+    fn border_box_wraps_content() {
+        // m:borderBox → \boxed{...}（参考 litchi）
+        let xml = omath("<m:borderBox><m:e><m:r><m:t>x</m:t></m:r></m:e></m:borderBox>");
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\boxed{x}");
+    }
+
+    #[test]
+    fn bold_run_style() {
+        // m:sty val="b" → \mathbf{...}
+        let xml = omath("<m:r><m:rPr><m:sty m:val=\"b\"/></m:rPr><m:t>x</m:t></m:r>");
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\mathbf{x}");
+    }
+
+    #[test]
+    fn italic_run_style() {
+        let xml = omath("<m:r><m:rPr><m:sty m:val=\"i\"/></m:rPr><m:t>f</m:t></m:r>");
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\mathit{f}");
+    }
+
+    #[test]
+    fn double_struck_scr_style() {
+        // m:scr val="ds"（双空）→ \mathbb{...}
+        let xml = omath("<m:r><m:rPr><m:scr m:val=\"ds\"/></m:rPr><m:t>x</m:t></m:r>");
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\mathbb{x}");
+    }
+
+    #[test]
+    fn scr_takes_precedence_over_sty() {
+        let xml = omath(
+            "<m:r><m:rPr><m:sty m:val=\"b\"/><m:scr m:val=\"ds\"/></m:rPr><m:t>z</m:t></m:r>",
+        );
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\mathbb{z}");
+    }
+
+    #[test]
+    fn bold_math_unicode_codepoint() {
+        // 数学粗体 A（U+1D400）与粗体 a（U+1D41A）
+        let xml = omath("<m:r><m:t>\u{1d400}\u{1d41a}</m:t></m:r>");
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\mathbf{A}\mathbf{a}");
+    }
+
+    #[test]
+    fn bold_greek_codepoint() {
+        // 数学粗体 α（U+1D6C2）
+        let xml = omath("<m:r><m:t>\u{1d6c2}</m:t></m:r>");
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\boldsymbol{\alpha}");
+    }
+
+    #[test]
+    fn bmp_greek_letter() {
+        // BMP 区段 α（U+03B1）
+        let xml = omath("<m:r><m:t>\u{03b1}</m:t></m:r>");
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, "\\alpha ");
+    }
+
+    #[test]
+    fn bmp_double_struck_r() {
+        // BMP 双空 ℝ（U+211D）
+        let xml = omath("<m:r><m:t>\u{211d}</m:t></m:r>");
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\mathbb{R}");
+    }
+
+    #[test]
+    fn symbol_mapping_survives_special_char_escaping() {
+        // 映射值含花括号时不得被二次转义；未映射的 _ 仍按字面转义
+        let xml = omath("<m:r><m:t>\u{211d}_x</m:t></m:r>");
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\mathbb{R}\_x");
+    }
+
+    #[test]
+    fn plain_text_special_chars_still_escaped() {
+        // 未映射字符仍需转义
+        let xml = omath("<m:r><m:t>a%b</m:t></m:r>");
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, "a\\%b");
     }
 }

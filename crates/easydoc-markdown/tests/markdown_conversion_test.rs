@@ -6,6 +6,7 @@ use easydoc_core::{
 };
 use easydoc_markdown::{MarkdownBuilder, MarkdownOptions, render_document};
 use easydoc_writer::{DocBuilder, Paragraph, Run};
+use std::fmt::Write;
 
 fn paragraph(text: &str) -> DocumentBlock {
     DocumentBlock::Paragraph(vec![DocumentTextRun {
@@ -205,7 +206,7 @@ fn markdown_import_to_docx_preserves_math_and_footnote() {
     }
     // 脚注定义文本保留
     let all_text: String = readback.iter().fold(String::new(), |mut acc, b| {
-        acc.push_str(&format!("{b:?}"));
+        let _ = write!(acc, "{b:?}");
         acc
     });
     assert!(

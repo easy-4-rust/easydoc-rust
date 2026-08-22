@@ -95,141 +95,379 @@ pub(crate) fn build_big_operators() -> HashMap<&'static str, &'static str> {
 ///
 /// Covers Greek letters (mathematical italic Unicode block), relation symbols,
 /// arrows, ordinary symbols, binary operators, and Latin letters (italic math).
-pub(crate) fn build_text_symbols() -> HashMap<&'static str, &'static str> {
-    let mut m = HashMap::new();
+///
+/// Keys are `String` because the mathematical alphabets (bold, double-struck,
+/// script, fraktur) are generated programmatically over contiguous Unicode
+/// ranges. Values may contain LaTeX commands with braces (e.g. `\mathbf{A}`),
+/// which are inserted verbatim and not re-escaped.
+pub(crate) fn build_text_symbols() -> HashMap<String, String> {
+    // 常量表统一声明在函数顶部，避免"语句后声明条目"的歧义。
+    // BMP 希腊字母：部分 Word 文档直接使用 BMP 区段码点而非数学斜体扩展区段；
+    // 无 LaTeX 命令的大写希腊字母映射为对应拉丁字母（与大写罗马体一致）。
+    const BMP_GREEK: &[(&str, &str)] = &[
+        ("\u{0391}", "A"),
+        ("\u{0392}", "B"),
+        ("\u{0393}", "\\Gamma "),
+        ("\u{0394}", "\\Delta "),
+        ("\u{0395}", "E"),
+        ("\u{0396}", "Z"),
+        ("\u{0397}", "H"),
+        ("\u{0398}", "\\Theta "),
+        ("\u{0399}", "I"),
+        ("\u{039a}", "K"),
+        ("\u{039b}", "\\Lambda "),
+        ("\u{039c}", "M"),
+        ("\u{039d}", "N"),
+        ("\u{039e}", "\\Xi "),
+        ("\u{039f}", "O"),
+        ("\u{03a0}", "\\Pi "),
+        ("\u{03a1}", "P"),
+        ("\u{03a3}", "\\Sigma "),
+        ("\u{03a4}", "T"),
+        ("\u{03a5}", "\\Upsilon "),
+        ("\u{03a6}", "\\Phi "),
+        ("\u{03a7}", "X"),
+        ("\u{03a8}", "\\Psi "),
+        ("\u{03a9}", "\\Omega "),
+        ("\u{03b1}", "\\alpha "),
+        ("\u{03b2}", "\\beta "),
+        ("\u{03b3}", "\\gamma "),
+        ("\u{03b4}", "\\delta "),
+        ("\u{03b5}", "\\epsilon "),
+        ("\u{03b6}", "\\zeta "),
+        ("\u{03b7}", "\\eta "),
+        ("\u{03b8}", "\\theta "),
+        ("\u{03b9}", "\\iota "),
+        ("\u{03ba}", "\\kappa "),
+        ("\u{03bb}", "\\lambda "),
+        ("\u{03bc}", "\\mu "),
+        ("\u{03bd}", "\\nu "),
+        ("\u{03be}", "\\xi "),
+        ("\u{03bf}", "o"),
+        ("\u{03c0}", "\\pi "),
+        ("\u{03c1}", "\\rho "),
+        ("\u{03c2}", "\\varsigma "),
+        ("\u{03c3}", "\\sigma "),
+        ("\u{03c4}", "\\tau "),
+        ("\u{03c5}", "\\upsilon "),
+        ("\u{03c6}", "\\phi "),
+        ("\u{03c7}", "\\chi "),
+        ("\u{03c8}", "\\psi "),
+        ("\u{03c9}", "\\omega "),
+    ];
+    // BMP 运算符与常用符号（对照 litchi 的 UNICODE_TO_LATEX 表）。
+    const BMP_SYMBOLS: &[(&str, &str)] = &[
+        ("\u{2211}", "\\sum "),
+        ("\u{220f}", "\\prod "),
+        ("\u{222b}", "\\int "),
+        ("\u{222e}", "\\oint "),
+        ("\u{221a}", "\\surd "),
+        ("\u{2202}", "\\partial "),
+        ("\u{2207}", "\\nabla "),
+        ("\u{2205}", "\\emptyset "),
+        ("\u{2200}", "\\forall "),
+        ("\u{2203}", "\\exists "),
+        ("\u{2204}", "\\nexists "),
+        ("\u{2234}", "\\therefore "),
+        ("\u{2235}", "\\because "),
+        ("\u{2282}", "\\subset "),
+        ("\u{2283}", "\\supset "),
+        ("\u{2286}", "\\subseteq "),
+        ("\u{2287}", "\\supseteq "),
+        ("\u{2229}", "\\cap "),
+        ("\u{222a}", "\\cup "),
+        ("\u{2248}", "\\approx "),
+        ("\u{223c}", "\\sim "),
+        ("\u{221d}", "\\propto "),
+        ("\u{2261}", "\\equiv "),
+        ("\u{21d2}", "\\Rightarrow "),
+        ("\u{21d0}", "\\Leftarrow "),
+        ("\u{21d4}", "\\Leftrightarrow "),
+        ("\u{21d1}", "\\Uparrow "),
+        ("\u{21d3}", "\\Downarrow "),
+        ("\u{00d7}", "\\times "),
+        ("\u{00f7}", "\\div "),
+        ("\u{22c5}", "\\cdot "),
+        ("\u{2217}", "\\ast "),
+        ("\u{2218}", "\\circ "),
+        ("\u{2227}", "\\wedge "),
+        ("\u{2228}", "\\vee "),
+        ("\u{2295}", "\\oplus "),
+        ("\u{2297}", "\\otimes "),
+        ("\u{2299}", "\\odot "),
+        ("\u{25b3}", "\\triangle "),
+        ("\u{25a1}", "\\square "),
+        ("\u{25c7}", "\\diamond "),
+        ("\u{2020}", "\\dagger "),
+        ("\u{2021}", "\\ddagger "),
+        ("\u{203e}", "\\bar "),
+        ("\u{02c6}", "\\hat "),
+        ("\u{02dc}", "\\tilde "),
+        ("\u{02c7}", "\\check "),
+        ("\u{00b4}", "\\acute "),
+        ("\u{02d9}", "\\dot "),
+        ("\u{00a8}", "\\ddot "),
+        ("\u{02d8}", "\\breve "),
+        ("\u{00b0}", "\\degree "),
+        ("\u{2032}", "'"),
+        ("\u{2033}", "''"),
+        ("\u{2034}", "'''"),
+        ("\u{2135}", "\\aleph "),
+        ("\u{2136}", "\\beth "),
+        ("\u{2137}", "\\gimel "),
+        ("\u{2138}", "\\daleth "),
+        ("\u{210f}", "\\hbar "),
+        ("\u{2113}", "\\ell "),
+        ("\u{2118}", "\\wp "),
+        ("\u{211c}", "\\Re "),
+        ("\u{2111}", "\\Im "),
+        ("\u{2115}", "\\mathbb{N}"),
+        ("\u{2124}", "\\mathbb{Z}"),
+        ("\u{211a}", "\\mathbb{Q}"),
+        ("\u{211d}", "\\mathbb{R}"),
+        ("\u{2102}", "\\mathbb{C}"),
+        ("\u{210d}", "\\mathbb{H}"),
+        ("\u{2119}", "\\mathbb{P}"),
+    ];
+    // 粗体希腊（U+1D6A8..U+1D6C1 大写、U+1D6C2..U+1D6DB 小写，各 26 项）。
+    // 大写区段含 theta 符号与 nabla，小写区段以 partial 结尾，均按码点顺序一一对应。
+    const BOLD_GREEK_UPPER: [&str; 26] = [
+        "A",
+        "B",
+        "\\Gamma",
+        "\\Delta",
+        "E",
+        "Z",
+        "H",
+        "\\Theta",
+        "I",
+        "K",
+        "\\Lambda",
+        "M",
+        "N",
+        "\\Xi",
+        "O",
+        "\\Pi",
+        "P",
+        "\\vartheta",
+        "\\Sigma",
+        "T",
+        "\\Upsilon",
+        "\\Phi",
+        "X",
+        "\\Psi",
+        "\\Omega",
+        "\\nabla",
+    ];
+    const BOLD_GREEK_LOWER: [&str; 26] = [
+        "\\alpha",
+        "\\beta",
+        "\\gamma",
+        "\\delta",
+        "\\epsilon",
+        "\\zeta",
+        "\\eta",
+        "\\theta",
+        "\\iota",
+        "\\kappa",
+        "\\lambda",
+        "\\mu",
+        "\\nu",
+        "\\xi",
+        "o",
+        "\\pi",
+        "\\rho",
+        "\\varsigma",
+        "\\sigma",
+        "\\tau",
+        "\\upsilon",
+        "\\phi",
+        "\\chi",
+        "\\psi",
+        "\\omega",
+        "\\partial",
+    ];
+
+    let mut m: HashMap<String, String> = HashMap::new();
+    let mut put = |k: &str, v: &str| {
+        m.insert(k.to_owned(), v.to_owned());
+    };
 
     // ===== Greek letters (Mathematical Italic, U+1D6FC..U+1D71B) =====
     // The OMML font uses these codepoints for Greek in math mode.
-    m.insert("\u{1d6fc}", "\\alpha ");
-    m.insert("\u{1d6fd}", "\\beta ");
-    m.insert("\u{1d6fe}", "\\gamma ");
-    m.insert("\u{1d6ff}", "\\delta ");
-    m.insert("\u{1d700}", "\\epsilon ");
-    m.insert("\u{1d701}", "\\zeta ");
-    m.insert("\u{1d702}", "\\eta ");
-    m.insert("\u{1d703}", "\\theta ");
-    m.insert("\u{1d704}", "\\iota ");
-    m.insert("\u{1d705}", "\\kappa ");
-    m.insert("\u{1d706}", "\\lambda ");
-    m.insert("\u{1d707}", "\\mu ");
-    m.insert("\u{1d708}", "\\nu ");
-    m.insert("\u{1d709}", "\\xi ");
-    m.insert("\u{1d70a}", "\\omicron ");
-    m.insert("\u{1d70b}", "\\pi ");
-    m.insert("\u{1d70c}", "\\rho ");
-    m.insert("\u{1d70d}", "\\varsigma ");
-    m.insert("\u{1d70e}", "\\sigma ");
-    m.insert("\u{1d70f}", "\\tau ");
-    m.insert("\u{1d710}", "\\upsilon ");
-    m.insert("\u{1d711}", "\\phi ");
-    m.insert("\u{1d712}", "\\chi ");
-    m.insert("\u{1d713}", "\\psi ");
-    m.insert("\u{1d714}", "\\omega ");
-    m.insert("\u{1d715}", "\\partial ");
-    m.insert("\u{1d716}", "\\varepsilon ");
-    m.insert("\u{1d717}", "\\vartheta ");
-    m.insert("\u{1d718}", "\\varkappa ");
-    m.insert("\u{1d719}", "\\varphi ");
-    m.insert("\u{1d71a}", "\\varrho ");
-    m.insert("\u{1d71b}", "\\varpi ");
+    put("\u{1d6fc}", "\\alpha ");
+    put("\u{1d6fd}", "\\beta ");
+    put("\u{1d6fe}", "\\gamma ");
+    put("\u{1d6ff}", "\\delta ");
+    put("\u{1d700}", "\\epsilon ");
+    put("\u{1d701}", "\\zeta ");
+    put("\u{1d702}", "\\eta ");
+    put("\u{1d703}", "\\theta ");
+    put("\u{1d704}", "\\iota ");
+    put("\u{1d705}", "\\kappa ");
+    put("\u{1d706}", "\\lambda ");
+    put("\u{1d707}", "\\mu ");
+    put("\u{1d708}", "\\nu ");
+    put("\u{1d709}", "\\xi ");
+    put("\u{1d70a}", "o");
+    put("\u{1d70b}", "\\pi ");
+    put("\u{1d70c}", "\\rho ");
+    put("\u{1d70d}", "\\varsigma ");
+    put("\u{1d70e}", "\\sigma ");
+    put("\u{1d70f}", "\\tau ");
+    put("\u{1d710}", "\\upsilon ");
+    put("\u{1d711}", "\\phi ");
+    put("\u{1d712}", "\\chi ");
+    put("\u{1d713}", "\\psi ");
+    put("\u{1d714}", "\\omega ");
+    put("\u{1d715}", "\\partial ");
+    put("\u{1d716}", "\\varepsilon ");
+    put("\u{1d717}", "\\vartheta ");
+    put("\u{1d718}", "\\varkappa ");
+    put("\u{1d719}", "\\varphi ");
+    put("\u{1d71a}", "\\varrho ");
+    put("\u{1d71b}", "\\varpi ");
+
+    // ===== BMP 希腊字母 =====
+    for (key, value) in BMP_GREEK {
+        put(key, value);
+    }
+
+    // ===== BMP 运算符与常用符号 =====
+    for (key, value) in BMP_SYMBOLS {
+        put(key, value);
+    }
 
     // ===== Relation symbols =====
-    m.insert("\u{2190}", "\\leftarrow ");
-    m.insert("\u{2191}", "\\uparrow ");
-    m.insert("\u{2192}", "\\rightarrow ");
-    m.insert("\u{2193}", "\\downarrow ");
-    m.insert("\u{2194}", "\\leftrightarrow ");
-    m.insert("\u{2195}", "\\updownarrow ");
-    m.insert("\u{2196}", "\\nwarrow ");
-    m.insert("\u{2197}", "\\nearrow ");
-    m.insert("\u{2198}", "\\searrow ");
-    m.insert("\u{2199}", "\\swarrow ");
-    m.insert("\u{22ee}", "\\vdots ");
-    m.insert("\u{22ef}", "\\cdots ");
-    m.insert("\u{22f0}", "\\adots ");
-    m.insert("\u{22f1}", "\\ddots ");
-    m.insert("\u{2260}", "\\ne ");
-    m.insert("\u{2264}", "\\leq ");
-    m.insert("\u{2265}", "\\geq ");
-    m.insert("\u{2266}", "\\leqq ");
-    m.insert("\u{2267}", "\\geqq ");
-    m.insert("\u{2268}", "\\lneqq ");
-    m.insert("\u{2269}", "\\gneqq ");
-    m.insert("\u{226a}", "\\ll ");
-    m.insert("\u{226b}", "\\gg ");
-    m.insert("\u{2208}", "\\in ");
-    m.insert("\u{2209}", "\\notin ");
-    m.insert("\u{220b}", "\\ni ");
-    m.insert("\u{220c}", "\\nni ");
+    put("\u{2190}", "\\leftarrow ");
+    put("\u{2191}", "\\uparrow ");
+    put("\u{2192}", "\\rightarrow ");
+    put("\u{2193}", "\\downarrow ");
+    put("\u{2194}", "\\leftrightarrow ");
+    put("\u{2195}", "\\updownarrow ");
+    put("\u{2196}", "\\nwarrow ");
+    put("\u{2197}", "\\nearrow ");
+    put("\u{2198}", "\\searrow ");
+    put("\u{2199}", "\\swarrow ");
+    put("\u{22ee}", "\\vdots ");
+    put("\u{22ef}", "\\cdots ");
+    put("\u{22f0}", "\\adots ");
+    put("\u{22f1}", "\\ddots ");
+    put("\u{2260}", "\\ne ");
+    put("\u{2264}", "\\leq ");
+    put("\u{2265}", "\\geq ");
+    put("\u{2266}", "\\leqq ");
+    put("\u{2267}", "\\geqq ");
+    put("\u{2268}", "\\lneqq ");
+    put("\u{2269}", "\\gneqq ");
+    put("\u{226a}", "\\ll ");
+    put("\u{226b}", "\\gg ");
+    put("\u{2208}", "\\in ");
+    put("\u{2209}", "\\notin ");
+    put("\u{220b}", "\\ni ");
+    put("\u{220c}", "\\nni ");
 
     // ===== Ordinary symbols =====
-    m.insert("\u{221e}", "\\infty ");
+    put("\u{221e}", "\\infty ");
 
     // ===== Binary relations =====
-    m.insert("\u{00b1}", "\\pm ");
-    m.insert("\u{2213}", "\\mp ");
+    put("\u{00b1}", "\\pm ");
+    put("\u{2213}", "\\mp ");
+
+    // ===== 数学粗体拉丁字母（U+1D400..U+1D433）=====
+    // Word 以粗体渲染的变量使用该区段码点。
+    for cp in 0x1d400_u32..0x1d41a {
+        let key = char::from_u32(cp).expect("valid bold Latin uppercase");
+        let letter = char::from_u32(cp - 0x1d400 + 'A' as u32).expect("valid ASCII letter");
+        put(&key.to_string(), &format!("\\mathbf{{{letter}}}"));
+    }
+    for cp in 0x1d41a_u32..0x1d434 {
+        let key = char::from_u32(cp).expect("valid bold Latin lowercase");
+        let letter = char::from_u32(cp - 0x1d41a + 'a' as u32).expect("valid ASCII letter");
+        put(&key.to_string(), &format!("\\mathbf{{{letter}}}"));
+    }
+
+    // ===== 数学粗体希腊字母（U+1D6A8..U+1D6DB）=====
+    for (offset, latex) in BOLD_GREEK_UPPER.iter().enumerate() {
+        let key = char::from_u32(0x1d6a8_u32 + offset as u32).expect("valid bold Greek uppercase");
+        put(&key.to_string(), &format!("\\boldsymbol{{{latex}}}"));
+    }
+    for (offset, latex) in BOLD_GREEK_LOWER.iter().enumerate() {
+        let key = char::from_u32(0x1d6c2_u32 + offset as u32).expect("valid bold Greek lowercase");
+        put(&key.to_string(), &format!("\\boldsymbol{{{latex}}}"));
+    }
+
+    // ===== 数学双空/手写/哥特小写字母（U+1D552..U+1D56B 等，连续区段）=====
+    for cp in 0x1d552_u32..0x1d56c {
+        let key = char::from_u32(cp).expect("valid double-struck lowercase");
+        let letter = char::from_u32(cp - 0x1d552 + 'a' as u32).expect("valid ASCII letter");
+        put(&key.to_string(), &format!("\\mathbb{{{letter}}}"));
+    }
+    for cp in 0x1d4b6_u32..0x1d4d0 {
+        let key = char::from_u32(cp).expect("valid script lowercase");
+        let letter = char::from_u32(cp - 0x1d4b6 + 'a' as u32).expect("valid ASCII letter");
+        put(&key.to_string(), &format!("\\mathcal{{{letter}}}"));
+    }
+    for cp in 0x1d51e_u32..0x1d538 {
+        let key = char::from_u32(cp).expect("valid fraktur lowercase");
+        let letter = char::from_u32(cp - 0x1d51e + 'a' as u32).expect("valid ASCII letter");
+        put(&key.to_string(), &format!("\\mathfrak{{{letter}}}"));
+    }
 
     // ===== Italic Latin uppercase (U+1D434..U+1D44D) =====
-    m.insert("\u{1d434}", "A");
-    m.insert("\u{1d435}", "B");
-    m.insert("\u{1d436}", "C");
-    m.insert("\u{1d437}", "D");
-    m.insert("\u{1d438}", "E");
-    m.insert("\u{1d439}", "F");
-    m.insert("\u{1d43a}", "G");
-    m.insert("\u{1d43b}", "H");
-    m.insert("\u{1d43c}", "I");
-    m.insert("\u{1d43d}", "J");
-    m.insert("\u{1d43e}", "K");
-    m.insert("\u{1d43f}", "L");
-    m.insert("\u{1d440}", "M");
-    m.insert("\u{1d441}", "N");
-    m.insert("\u{1d442}", "O");
-    m.insert("\u{1d443}", "P");
-    m.insert("\u{1d444}", "Q");
-    m.insert("\u{1d445}", "R");
-    m.insert("\u{1d446}", "S");
-    m.insert("\u{1d447}", "T");
-    m.insert("\u{1d448}", "U");
-    m.insert("\u{1d449}", "V");
-    m.insert("\u{1d44a}", "W");
-    m.insert("\u{1d44b}", "X");
-    m.insert("\u{1d44c}", "Y");
-    m.insert("\u{1d44d}", "Z");
+    put("\u{1d434}", "A");
+    put("\u{1d435}", "B");
+    put("\u{1d436}", "C");
+    put("\u{1d437}", "D");
+    put("\u{1d438}", "E");
+    put("\u{1d439}", "F");
+    put("\u{1d43a}", "G");
+    put("\u{1d43b}", "H");
+    put("\u{1d43c}", "I");
+    put("\u{1d43d}", "J");
+    put("\u{1d43e}", "K");
+    put("\u{1d43f}", "L");
+    put("\u{1d440}", "M");
+    put("\u{1d441}", "N");
+    put("\u{1d442}", "O");
+    put("\u{1d443}", "P");
+    put("\u{1d444}", "Q");
+    put("\u{1d445}", "R");
+    put("\u{1d446}", "S");
+    put("\u{1d447}", "T");
+    put("\u{1d448}", "U");
+    put("\u{1d449}", "V");
+    put("\u{1d44a}", "W");
+    put("\u{1d44b}", "X");
+    put("\u{1d44c}", "Y");
+    put("\u{1d44d}", "Z");
 
     // ===== Italic Latin lowercase (U+1D44E..U+1D467) =====
-    m.insert("\u{1d44e}", "a");
-    m.insert("\u{1d44f}", "b");
-    m.insert("\u{1d450}", "c");
-    m.insert("\u{1d451}", "d");
-    m.insert("\u{1d452}", "e");
-    m.insert("\u{1d453}", "f");
-    m.insert("\u{1d454}", "g");
-    m.insert("\u{1d456}", "i");
-    m.insert("\u{1d457}", "j");
-    m.insert("\u{1d458}", "k");
-    m.insert("\u{1d459}", "l");
-    m.insert("\u{1d45a}", "m");
-    m.insert("\u{1d45b}", "n");
-    m.insert("\u{1d45c}", "o");
-    m.insert("\u{1d45d}", "p");
-    m.insert("\u{1d45e}", "q");
-    m.insert("\u{1d45f}", "r");
-    m.insert("\u{1d460}", "s");
-    m.insert("\u{1d461}", "t");
-    m.insert("\u{1d462}", "u");
-    m.insert("\u{1d463}", "v");
-    m.insert("\u{1d464}", "w");
-    m.insert("\u{1d465}", "x");
-    m.insert("\u{1d466}", "y");
-    m.insert("\u{1d467}", "z");
-
-    // TODO: Additional symbols from markitdown latex_dict.py not yet ported:
-    // - Bold math alphabet (U+1D400..U+1D433)
-    // - Script / calligraphic alphabet
-    // - Double-struck alphabet
-    // - Fraktur alphabet
-    // - Additional relation and operator symbols
+    put("\u{1d44e}", "a");
+    put("\u{1d44f}", "b");
+    put("\u{1d450}", "c");
+    put("\u{1d451}", "d");
+    put("\u{1d452}", "e");
+    put("\u{1d453}", "f");
+    put("\u{1d454}", "g");
+    put("\u{1d456}", "i");
+    put("\u{1d457}", "j");
+    put("\u{1d458}", "k");
+    put("\u{1d459}", "l");
+    put("\u{1d45a}", "m");
+    put("\u{1d45b}", "n");
+    put("\u{1d45c}", "o");
+    put("\u{1d45d}", "p");
+    put("\u{1d45e}", "q");
+    put("\u{1d45f}", "r");
+    put("\u{1d460}", "s");
+    put("\u{1d461}", "t");
+    put("\u{1d462}", "u");
+    put("\u{1d463}", "v");
+    put("\u{1d464}", "w");
+    put("\u{1d465}", "x");
+    put("\u{1d466}", "y");
+    put("\u{1d467}", "z");
 
     m
 }
@@ -331,6 +569,36 @@ pub(crate) fn build_bar_positions() -> HashMap<&'static str, &'static str> {
     m
 }
 
+/// Map an OMML run style value (`<m:sty>` or `<m:scr>` `val` attribute) to a
+/// LaTeX style command prefix.
+///
+/// `m:sty` 取值：`p`（正体）、`b`（粗体）、`i`（斜体）、`bi`（粗斜体）；
+/// `m:scr` 取值：`nor`/`b`/`i`/`bi`/`ds`（双空）/`sc`（手写）/`fr`（哥特）等。
+/// 两表的取值有重叠，统一映射到 LaTeX 命令，转换器在 run 级别包裹内容。
+pub(crate) fn run_style_command(val: &str) -> Option<&'static str> {
+    match val {
+        "p" | "nor" | "normal" | "roman" => Some("\\mathrm"),
+        "b" | "bold" => Some("\\mathbf"),
+        "i" | "italic" => Some("\\mathit"),
+        "bi" | "bold-italic" => Some("\\boldsymbol"),
+        "ds" | "double-struck" => Some("\\mathbb"),
+        // 粗体手写/哥特没有独立的 LaTeX 命令，退化为普通手写/哥特
+        "sc" | "script" | "bsc" | "bold-script" => Some("\\mathcal"),
+        "fr" | "fraktur" | "bfr" | "bold-fraktur" => Some("\\mathfrak"),
+        // 无衬线各变体共用 \mathsf
+        "ss"
+        | "sans-serif"
+        | "ssb"
+        | "sans-serif-bold"
+        | "ssi"
+        | "sans-serif-italic"
+        | "ssbi"
+        | "sans-serif-bold-italic" => Some("\\mathsf"),
+        "m" | "monospace" => Some("\\mathtt"),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -427,5 +695,95 @@ mod tests {
         assert!(!ops.is_empty());
         assert!(symbols.len() > 50);
         assert!(funcs.len() > 10);
+    }
+
+    #[test]
+    fn text_symbols_bmp_greek() {
+        let symbols = build_text_symbols();
+        assert_eq!(
+            symbols.get("\u{03b1}").map(String::as_str),
+            Some("\\alpha ")
+        );
+        assert_eq!(
+            symbols.get("\u{03b3}").map(String::as_str),
+            Some("\\gamma ")
+        );
+        assert_eq!(
+            symbols.get("\u{03a9}").map(String::as_str),
+            Some("\\Omega ")
+        );
+        assert_eq!(
+            symbols.get("\u{03c3}").map(String::as_str),
+            Some("\\sigma ")
+        );
+    }
+
+    #[test]
+    fn text_symbols_bmp_operators() {
+        let symbols = build_text_symbols();
+        assert_eq!(symbols.get("\u{2211}").map(String::as_str), Some("\\sum "));
+        assert_eq!(symbols.get("\u{222b}").map(String::as_str), Some("\\int "));
+        assert_eq!(
+            symbols.get("\u{2248}").map(String::as_str),
+            Some("\\approx ")
+        );
+        assert_eq!(
+            symbols.get("\u{211d}").map(String::as_str),
+            Some("\\mathbb{R}")
+        );
+    }
+
+    #[test]
+    fn text_symbols_bold_alphabets() {
+        let symbols = build_text_symbols();
+        // 数学粗体 A（U+1D400）与粗体 α（U+1D6C2）
+        assert_eq!(
+            symbols.get("\u{1d400}").map(String::as_str),
+            Some("\\mathbf{A}")
+        );
+        assert_eq!(
+            symbols.get("\u{1d41a}").map(String::as_str),
+            Some("\\mathbf{a}")
+        );
+        assert_eq!(
+            symbols.get("\u{1d6c2}").map(String::as_str),
+            Some("\\boldsymbol{\\alpha}")
+        );
+        // 双空/手写/哥特小写首尾
+        assert_eq!(
+            symbols.get("\u{1d552}").map(String::as_str),
+            Some("\\mathbb{a}")
+        );
+        assert_eq!(
+            symbols.get("\u{1d56b}").map(String::as_str),
+            Some("\\mathbb{z}")
+        );
+        assert_eq!(
+            symbols.get("\u{1d4b6}").map(String::as_str),
+            Some("\\mathcal{a}")
+        );
+        assert_eq!(
+            symbols.get("\u{1d51e}").map(String::as_str),
+            Some("\\mathfrak{a}")
+        );
+    }
+
+    #[test]
+    fn omicron_maps_to_plain_letter() {
+        // \omicron 不是标准 LaTeX 命令，应映射为普通字母 o
+        let symbols = build_text_symbols();
+        assert_eq!(symbols.get("\u{1d70a}").map(String::as_str), Some("o"));
+        assert_eq!(symbols.get("\u{03bf}").map(String::as_str), Some("o"));
+    }
+
+    #[test]
+    fn run_style_known_commands() {
+        assert_eq!(run_style_command("b"), Some("\\mathbf"));
+        assert_eq!(run_style_command("i"), Some("\\mathit"));
+        assert_eq!(run_style_command("bi"), Some("\\boldsymbol"));
+        assert_eq!(run_style_command("ds"), Some("\\mathbb"));
+        assert_eq!(run_style_command("sc"), Some("\\mathcal"));
+        assert_eq!(run_style_command("p"), Some("\\mathrm"));
+        assert_eq!(run_style_command("unknown"), None);
     }
 }
