@@ -520,13 +520,22 @@ version = "0.1.0-alpha.2"
 dependencies = [
  "comrak",
  "easydoc-core",
+ "easydoc-math",
  "easydoc-ooxml",
  "easydoc-reader",
  "easydoc-writer",
  "quick-xml",
  "tempfile",
- "tex2word-math",
  "zip",
+]
+
+[[package]]
+name = "easydoc-math"
+version = "0.1.0-alpha.2"
+dependencies = [
+ "easydoc-core",
+ "quick-xml",
+ "tempfile",
 ]
 
 [[package]]
@@ -589,10 +598,10 @@ version = "0.1.0-alpha.2"
 dependencies = [
  "docx-rs",
  "easydoc-core",
+ "easydoc-math",
  "easydoc-ooxml",
  "office_oxide",
  "tempfile",
- "tex2word-math",
  "zip",
 ]
 
@@ -1538,12 +1547,6 @@ dependencies = [
  "rustix",
  "windows-sys",
 ]
-
-[[package]]
-name = "tex2word-math"
-version = "1.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03ee46945f5a099874cef47c387768e9d806586110a493918e91dc5690f6f237"
 
 [[package]]
 name = "thiserror"
