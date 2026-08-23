@@ -1,0 +1,1 @@
+\left(x\right) \int_0^1 \alpha

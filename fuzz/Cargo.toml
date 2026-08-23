@@ -10,6 +10,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 easydoc-core = { path = "../crates/easydoc-core" }
+easydoc-math = { path = "../crates/easydoc-math" }
 easydoc-reader = { path = "../crates/easydoc-reader" }
 easydoc-markdown = { path = "../crates/easydoc-markdown" }
 office_oxide = "0.1"
@@ -26,5 +27,9 @@ path = "fuzz_targets/fuzz_docx_reader.rs"
 [[bin]]
 name = "fuzz_markdown_import"
 path = "fuzz_targets/fuzz_markdown_import.rs"
+
+[[bin]]
+name = "fuzz_math_converter"
+path = "fuzz_targets/fuzz_math_converter.rs"
 
 [workspace]

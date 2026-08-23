@@ -12,6 +12,7 @@ easydoc-core = { path = "../easydoc-core", version = "0.1.0-alpha.2" }
 quick-xml.workspace = true
 
 [dev-dependencies]
+proptest.workspace = true
 tempfile.workspace = true
 
 [lints]

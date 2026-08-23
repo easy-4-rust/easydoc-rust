@@ -16,11 +16,11 @@ use quick_xml::events::BytesStart;
 use quick_xml::events::Event;
 
 use super::latex_dict::{
-    self, ACCENT_DEFAULT, ALN, ARRAY_TEMPLATE, BAR_POS_DEFAULT, BRK, CHARS, DELIMITER_DEFAULT_LEFT,
-    DELIMITER_DEFAULT_RIGHT, DELIMITER_NULL, DELIMITER_STACK_TEMPLATE, DELIMITER_TEMPLATE,
-    FRACTION_DEFAULT, FUNC_PLACE, GROUP_CHR_DEFAULT, LIM_ARROW_FROM, LIM_ARROW_TO,
-    LIM_UPPER_TEMPLATE, MATRIX_TEMPLATE, RADICAL_DEFAULT_TEMPLATE, RADICAL_DEG_TEMPLATE,
-    SUB_TEMPLATE, SUP_TEMPLATE, run_style_command,
+    self, ACCENT_DEFAULT, ALN, ARRAY_SPEC_TEMPLATE, BAR_POS_DEFAULT, BRK, CHARS,
+    DELIMITER_DEFAULT_LEFT, DELIMITER_DEFAULT_RIGHT, DELIMITER_NULL, DELIMITER_STACK_TEMPLATE,
+    DELIMITER_TEMPLATE, FRACTION_DEFAULT, FUNC_PLACE, GROUP_CHR_DEFAULT, LIM_ARROW_FROM,
+    LIM_ARROW_TO, LIM_UPPER_TEMPLATE, MATRIX_TEMPLATE, RADICAL_DEFAULT_TEMPLATE,
+    RADICAL_DEG_TEMPLATE, SUB_TEMPLATE, SUP_TEMPLATE, run_style_command,
 };
 
 /// The OMML XML namespace prefix as it appears in prefixed documents (`m:`).
@@ -87,6 +87,15 @@ struct PrProps {
     no_break: Option<String>,
     /// Raw `diff` attribute value（box 微分算子）。
     diff: Option<String>,
+    /// Raw `baseJc` attribute value（矩阵/等式数组基准对齐）。
+    base_jc: Option<String>,
+    /// Raw `mcJc` attribute value（矩阵单元格水平对齐：`left`/`center`/`right`）。
+    mc_jc: Option<String>,
+    /// Raw `count` attribute value（矩阵列数）。
+    count: Option<String>,
+    /// Raw `rSp` / `cGp` attribute value（矩阵行列间距）。
+    r_sp: Option<String>,
+    c_gp: Option<String>,
 }
 
 impl PrProps {
@@ -105,9 +114,17 @@ impl PrProps {
             op_emu: None,
             no_break: None,
             diff: None,
+            base_jc: None,
+            mc_jc: None,
+            count: None,
+            r_sp: None,
+            c_gp: None,
         }
     }
 }
+
+/// 一个矩阵单元格：内容 + 水平对齐字符（`l`/`r`/`c`；`None` 表示未指定/居中）。
+type MatrixCell = (String, Option<char>);
 
 impl OmmlConverter {
     fn new() -> Self {
@@ -277,7 +294,8 @@ impl OmmlConverter {
                 Ok(Some(latex))
             }
             "mr" => {
-                let latex = self.process_matrix_row(reader)?;
+                // 顶层游离的 <m:mr>：按内容渲染（行结构由 process_matrix 内部处理）
+                let latex = self.process_children_to_string(reader)?;
                 Ok(Some(latex))
             }
             "eqArr" => {
@@ -1000,11 +1018,15 @@ impl OmmlConverter {
     }
 
     /// `<m:m>` -- matrix.
+    ///
+    /// 解析 `mPr`（布局属性，LaTeX 无对应表达，解析后忽略）、`mr`（行）与
+    /// `mcs`（列序列，单元格平铺、内容保留）。单元格 `mcPr/mcJc` 的水平
+    /// 对齐映射为 `\begin{array}{lcr}` 列格式；全部居中时保持 `\begin{matrix}`。
     fn process_matrix<R: BufRead>(
         &mut self,
         reader: &mut Reader<R>,
     ) -> easydoc_core::Result<String> {
-        let mut rows = Vec::new();
+        let mut rows: Vec<Vec<MatrixCell>> = Vec::new();
         let mut buf = Vec::new();
         loop {
             match reader.read_event_into(&mut buf) {
@@ -1012,6 +1034,88 @@ impl OmmlConverter {
                     let tag = local_name(&e);
                     match tag.as_str() {
                         "mr" => rows.push(self.process_matrix_row(reader)?),
+                        "mcs" => rows.push(self.process_matrix_mcs(reader)?),
+                        "mPr" => {
+                            let mut pr = PrProps::empty();
+                            self.fill_pr(&e, reader, &mut pr)?;
+                        }
+                        _ => {
+                            let _ = self.process_children_to_string(reader)?;
+                        }
+                    }
+                }
+                Ok(Event::Empty(e)) => {
+                    let tag = local_name(&e);
+                    if tag == "mPr" {
+                        apply_pr_attrs(&e, &mut PrProps::empty());
+                    }
+                }
+                Ok(Event::End(_) | Event::Eof) => break,
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(easydoc_core::DocError::Format(format!(
+                        "OMML XML parse error: {e}"
+                    )));
+                }
+            }
+            buf.clear();
+        }
+        // 计算每列对齐：列内单元格 mcJc 一致且非居中 → l/r，否则居中 c
+        let ncols = rows.iter().map(Vec::len).max().unwrap_or(0);
+        let mut col_jc = vec!['c'; ncols];
+        for (c, col) in col_jc.iter_mut().enumerate() {
+            let mut jc: Option<char> = None;
+            let mut uniform = true;
+            for row in &rows {
+                if let Some((_, Some(cell_jc))) = row.get(c) {
+                    match jc {
+                        None => jc = Some(*cell_jc),
+                        Some(prev) if prev != *cell_jc => {
+                            uniform = false;
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            if uniform && let Some(j) = jc {
+                *col = j;
+            }
+        }
+        let text = rows
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|(cell, _)| cell.as_str())
+                    .collect::<Vec<_>>()
+                    .join(ALN)
+            })
+            .collect::<Vec<_>>()
+            .join(BRK);
+        if col_jc.iter().all(|&j| j == 'c') {
+            Ok(MATRIX_TEMPLATE.replace("{text}", &text))
+        } else {
+            let spec: String = col_jc.iter().collect();
+            Ok(ARRAY_SPEC_TEMPLATE
+                .replace("{spec}", &spec)
+                .replace("{text}", &text))
+        }
+    }
+
+    /// `<m:mr>` -- a single row of a matrix.
+    fn process_matrix_row<R: BufRead>(
+        &mut self,
+        reader: &mut Reader<R>,
+    ) -> easydoc_core::Result<Vec<MatrixCell>> {
+        let mut cells = Vec::new();
+        let mut buf = Vec::new();
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Ok(Event::Start(e)) => {
+                    let tag = local_name(&e);
+                    match tag.as_str() {
+                        "e" => cells.push((self.process_children_to_string(reader)?, None)),
+                        "mc" => cells.push(self.process_matrix_cell(reader)?),
                         _ => {
                             let _ = self.process_children_to_string(reader)?;
                         }
@@ -1027,23 +1131,24 @@ impl OmmlConverter {
             }
             buf.clear();
         }
-        let text = rows.join(BRK);
-        Ok(MATRIX_TEMPLATE.replace("{text}", &text))
+        Ok(cells)
     }
 
-    /// `<m:mr>` -- a single row of a matrix.
-    fn process_matrix_row<R: BufRead>(
+    /// `<m:mcs>` -- matrix column sequence：`mc` 单元格按文档顺序平铺为一行。
+    ///
+    /// 内容完整保留；行结构（列优先排列）不做重构——属布局近似，见 A6 说明。
+    fn process_matrix_mcs<R: BufRead>(
         &mut self,
         reader: &mut Reader<R>,
-    ) -> easydoc_core::Result<String> {
+    ) -> easydoc_core::Result<Vec<MatrixCell>> {
         let mut cells = Vec::new();
         let mut buf = Vec::new();
         loop {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Start(e)) => {
                     let tag = local_name(&e);
-                    if tag == "e" {
-                        cells.push(self.process_children_to_string(reader)?);
+                    if tag == "mc" {
+                        cells.push(self.process_matrix_cell(reader)?);
                     } else {
                         let _ = self.process_children_to_string(reader)?;
                     }
@@ -1058,24 +1163,81 @@ impl OmmlConverter {
             }
             buf.clear();
         }
-        Ok(cells.join(ALN))
+        Ok(cells)
     }
 
-    /// `<m:eqArr>` -- equation array.
-    fn process_eq_arr<R: BufRead>(
+    /// `<m:mc>` -- matrix cell with properties（`mcPr/mcJc` + `e`）。
+    fn process_matrix_cell<R: BufRead>(
         &mut self,
         reader: &mut Reader<R>,
-    ) -> easydoc_core::Result<String> {
-        let mut rows = Vec::new();
+    ) -> easydoc_core::Result<MatrixCell> {
+        let mut content = String::new();
+        let mut jc: Option<char> = None;
+        let mut pr = PrProps::empty();
         let mut buf = Vec::new();
         loop {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Start(e)) => {
                     let tag = local_name(&e);
-                    if tag == "e" {
-                        rows.push(self.process_children_to_string(reader)?);
-                    } else {
-                        let _ = self.process_children_to_string(reader)?;
+                    match tag.as_str() {
+                        "e" => content = self.process_children_to_string(reader)?,
+                        "mcPr" => {
+                            self.fill_pr(&e, reader, &mut pr)?;
+                            jc = pr.mc_jc.as_deref().and_then(jc_char);
+                        }
+                        _ => {
+                            let _ = self.process_children_to_string(reader)?;
+                        }
+                    }
+                }
+                Ok(Event::Empty(e)) => {
+                    let tag = local_name(&e);
+                    if tag == "mcPr" {
+                        apply_pr_attrs(&e, &mut pr);
+                        jc = pr.mc_jc.as_deref().and_then(jc_char);
+                    }
+                }
+                Ok(Event::End(_) | Event::Eof) => break,
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(easydoc_core::DocError::Format(format!(
+                        "OMML XML parse error: {e}"
+                    )));
+                }
+            }
+            buf.clear();
+        }
+        Ok((content, jc))
+    }
+
+    /// `<m:eqArr>` -- equation array.
+    ///
+    /// 解析 `eqArrPr` 的 `baseJc`（等式数组整体水平对齐）→ array 列格式。
+    fn process_eq_arr<R: BufRead>(
+        &mut self,
+        reader: &mut Reader<R>,
+    ) -> easydoc_core::Result<String> {
+        let mut rows = Vec::new();
+        let mut pr = PrProps::empty();
+        let mut buf = Vec::new();
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Ok(Event::Start(e)) => {
+                    let tag = local_name(&e);
+                    match tag.as_str() {
+                        "e" => rows.push(self.process_children_to_string(reader)?),
+                        "eqArrPr" => {
+                            self.fill_pr(&e, reader, &mut pr)?;
+                        }
+                        _ => {
+                            let _ = self.process_children_to_string(reader)?;
+                        }
+                    }
+                }
+                Ok(Event::Empty(e)) => {
+                    let tag = local_name(&e);
+                    if tag == "eqArrPr" {
+                        apply_pr_attrs(&e, &mut pr);
                     }
                 }
                 Ok(Event::End(_) | Event::Eof) => break,
@@ -1089,7 +1251,10 @@ impl OmmlConverter {
             buf.clear();
         }
         let text = rows.join(BRK);
-        Ok(ARRAY_TEMPLATE.replace("{text}", &text))
+        let spec = pr.base_jc.as_deref().and_then(jc_char).unwrap_or('c');
+        Ok(ARRAY_SPEC_TEMPLATE
+            .replace("{spec}", &spec.to_string())
+            .replace("{text}", &text))
     }
 
     /// `<m:spre>` -- pre-sub-superscript.
@@ -1242,7 +1407,7 @@ fn attr_val(e: &BytesStart, name: &str) -> Option<String> {
 /// `<m:xxxPr>` 可解析的属性名全集（自身属性形式与子元素 `m:val` 形式共用）。
 const PR_FIELDS: &[&str] = &[
     "chr", "pos", "begChr", "endChr", "type", "sepChr", "limLoc", "subHide", "supHide", "grow",
-    "opEmu", "noBreak", "diff",
+    "opEmu", "noBreak", "diff", "baseJc", "mcJc", "count", "rSp", "cGp",
 ];
 
 /// n-ary 算子是否为积分类（LaTeX 默认上下限置于角标 `\nolimits`）；
@@ -1270,6 +1435,11 @@ fn apply_pr_field(pr: &mut PrProps, tag: &str, val: String) {
         "opEmu" => pr.op_emu = Some(val),
         "noBreak" => pr.no_break = Some(val),
         "diff" => pr.diff = Some(val),
+        "baseJc" => pr.base_jc = Some(val),
+        "mcJc" => pr.mc_jc = Some(val),
+        "count" => pr.count = Some(val),
+        "rSp" => pr.r_sp = Some(val),
+        "cGp" => pr.c_gp = Some(val),
         _ => {}
     }
 }
@@ -1280,6 +1450,16 @@ fn apply_pr_attrs(e: &BytesStart, pr: &mut PrProps) {
         if let Some(val) = attr_val(e, tag) {
             apply_pr_field(pr, tag, val);
         }
+    }
+}
+
+/// OMML 对齐值（`left`/`center`/`right`）→ LaTeX array 列对齐字符。
+fn jc_char(val: &str) -> Option<char> {
+    match val {
+        "left" => Some('l'),
+        "right" => Some('r'),
+        "center" | "centre" => Some('c'),
+        _ => None,
     }
 }
 
@@ -2072,5 +2252,70 @@ mod tests {
         let xml = omath("<m:r><m:t>\u{1d7ce}\u{1d7d9}</m:t></m:r>");
         let result = convert(&xml).unwrap();
         assert_eq!(result, r"\mathbf{0}\mathbb{1}");
+    }
+
+    // ===== A6: m:mPr / mcs / mcPr / eqArrPr 布局属性 =====
+
+    #[test]
+    fn matrix_mc_jc_left_uses_array() {
+        // 单元格 mcJc=left → \begin{array}{l}
+        let xml = omath(
+            "<m:m>\
+             <m:mr><m:mc><m:mcPr m:mcJc=\"left\"/><m:e><m:r><m:t>a</m:t></m:r></m:e></m:mc>\
+             <m:mc><m:mcPr m:mcJc=\"left\"/><m:e><m:r><m:t>b</m:t></m:r></m:e></m:mc></m:mr>\
+             <m:mr><m:mc><m:mcPr m:mcJc=\"left\"/><m:e><m:r><m:t>c</m:t></m:r></m:e></m:mc>\
+             <m:mc><m:mcPr m:mcJc=\"left\"/><m:e><m:r><m:t>d</m:t></m:r></m:e></m:mc></m:mr>\
+             </m:m>",
+        );
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\begin{array}{ll}a&b\\c&d\end{array}", "{result}");
+    }
+
+    #[test]
+    fn matrix_all_center_keeps_matrix() {
+        // mcJc 全部居中（默认）→ 保持 \begin{matrix}
+        let xml = omath(
+            "<m:m>\
+             <m:mr><m:mc><m:mcPr m:mcJc=\"center\"/><m:e><m:r><m:t>a</m:t></m:r></m:e></m:mc>\
+             <m:mc><m:mcPr m:mcJc=\"center\"/><m:e><m:r><m:t>b</m:t></m:r></m:e></m:mc></m:mr>\
+             </m:m>",
+        );
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\begin{matrix}a&b\end{matrix}", "{result}");
+    }
+
+    #[test]
+    fn matrix_mcs_cells_preserved() {
+        // mcs 列序列：单元格内容平铺保留
+        let xml = omath(
+            "<m:m><m:mcs>\
+             <m:mc><m:mcPr m:count=\"2\" m:mcJc=\"center\"/><m:e><m:r><m:t>x</m:t></m:r></m:e></m:mc>\
+             <m:mc><m:mcPr m:count=\"2\" m:mcJc=\"center\"/><m:e><m:r><m:t>y</m:t></m:r></m:e></m:mc>\
+             </m:mcs></m:m>",
+        );
+        let result = convert(&xml).unwrap();
+        assert!(result.contains('x') && result.contains('y'), "{result}");
+        assert!(
+            result.contains("matrix") || result.contains("array"),
+            "{result}"
+        );
+    }
+
+    #[test]
+    fn eq_arr_base_jc_left() {
+        let xml = omath(
+            "<m:eqArr><m:eqArrPr m:baseJc=\"left\"/>\
+             <m:e><m:r><m:t>a=b</m:t></m:r></m:e>\
+             <m:e><m:r><m:t>c=d</m:t></m:r></m:e></m:eqArr>",
+        );
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\begin{array}{l}a=b\\c=d\end{array}", "{result}");
+    }
+
+    #[test]
+    fn eq_arr_default_center() {
+        let xml = omath("<m:eqArr><m:e><m:r><m:t>a</m:t></m:r></m:e></m:eqArr>");
+        let result = convert(&xml).unwrap();
+        assert_eq!(result, r"\begin{array}{c}a\end{array}", "{result}");
     }
 }

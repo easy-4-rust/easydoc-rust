@@ -790,8 +790,10 @@ pub(crate) const RADICAL_DEG_TEMPLATE: &str = "\\sqrt[{deg}]{{text}}";
 /// Radical template without degree (square root).
 pub(crate) const RADICAL_DEFAULT_TEMPLATE: &str = "\\sqrt{{text}}";
 
-/// Array / equation-array template.
-pub(crate) const ARRAY_TEMPLATE: &str = "\\begin{array}{c}{text}\\end{array}";
+/// Array template with explicit column alignment (`{spec}` placeholder).
+///
+/// 用于带列对齐的矩阵（`mcJc` 非居中）与带 `baseJc` 的等式数组。
+pub(crate) const ARRAY_SPEC_TEMPLATE: &str = "\\begin{array}{{spec}}{text}\\end{array}";
 
 /// Limit-function mapping (lower-limit objects).
 pub(crate) fn build_limit_functions() -> HashMap<&'static str, &'static str> {

@@ -666,6 +666,8 @@ fn math_accent(name: &str) -> Option<char> {
         "acute" => '\u{0301}',
         "grave" => '\u{0300}',
         "mathring" => '\u{030A}',
+        // \not：否定斜线（组合字符），如 \not= → ≠
+        "not" => '\u{0338}',
         _ => return None,
     })
 }
@@ -898,8 +900,16 @@ fn math_symbol(name: &str) -> Option<&'static str> {
         "rceil" => "⌉",
         "lfloor" => "⌊",
         "rfloor" => "⌋",
-        // ---- 空格（统一映射为细空格 U+2009） ----
-        "," | ":" | ";" | " " | "quad" | "qquad" | "!" | "thinspace" => "\u{2009}",
+        // ---- 空格（按 LaTeX 层级映射为对应 Unicode 空格） ----
+        // `\,` 细空格 / `\:` 中等 / `\;` 厚 / `\quad` 全角 / `\qquad` 双全角；
+        // `\!` 负细空格无法用 Unicode 表达，映射为空（不输出）；
+        // `\ ` 反斜杠空格 ≈ 细空格。
+        "," | "thinspace" | " " => "\u{2009}", // thin space
+        ":" => "\u{2005}",                     // medium: four-per-em space
+        ";" => "\u{2004}",                     // thick: three-per-em space
+        "quad" => "\u{2003}",                  // em space
+        "qquad" => "\u{2003}\u{2003}",         // 两个 em space（双全角）
+        "!" => "",                             // 负细空格 → 不输出
         _ => return None,
     })
 }
@@ -1530,5 +1540,34 @@ mod tests {
     fn deep_nesting_errors() {
         let deep = format!("{}1{}", "\\frac{".repeat(300), "}".repeat(300));
         assert!(convert(&deep).is_err(), "过深嵌套应报错");
+    }
+
+    #[test]
+    fn not_uses_negation_slash() {
+        // \not → 组合字符 U+0338（m:acc）
+        let omml = convert(r"\not{=}").unwrap();
+        assert!(omml.contains("\u{0338}"), "{omml}");
+        assert!(omml.contains("<m:acc>"), "{omml}");
+    }
+
+    #[test]
+    fn spacing_levels_distinct() {
+        // 细/中等/厚/全角空格映射为不同 Unicode 空格
+        let thin = convert(r"a\,b").unwrap();
+        assert!(thin.contains("\u{2009}"), "thin: {thin}");
+        let med = convert(r"a\:b").unwrap();
+        assert!(med.contains("\u{2005}"), "med: {med}");
+        let thick = convert(r"a\;b").unwrap();
+        assert!(thick.contains("\u{2004}"), "thick: {thick}");
+        let quad = convert(r"a\quad b").unwrap();
+        assert!(quad.contains("\u{2003}"), "quad: {quad}");
+    }
+
+    #[test]
+    fn negative_space_dropped() {
+        // \! 负细空格无法用 Unicode 表达 → 不输出
+        let omml = convert(r"a\!b").unwrap();
+        assert!(omml.contains("ab"), "{omml}");
+        assert!(!omml.contains("\u{2009}"), "负空格不应输出空格：{omml}");
     }
 }

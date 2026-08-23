@@ -534,6 +534,7 @@ name = "easydoc-math"
 version = "0.1.0-alpha.2"
 dependencies = [
  "easydoc-core",
+ "proptest",
  "quick-xml",
  "tempfile",
 ]
