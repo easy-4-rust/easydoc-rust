@@ -1,7 +1,7 @@
 [package]
 name = "easydoc-math"
 description = "LaTeX <-> OMML (Office Math Markup Language) conversion for easydoc-rust"
-version.workspace = true
+version = "0.1.1"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
