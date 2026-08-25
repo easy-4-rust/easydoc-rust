@@ -29,7 +29,8 @@ fn check_golden(name: &str, content: &DocumentContent) {
     let snapshot_path = golden_dir().join(format!("{name}.md"));
     if std::env::var("UPDATE_GOLDEN").is_ok() {
         std::fs::create_dir_all(golden_dir()).unwrap();
-        std::fs::write(&snapshot_path, &markdown).unwrap();
+        // 快照统一用 \n 换行（Windows 上 docx-rs/ZIP 文本带 \r\n）
+        std::fs::write(&snapshot_path, normalize_newlines(&markdown)).unwrap();
         return;
     }
 
@@ -40,11 +41,16 @@ fn check_golden(name: &str, content: &DocumentContent) {
         )
     });
     assert_eq!(
-        expected,
-        markdown,
+        normalize_newlines(&expected),
+        normalize_newlines(&markdown),
         "golden mismatch for {name} (snapshot: {})",
         snapshot_path.display()
     );
+}
+
+/// 归一化换行：`\r\n` → `\n`（Windows 上 ZIP 文本读取带 CRLF）。
+fn normalize_newlines(s: &str) -> String {
+    s.replace("\r\n", "\n")
 }
 
 /// 文本 run 辅助。
