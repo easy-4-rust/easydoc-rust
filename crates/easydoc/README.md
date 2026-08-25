@@ -117,10 +117,10 @@ The `easydoc-rust` workspace contains 9 crates. Most users should depend on `eas
 ```toml
 # Most users: depend on the facade
 [dependencies]
-easydoc = "0.1.0-alpha"
+easydoc = "0.1.0"
 
 # Advanced: depend on a single domain crate
-easydoc-core = "0.1.0-alpha"
+easydoc-core = "0.1.0"
 ```
 
 ## 4. Workspace Architecture
@@ -189,7 +189,7 @@ flowchart TB
 
 ```toml
 [dependencies]
-easydoc = "0.1.0-alpha"
+easydoc = "0.1.0"
 ```
 
 ### 5.2 Write a Table from Struct Data

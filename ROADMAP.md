@@ -34,7 +34,7 @@ For the full list of changes in each release, see [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
-## 0.1.0 (target: 2026 Q3-Q4)
+## 0.1.0 (released 2026-08-25) — ✅ 首个稳定发布（API 冻结，详见 CHANGELOG）
 
 **Goal: first stable release with frozen API and complete Markdown-to-DOCX coverage.**
 

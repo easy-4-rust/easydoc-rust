@@ -114,6 +114,7 @@ jobs:
             easydoc-core
             easydoc-derive
             easydoc-ooxml
+            easydoc-math
             easydoc-reader
             easydoc-writer
             easydoc-template

@@ -6,6 +6,52 @@
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 alpha 阶段（0.x-alpha.y）允许 API 不兼容变更。
 
+## [0.1.0] — 2026-08-25
+
+首个稳定发布：公共 API 冻结（0.x 线向后兼容），MD→DOCX 全量覆盖，
+数学公式双向转换生产就绪。1134 个测试全绿，clippy `-D warnings`/rustfmt 零警告。
+
+### API 稳定性（自 0.1.0 起冻结）
+
+- 公共 API 冻结：0.x 线内不引入破坏性变更（详见 README「API Stability」）
+- `#[non_exhaustive]` 覆盖全部公共枚举（含 `DocError`/`DocumentFormat`）
+- `cargo-semver-checks` CI 门禁（`.github/workflows/semver.yml`），每次 PR/push 校验 API 兼容
+- MSRV 1.88.0 在 CI 6-matrix 中持续验证
+
+### 数学公式双向转换（生产就绪）
+
+- 新增 `easydoc-math` crate（仅依赖 easydoc-core）：
+  - `omml_to_latex`：OMML → LaTeX，兼容真实 Word 属性形式 Pr、box/堆叠分隔符/
+    n-ary limLoc/hide、全量数学字母表（粗体/粗斜体/无衬线/等宽/双空/手写/哥特/数字）
+  - `latex_to_omml`：自研 LaTeX → OMML，吸收 tex2word-math 设计（MIT 标注），
+    扩展 `\underbrace/\overbrace/\overset/\underset/\stackrel/\boxed/\lim`
+    极限布局；严格错误通道——未知命令/无法无损表达返回 Err，杜绝静默内容丢失
+- writer 集成：真实失败兜底（保留 `$latex$` 原文）、`xmlns:m` 命名空间注入、
+  块级公式 `<m:oMathPara>` 居中
+- 往返保证：LaTeX → OMML → LaTeX 精确还原（往返测试 + proptest 属性测试 +
+  `fuzz_math_converter` cargo-fuzz target）
+
+### 性能
+
+- 写入吞吐 ~95k rows/s（1K 行 10.5ms，远超 0.1.0 目标 2000 rows/s）
+- **Benchmark 回归门禁**：CI `bench-regression` 任务缓存基准，`write_throughput`
+  回归 >10% 即失败（`scripts/bench_regression_check.py`）
+
+### MCP
+
+- `DirectoryResourceProvider` 根目录可配置：`default_config_with_root` /
+  `EASYDOC_MCP_ROOT` 环境变量 / 自定义 provider
+
+### 质量与测试
+
+- 1134 测试全绿（单测 + 集成 + 往返精确 + proptest + golden）
+- fuzz target 4 个（ZIP/OOXML SAX/Markdown/数学转换器），每日 CI 运行
+- cargo-audit + cargo-deny 每周安全审计
+- 协议合规：`THIRD_PARTY.md` 标注 tex2word-math（MIT）/litchi（Apache-2.0）/
+  markitdown（MIT）/dwml（MIT）
+
+---
+
 ## [0.1.0-alpha.2] — 2026-08-11
 
 第二个 alpha 预发布。在 alpha.1 基础上新增 MD→DOCX 扩展、文档/质量增强。
