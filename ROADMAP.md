@@ -48,11 +48,11 @@ For the full list of changes in each release, see [CHANGELOG.md](CHANGELOG.md).
 ### Markdown-to-DOCX completion
 
 - HTML tags: `<br>`, `<hr>`, `<em>`, `<strong>`, `<code>`, `<a>`, `<img>` — ✅ 已实现（内联 `<strong>`/`<b>`/`<em>`/`<i>`/`<code>`/`<a href>`/`<br>` → run 属性；块级 `<hr>` → ThematicBreak、`<img>` → Image）
-- Blockquotes (`>`) with nesting
-- Task lists (`- [ ]`, `- [x]`)
-- Footnotes (`[^1]`)
-- Strikethrough (`~~text~~`)
-- Front matter (YAML) pass-through to document properties
+- Blockquotes (`>`) with nesting — ✅ 已实现（含 `>>` 嵌套，往返测试）
+- Task lists (`- [ ]`, `- [x]`) — ✅ 已实现（任务列表渲染，含往返测试）
+- Footnotes (`[^1]`) — ✅ 已实现（脚注定义/引用，含往返测试）
+- Strikethrough (`~~text~~`) — ✅ 已实现（run strike 属性，含往返测试）
+- Front matter (YAML) pass-through to document properties — ✅ 已实现（comrak front_matter_delimiter）
 - Math formulas: `$...$` inline, `$$...$$` block — ✅ 已实现：comrak 解析（行内/多行）+ tex2word-math LaTeX→OMML 写回 DOCX 原生公式 + omml_to_latex 读回（sax 路径），MD→DOCX→MD 公式往返闭环
 
 ### Bug fixes and correctness
