@@ -14,6 +14,7 @@ use thiserror::Error;
 /// 对应 Java: `com.alibaba.excel.exception.ExcelAnalysisException`、
 /// `ExcelGenerateException`、`ExcelDataConvertException` 等
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum DocError {
     /// I/O 错误，包装 `std::io::Error`。
     ///

@@ -404,6 +404,24 @@ flowchart TD
 
 ---
 
+## API Stability
+
+Starting with **0.1.0**, the public API of all crates is **frozen**: breaking
+changes are only permitted in a 1.0 release. Within the 0.x line we commit to
+backward compatibility — additions are non-breaking, removals/signature
+changes are deferred to 1.0.
+
+Guarantees in place:
+
+- `#[non_exhaustive]` on all public enums, so future variants never break
+  downstream exhaustive matches;
+- [`cargo-semver-checks`](https://github.com/obi1kenobi/cargo-semver-checks) in
+  CI on every push/PR (`.github/workflows/semver.yml`) rejects accidental API
+  breakage;
+- MSRV 1.88.0 is validated in the CI test matrix.
+
+---
+
 ## Related Projects
 
 - [`easyexcel-rust`](https://github.com/easy-4-rust/easyexcel-rust) -- Excel counterpart (same architecture: fluent builder + derive macro + converter registry)

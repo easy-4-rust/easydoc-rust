@@ -46,11 +46,21 @@ impl ServerConfig {
 ///
 /// 使用 `DirectoryResourceProvider`（扫描当前目录的 docx/doc 文件）
 /// 和 `BuiltinPrompts`（四个内置 prompt 模板）。
+///
+/// 扫描根目录可通过环境变量 `EASYDOC_MCP_ROOT` 配置（缺省为当前目录 `.`）；
+/// 也可用 [`ServerConfig::new`] 传入自定义的 [`ResourceProvider`]。
 #[must_use]
 pub fn default_config() -> ServerConfig {
+    let root = std::env::var("EASYDOC_MCP_ROOT").unwrap_or_else(|_| ".".to_string());
+    default_config_with_root(root)
+}
+
+/// 以指定根目录创建默认服务器配置（供 `default_config` 与自定义部署使用）。
+#[must_use]
+pub fn default_config_with_root(root: impl Into<std::path::PathBuf>) -> ServerConfig {
     ServerConfig::new(
         Arc::new(
-            crate::resources::DirectoryResourceProvider::new(".")
+            crate::resources::DirectoryResourceProvider::new(root)
                 .recursive(true)
                 .with_extensions(vec!["docx".into(), "doc".into()]),
         ),

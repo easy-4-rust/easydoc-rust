@@ -40,10 +40,10 @@ For the full list of changes in each release, see [CHANGELOG.md](CHANGELOG.md).
 
 ### API stability
 
-- Freeze the public API surface of all 9 crates
-- Commit to backward compatibility within the 0.x line (no breaking changes until 1.0)
-- `#[non_exhaustive]` on all public enums for future extensibility
-- Run `cargo-semver-checks` in CI on every PR
+- Freeze the public API surface of all 9 crates — ✅ 已冻结（0.1.0 起，见 README API Stability）
+- Commit to backward compatibility within the 0.x line (no breaking changes until 1.0) — ✅ 已在 README 声明
+- `#[non_exhaustive]` on all public enums for future extensibility — ✅ 已全量覆盖（含 DocError/DocumentFormat）
+- Run `cargo-semver-checks` in CI on every PR — ✅ 已有 semver.yml（push main/dev + PR）
 
 ### Markdown-to-DOCX completion
 
@@ -67,7 +67,7 @@ For the full list of changes in each release, see [CHANGELOG.md](CHANGELOG.md).
 
 - Write throughput target: 2000+ rows/s at 1K rows (3x improvement) — ✅ 已达 ~95k rows/s（apply_xml_extras 线性化，1000 行 10.5ms）
 - XML serialization optimization: streaming writer, reduced allocations — ✅ 已消除 apply_xml_extras O(n²) 字符串重建；docx-rs 流式打包保持
-- Benchmark regression gate in CI (Criterion, fail on >10% regression)
+- Benchmark regression gate in CI (Criterion, fail on >10% regression) — ✅ 已加 bench-regression 任务（缓存基准 + scripts/bench_regression_check.py，>10% 失败）
 
 ### Quality and testing
 
@@ -80,7 +80,7 @@ For the full list of changes in each release, see [CHANGELOG.md](CHANGELOG.md).
 ### MCP
 
 - `resources/subscribe` notification support
-- Configurable root directory for `DirectoryResourceProvider`
+- Configurable root directory for `DirectoryResourceProvider` — ✅ 已支持（`default_config_with_root` / `EASYDOC_MCP_ROOT` 环境变量 / `ServerConfig::new` 自定义 provider，含测试）
 
 ---
 

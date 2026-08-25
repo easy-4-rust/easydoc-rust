@@ -80,3 +80,33 @@ jobs:
 
       - name: Build benches
         run: cargo build --workspace --benches
+
+  bench-regression:
+    name: Benchmark regression gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      # 恢复上次 CI 运行的基准（同一 ubuntu 硬件类，跨运行可比较）
+      - name: Restore benchmark baseline
+        uses: actions/cache@1bd1e32a3bdc35972431080c6496d52cefb2c31e # v4.2.0
+        with:
+          path: target/criterion
+          key: bench-criterion-v1
+          restore-keys: bench-criterion-v1
+
+      - name: Run benchmark (saves cur baseline)
+        run: |
+          cargo bench -p easydoc --bench read_write -- write_throughput \
+            --save-baseline cur --noplot
+
+      - name: Check regression (fail on >10%)
+        run: python3 scripts/bench_regression_check.py
