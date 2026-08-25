@@ -1509,8 +1509,7 @@ fn has_preserve_space(tag: &quick_xml::events::BytesStart) -> bool {
         if attr.key.as_ref() == b"xml:space" {
             return attr
                 .normalized_value(quick_xml::XmlVersion::Implicit1_0)
-                .ok()
-                .is_some_and(|v| v.as_ref() == "preserve");
+                .is_ok_and(|v| v.as_ref() == "preserve");
         }
     }
     false
@@ -1535,8 +1534,7 @@ fn br_is_page_break(tag: &quick_xml::events::BytesStart) -> bool {
         if attr.key.as_ref() == W_TYPE {
             return attr
                 .normalized_value(quick_xml::XmlVersion::Implicit1_0)
-                .ok()
-                .is_some_and(|v| v.as_ref() == "page");
+                .is_ok_and(|v| v.as_ref() == "page");
         }
     }
     false
