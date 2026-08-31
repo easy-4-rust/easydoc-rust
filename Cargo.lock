@@ -456,7 +456,7 @@ dependencies = [
  "base64 0.22.1",
  "crc32fast",
  "image",
- "quick-xml",
+ "quick-xml 0.41.0",
  "serde",
  "serde_json",
  "smallvec",
@@ -530,7 +530,7 @@ dependencies = [
  "easydoc-ooxml",
  "easydoc-reader",
  "easydoc-writer",
- "quick-xml",
+ "quick-xml 0.42.0",
  "tempfile",
  "zip",
 ]
@@ -541,7 +541,7 @@ version = "0.1.1"
 dependencies = [
  "easydoc-core",
  "proptest",
- "quick-xml",
+ "quick-xml 0.42.0",
  "tempfile",
 ]
 
@@ -555,7 +555,7 @@ dependencies = [
  "easydoc-markdown",
  "easydoc-reader",
  "easydoc-writer",
- "quick-xml",
+ "quick-xml 0.42.0",
  "serde",
  "serde_json",
  "tempfile",
@@ -580,7 +580,7 @@ dependencies = [
  "easydoc-writer",
  "office_oxide",
  "proptest",
- "quick-xml",
+ "quick-xml 0.42.0",
  "tempfile",
  "zip",
 ]
@@ -982,7 +982,7 @@ dependencies = [
  "fast-float2",
  "libc",
  "log",
- "quick-xml",
+ "quick-xml 0.41.0",
  "serde",
  "serde_json",
  "thiserror",
@@ -1088,7 +1088,7 @@ checksum = "7da1d65da6dd5d1e44199ac0f58712d241c0f439f80adea8924d832384087f85"
 dependencies = [
  "base64 0.22.1",
  "indexmap",
- "quick-xml",
+ "quick-xml 0.41.0",
  "serde",
  "time",
 ]
@@ -1223,6 +1223,15 @@ dependencies = [
  "encoding_rs",
  "memchr",
  "serde",
+]
+
+[[package]]
+name = "quick-xml"
+version = "0.42.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41b1177fdf999d2321d3fb46ff47159d9c1fb9ad66a4879f8c50a0b504615e9b"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]
