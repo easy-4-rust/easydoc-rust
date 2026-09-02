@@ -98,18 +98,17 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
-      # 恢复上次 CI 运行的基准（同一 ubuntu 硬件类，跨运行可比较）
-      - name: Restore benchmark baseline
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
-        with:
-          path: target/criterion
-          key: bench-criterion-v1
-          restore-keys: bench-criterion-v1
+      # 同 job 内双跑：ref（参考）→ cur（本次），消除跨 run 的 runner 噪声
+      # （实测零代码改动跨 run 亦出现 +29% 假回归，故不用 actions/cache 跨 run 缓存）
+      - name: Run benchmark (reference pass)
+        run: |
+          cargo bench -p easydoc --bench read_write -- write_throughput \
+            --save-baseline ref --noplot
 
-      - name: Run benchmark (saves cur baseline)
+      - name: Run benchmark (current pass)
         run: |
           cargo bench -p easydoc --bench read_write -- write_throughput \
             --save-baseline cur --noplot
 
-      - name: Check regression (fail on >10%)
+      - name: Check regression (fail on >10% cur vs ref)
         run: python3 scripts/bench_regression_check.py

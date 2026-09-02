@@ -1,26 +1,30 @@
 #!/usr/bin/env python3
-"""Criterion 基准回归检查：比较本次运行与上次缓存的基准，回归 >10% 即失败。
+"""Criterion 基准回归检查：比较同一 CI 会话内两次运行的基准，回归 >10% 即失败。
 
-用法（CI bench-regression 任务）：
-    cargo bench --bench read_write -- write_throughput \\
-        --baseline prev --save-baseline cur --noplot
-    python3 scripts/bench_regression_check.py
+用法（ci.yml bench-regression 任务，同一 job 内两次紧邻运行以消除 runner 噪声）：
+    cargo bench -p easydoc --bench read_write -- write_throughput \\
+        --save-baseline ref --noplot     # 第一次：参考
+    cargo bench -p easydoc --bench read_write -- write_throughput \\
+        --save-baseline cur --noplot     # 第二次：本次
+    python3 scripts/bench_regression_check.py   # 比较 cur vs ref
 
-流程：
-1. 读取 target/criterion/<group>/<id>/{prev,cur}/estimates.json 的 median；
-2. cur 比 prev 慢超过 10% → 打印差异并以非零退出（门禁失败）；
-3. 无 prev（首次运行，建立基准）→ 通过；
-4. 通过后把 cur 提升为 prev，供下一次 CI 运行比较（同一 ubuntu 硬件类）。
+设计说明：
+- 跨 run 比较不可靠：共享 runner 的 CPU 波动可达 ±30%（实测零代码改动
+  也出现 +29% "回归"）。同 job 内两次紧邻运行的负载一致，波动 <5%。
+- ref 与 cur 同一次运行生成，无需跨 run 缓存，天然自洽。
 """
 from __future__ import annotations
 
 import glob
 import json
 import os
-import shutil
 import sys
 
 REGRESSION_LIMIT = 1.10  # 允许 10% 以内的波动
+
+# 两个 baseline 名：argv 可覆盖（默认 ref=参考、cur=本次）
+REF = sys.argv[1] if len(sys.argv) > 1 else "ref"
+CUR = sys.argv[2] if len(sys.argv) > 2 else "cur"
 
 
 def median_estimate(estimates_path: str) -> float:
@@ -31,44 +35,29 @@ def median_estimate(estimates_path: str) -> float:
 
 def main() -> int:
     # 只检查 write_throughput 组（roadmap 性能验收项）
-    entries = sorted(
-        glob.glob("target/criterion/write_throughput/*/cur/estimates.json")
-    )
+    entries = sorted(glob.glob(f"target/criterion/write_throughput/*/{CUR}/estimates.json"))
     if not entries:
-        print("未找到本次基准结果（target/criterion/write_throughput/*/cur）")
+        print(f"未找到本次基准结果（target/criterion/write_throughput/*/{CUR}）")
         return 1
 
     failures = []
     for cur_path in entries:
         bench_dir = os.path.dirname(os.path.dirname(cur_path))
         bench_id = os.path.basename(bench_dir)
-        prev_path = os.path.join(bench_dir, "prev", "estimates.json")
-
-        cur = median_estimate(cur_path)
-        if not os.path.exists(prev_path):
-            print(f"[基准建立] {bench_id}: cur={cur:.3e} ns（无历史基准）")
-            # 首次运行：把 cur 提升为 prev，供下次比较
-            prev_dir = os.path.join(bench_dir, "prev")
-            if os.path.isdir(prev_dir):
-                shutil.rmtree(prev_dir)
-            shutil.copytree(os.path.join(bench_dir, "cur"), prev_dir)
+        ref_path = os.path.join(bench_dir, REF, "estimates.json")
+        if not os.path.exists(ref_path):
+            print(f"[缺参考] {bench_id}: 无 {REF} baseline，跳过")
             continue
 
-        prev = median_estimate(prev_path)
-        ratio = cur / prev
+        cur = median_estimate(cur_path)
+        ref = median_estimate(ref_path)
+        ratio = cur / ref
         delta = (ratio - 1.0) * 100.0
         status = "OK" if ratio <= REGRESSION_LIMIT else "REGRESSION"
-        print(f"[{status:>10}] {bench_id}: prev={prev:.3e} cur={cur:.3e} "
-              f"Δ={delta:+.2f}%")
+        print(f"[{status:>10}] {bench_id}: ref={ref:.3e} cur={cur:.3e} Δ={delta:+.2f}%")
 
         if ratio > REGRESSION_LIMIT:
             failures.append(f"{bench_id}: Δ={delta:+.2f}% 超出 10% 回归阈值")
-
-        # 通过后把 cur 提升为 prev
-        prev_dir = os.path.join(bench_dir, "prev")
-        if os.path.isdir(prev_dir):
-            shutil.rmtree(prev_dir)
-        shutil.copytree(os.path.join(bench_dir, "cur"), prev_dir)
 
     if failures:
         print("\n基准回归门禁失败：")
