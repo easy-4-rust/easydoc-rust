@@ -479,7 +479,7 @@ fn notification_produces_no_response() {
 
 #[test]
 fn extract_images_on_docx_without_images_returns_empty() {
-    let dir = tempfile::tempdir().expect("tempdir");
+    let (dir, _root_guard) = rooted_tempdir();
     let path = create_test_docx(dir.path());
     let out_dir = dir.path().join("imgs");
     let req = format!(
@@ -488,9 +488,10 @@ fn extract_images_on_docx_without_images_returns_empty() {
         json_path(&out_dir)
     );
     let resp = call(&req);
-    // 无图片时返回空列表（isError=false 或结果含 0）
+    // 无图片时返回空列表：解析结果断言 count == 0
     let text = resp["result"]["content"][0]["text"].as_str().unwrap();
-    assert!(text.contains('0') || text.contains("[]"), "text: {text}");
+    let parsed: serde_json::Value = serde_json::from_str(text).expect("valid json result");
+    assert_eq!(parsed["count"], 0, "expected no extracted images: {text}");
 }
 
 #[test]
