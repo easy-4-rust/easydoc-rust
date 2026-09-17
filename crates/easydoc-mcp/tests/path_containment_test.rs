@@ -26,6 +26,11 @@ fn call(raw: &str) -> serde_json::Value {
     serde_json::from_str(&response_str).expect("response is not valid JSON")
 }
 
+/// 把路径转为可安全嵌入 JSON 字符串的表示（Windows 反斜杠转义）。
+fn json_path(path: &Path) -> String {
+    path.display().to_string().replace('\\', "\\\\")
+}
+
 fn tool_error_text(resp: &serde_json::Value) -> String {
     assert_eq!(
         resp["result"]["isError"], true,
@@ -63,7 +68,7 @@ fn absolute_path_outside_root_is_rejected() {
 
     let req = format!(
         r#"{{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{{"name":"read_docx","arguments":{{"path":"{}"}}}}}}"#,
-        outside_docx.display()
+        json_path(&outside_docx)
     );
     let text = tool_error_text(&call(&req));
     assert!(
@@ -84,7 +89,7 @@ fn dotdot_escape_is_rejected() {
     let sneaky = root.path().join("..").join(&outside_docx);
     let req = format!(
         r#"{{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{{"name":"read_docx","arguments":{{"path":"{}"}}}}}}"#,
-        sneaky.display()
+        json_path(&sneaky)
     );
     let text = tool_error_text(&call(&req));
     assert!(
@@ -108,7 +113,7 @@ fn symlink_escape_is_rejected() {
 
     let req = format!(
         r#"{{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{{"name":"read_docx","arguments":{{"path":"{}"}}}}}}"#,
-        link.display()
+        json_path(&link)
     );
     let text = tool_error_text(&call(&req));
     assert!(
@@ -127,8 +132,8 @@ fn extract_images_output_dir_outside_root_is_rejected() {
 
     let req = format!(
         r#"{{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{{"name":"extract_images","arguments":{{"path":"{}","output_dir":"{}"}}}}}}"#,
-        docx.display(),
-        outside.path().join("images").display()
+        json_path(&docx),
+        json_path(&outside.path().join("images"))
     );
     let text = tool_error_text(&call(&req));
     assert!(
