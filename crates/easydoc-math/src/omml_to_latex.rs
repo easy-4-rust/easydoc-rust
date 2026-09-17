@@ -195,7 +195,7 @@ impl OmmlConverter {
                     }
                 }
                 Ok(Event::Text(t)) => {
-                    let text = String::from_utf8_lossy(&t).into_owned();
+                    let text = t.as_ref().to_owned();
                     if !text.is_empty() {
                         parts.push(text);
                     }
@@ -424,7 +424,7 @@ impl OmmlConverter {
                     }
                 }
                 Ok(Event::Text(t)) if in_text => {
-                    let raw = String::from_utf8_lossy(&t);
+                    let raw = t.as_ref();
                     let mut mapped = String::with_capacity(raw.len());
                     for c in raw.chars() {
                         let mut char_buf = [0u8; 4];
@@ -1376,11 +1376,10 @@ fn is_omath(e: &BytesStart) -> bool {
 /// Get the local name (stripping `m:` prefix) from a start event.
 fn local_name(e: &BytesStart) -> String {
     let qname = e.name();
-    let raw = qname.as_ref();
-    let s = String::from_utf8_lossy(raw);
+    let s: &str = qname.as_ref();
     match s.strip_prefix(OMML_NS_PREFIX) {
         Some(stripped) => stripped.to_owned(),
-        None => s.into_owned(),
+        None => s.to_owned(),
     }
 }
 
@@ -1396,9 +1395,9 @@ fn dispatch_empty(stag: &str, e: &BytesStart) -> Option<String> {
 fn attr_val(e: &BytesStart, name: &str) -> Option<String> {
     let prefixed = format!("{OMML_NS_PREFIX}{name}");
     for attr in e.attributes().flatten() {
-        let key = String::from_utf8_lossy(attr.key.as_ref());
+        let key: &str = attr.key.as_ref();
         if key == prefixed || key == name {
-            return Some(String::from_utf8_lossy(&attr.value).into_owned());
+            return Some(attr.value.into_owned());
         }
     }
     None

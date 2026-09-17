@@ -61,26 +61,26 @@ impl Relationships {
                 Ok(Event::Eof) => break,
                 Ok(Event::Empty(ref tag)) => {
                     let name = tag.name();
-                    if name.as_ref() == b"Relationship" {
+                    if name.as_ref() == "Relationship" {
                         let mut id = None;
                         let mut target = None;
                         let mut rel_type = RelType::Other;
 
                         for attr in tag.attributes().flatten() {
                             match attr.key.as_ref() {
-                                b"Id" => {
+                                "Id" => {
                                     id = attr
                                         .normalized_value(quick_xml::XmlVersion::Implicit1_0)
                                         .ok()
                                         .map(Cow::into_owned);
                                 }
-                                b"Target" => {
+                                "Target" => {
                                     target = attr
                                         .normalized_value(quick_xml::XmlVersion::Implicit1_0)
                                         .ok()
                                         .map(Cow::into_owned);
                                 }
-                                b"Type" => {
+                                "Type" => {
                                     if let Ok(val) =
                                         attr.normalized_value(quick_xml::XmlVersion::Implicit1_0)
                                     {
