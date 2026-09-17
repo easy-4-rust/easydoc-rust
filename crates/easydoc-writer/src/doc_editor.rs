@@ -23,10 +23,11 @@ use office_oxide::edit::EditableDocument;
 pub struct DocEditor {
     path: PathBuf,
     doc: EditableDocument,
-    /// `replace_text` 的延迟错误。`office_oxide` 0.1.10 起，XLSX 上的文本替换
-    /// 返回命名错误而非静默空成功；为保持 builder 链式 API 不变，错误暂存
-    /// 到此字段，`save()` / `save_as()` 时如实报出。
-    replace_error: Option<DocError>,
+    /// `replace_text` 的延迟错误（错误消息文本）。`office_oxide` 0.1.10 起，
+    /// XLSX 上的文本替换返回命名错误而非静默空成功；为保持 builder 链式
+    /// API 与结构体 auto trait（UnwindSafe 系）不变，这里只存 `String`，
+    /// `save()` / `save_as()` 时再重建 `DocError` 如实报出。
+    replace_error: Option<String>,
 }
 
 impl DocEditor {
@@ -55,7 +56,7 @@ impl DocEditor {
     #[must_use]
     pub fn replace_text(mut self, find: &str, replace: &str) -> Self {
         if let Err(e) = self.doc.replace_text(find, replace) {
-            self.replace_error = Some(DocError::Document(e.to_string()));
+            self.replace_error = Some(e.to_string());
         }
         self
     }
@@ -66,8 +67,8 @@ impl DocEditor {
     ///
     /// Returns deferred `replace_text` errors or I/O errors.
     pub fn save(self) -> Result<()> {
-        if let Some(e) = self.replace_error {
-            return Err(e);
+        if let Some(msg) = self.replace_error {
+            return Err(DocError::Document(msg));
         }
         self.doc
             .save(&self.path)
@@ -80,8 +81,8 @@ impl DocEditor {
     ///
     /// Returns deferred `replace_text` errors or I/O errors.
     pub fn save_as(self, path: impl AsRef<Path>) -> Result<()> {
-        if let Some(e) = self.replace_error {
-            return Err(e);
+        if let Some(msg) = self.replace_error {
+            return Err(DocError::Document(msg));
         }
         self.doc
             .save(path.as_ref())
