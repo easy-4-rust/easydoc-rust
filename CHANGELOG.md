@@ -6,6 +6,32 @@
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 alpha 阶段（0.x-alpha.y）允许 API 不兼容变更。
 
+## [0.1.1] — 2026-09-18
+
+安全与依赖维护版本，无 API 变更（0.x 线向后兼容承诺不变）。
+全量 1,140 测试、clippy `-D warnings`、rustfmt、semver-checks、cargo-deny 全绿。
+
+### 安全
+
+- easydoc-mcp：`tools/call` 的 `path` / `output_dir` 参数经 canonicalize 归一后
+  强制落在服务根目录（`EASYDOC_MCP_ROOT`，缺省当前目录）内——绝对路径越界、
+  `..` 逃逸、符号链接逃逸一律拒绝；ZIP 条目名消毒（防 zip-slip）；落盘前
+  sink 级复核。新增 `path_containment_test` 边界用例与
+  `set_server_root_for_testing` 测试入口（workspace 禁 unsafe，集成测试无法
+  写环境变量）
+- cargo-deny：豁免 comrak 传递依赖上游债——bincode（RUSTSEC-2025-0141）、
+  yaml-rust（RUSTSEC-2024-0320）unmaintained 非漏洞类 advisory，
+  fmt2io 的 MITNFA 许可加白
+
+### 依赖
+
+- office_oxide 0.1.8 → 0.1.11：XLSX 文本替换由静默空成功改为命名错误，
+  `DocEditor` 保持 builder 链式 API，错误延迟到 `save()` / `save_as()` 如实报出；
+  golden 快照随上游正确性修复更新（硬分页 `<w:br type="page"/>` 不再被误判为
+  水平线、有序列表起始编号保留）
+- quick-xml 0.41 → 0.42（String 人机工学迁移），保持 0.41 的不反转义语义，行为零漂移
+- syn 3.0.6 / trybuild 1.0.121（lockfile 同步）
+
 ## [0.1.0] — 2026-08-25
 
 首个稳定发布：公共 API 冻结（0.x 线向后兼容），MD→DOCX 全量覆盖，
