@@ -4,10 +4,26 @@
 //! subprocess — we call `server::handle_raw` directly.
 
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/// 工具路径有进程级信任边界（服务根目录）。
+/// 根目录覆盖是全局状态，用互斥锁保证"设根 → 发请求"窗口内
+/// 没有并发测试改写；锁随 `_root_guard` 持有到测试结束。
+static ROOT_GUARD: Mutex<()> = Mutex::new(());
+
+/// 创建临时目录并将其设为服务根目录，返回目录与持有的覆盖锁。
+fn rooted_tempdir() -> (tempfile::TempDir, std::sync::MutexGuard<'static, ()>) {
+    let guard = ROOT_GUARD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = tempfile::tempdir().unwrap();
+    easydoc_mcp::tools::set_server_root_for_testing(dir.path());
+    (dir, guard)
+}
 
 /// Send a raw JSON-RPC message and return the parsed response.
 fn call(raw: &str) -> serde_json::Value {
@@ -181,7 +197,7 @@ fn ping_returns_empty_object() {
 
 #[test]
 fn read_docx_annotated_mode() {
-    let dir = tempfile::tempdir().unwrap();
+    let (dir, _root_guard) = rooted_tempdir();
     let path = create_test_docx(dir.path());
 
     let req = format!(
@@ -202,7 +218,7 @@ fn read_docx_annotated_mode() {
 
 #[test]
 fn read_docx_plain_mode() {
-    let dir = tempfile::tempdir().unwrap();
+    let (dir, _root_guard) = rooted_tempdir();
     let path = create_test_docx(dir.path());
 
     let req = format!(
@@ -216,7 +232,7 @@ fn read_docx_plain_mode() {
 
 #[test]
 fn read_docx_stats_mode() {
-    let dir = tempfile::tempdir().unwrap();
+    let (dir, _root_guard) = rooted_tempdir();
     let path = create_test_docx(dir.path());
 
     let req = format!(
@@ -230,7 +246,7 @@ fn read_docx_stats_mode() {
 
 #[test]
 fn read_docx_outline_mode() {
-    let dir = tempfile::tempdir().unwrap();
+    let (dir, _root_guard) = rooted_tempdir();
     let path = create_test_docx(dir.path());
 
     let req = format!(
@@ -244,7 +260,7 @@ fn read_docx_outline_mode() {
 
 #[test]
 fn read_docx_default_mode_is_annotated() {
-    let dir = tempfile::tempdir().unwrap();
+    let (dir, _root_guard) = rooted_tempdir();
     let path = create_test_docx(dir.path());
 
     let req = format!(
@@ -263,7 +279,7 @@ fn read_docx_default_mode_is_annotated() {
 
 #[test]
 fn read_table_returns_all_tables() {
-    let dir = tempfile::tempdir().unwrap();
+    let (dir, _root_guard) = rooted_tempdir();
     let path = create_test_docx(dir.path());
 
     let req = format!(
@@ -280,7 +296,7 @@ fn read_table_returns_all_tables() {
 
 #[test]
 fn read_table_specific_sheet() {
-    let dir = tempfile::tempdir().unwrap();
+    let (dir, _root_guard) = rooted_tempdir();
     let path = create_test_docx(dir.path());
 
     let req = format!(
@@ -301,7 +317,7 @@ fn read_table_specific_sheet() {
 
 #[test]
 fn read_docx_blocks_returns_semantic_model() {
-    let dir = tempfile::tempdir().unwrap();
+    let (dir, _root_guard) = rooted_tempdir();
     let path = create_test_docx(dir.path());
 
     let req = format!(
@@ -325,7 +341,7 @@ fn read_docx_blocks_returns_semantic_model() {
 
 #[test]
 fn convert_to_markdown_basic() {
-    let dir = tempfile::tempdir().unwrap();
+    let (dir, _root_guard) = rooted_tempdir();
     let path = create_test_docx(dir.path());
 
     let req = format!(
@@ -353,7 +369,7 @@ fn convert_to_markdown_basic() {
 
 #[test]
 fn create_docx_heading_template() {
-    let dir = tempfile::tempdir().unwrap();
+    let (dir, _root_guard) = rooted_tempdir();
     let out_path = dir.path().join("created.docx");
 
     let req = format!(
@@ -371,7 +387,7 @@ fn create_docx_heading_template() {
 
 #[test]
 fn create_docx_table_template() {
-    let dir = tempfile::tempdir().unwrap();
+    let (dir, _root_guard) = rooted_tempdir();
     let out_path = dir.path().join("table.docx");
 
     let req = format!(
@@ -385,7 +401,7 @@ fn create_docx_table_template() {
 
 #[test]
 fn create_docx_list_template() {
-    let dir = tempfile::tempdir().unwrap();
+    let (dir, _root_guard) = rooted_tempdir();
     let out_path = dir.path().join("list.docx");
 
     let req = format!(
@@ -463,7 +479,7 @@ fn notification_produces_no_response() {
 
 #[test]
 fn extract_images_on_docx_without_images_returns_empty() {
-    let dir = tempfile::tempdir().expect("tempdir");
+    let (dir, _root_guard) = rooted_tempdir();
     let path = create_test_docx(dir.path());
     let out_dir = dir.path().join("imgs");
     let req = format!(
@@ -472,9 +488,10 @@ fn extract_images_on_docx_without_images_returns_empty() {
         json_path(&out_dir)
     );
     let resp = call(&req);
-    // 无图片时返回空列表（isError=false 或结果含 0）
+    // 无图片时返回空列表：解析结果断言 count == 0
     let text = resp["result"]["content"][0]["text"].as_str().unwrap();
-    assert!(text.contains('0') || text.contains("[]"), "text: {text}");
+    let parsed: serde_json::Value = serde_json::from_str(text).expect("valid json result");
+    assert_eq!(parsed["count"], 0, "expected no extracted images: {text}");
 }
 
 #[test]
@@ -536,7 +553,7 @@ fn tools_list_schema_is_valid_json_schema() {
 
 #[test]
 fn round_trip_create_and_read() {
-    let dir = tempfile::tempdir().unwrap();
+    let (dir, _root_guard) = rooted_tempdir();
     let out_path = dir.path().join("roundtrip.docx");
 
     // Create.

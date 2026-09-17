@@ -23,6 +23,11 @@ use office_oxide::edit::EditableDocument;
 pub struct DocEditor {
     path: PathBuf,
     doc: EditableDocument,
+    /// `replace_text` 的延迟错误（错误消息文本）。`office_oxide` 0.1.10 起，
+    /// XLSX 上的文本替换返回命名错误而非静默空成功；为保持 builder 链式
+    /// API 与结构体 auto trait（UnwindSafe 系）不变，这里只存 `String`，
+    /// `save()` / `save_as()` 时再重建 `DocError` 如实报出。
+    replace_error: Option<String>,
 }
 
 impl DocEditor {
@@ -37,6 +42,7 @@ impl DocEditor {
         Ok(Self {
             path: path.to_path_buf(),
             doc,
+            replace_error: None,
         })
     }
 
@@ -45,10 +51,13 @@ impl DocEditor {
     /// Corresponds to Hutool's placeholder replacement pattern
     /// (which Hutool itself does not provide — users must use raw POI).
     ///
-    /// Returns the number of replacements made.
+    /// XLSX 不支持文本替换（`office_oxide` 0.1.10 起）。替换失败不中断链式调用，
+    /// 错误在 `save()` / `save_as()` 时报出，避免静默写回未修改的文档。
     #[must_use]
     pub fn replace_text(mut self, find: &str, replace: &str) -> Self {
-        self.doc.replace_text(find, replace);
+        if let Err(e) = self.doc.replace_text(find, replace) {
+            self.replace_error = Some(e.to_string());
+        }
         self
     }
 
@@ -56,8 +65,11 @@ impl DocEditor {
     ///
     /// # Errors
     ///
-    /// Returns I/O errors.
+    /// Returns deferred `replace_text` errors or I/O errors.
     pub fn save(self) -> Result<()> {
+        if let Some(msg) = self.replace_error {
+            return Err(DocError::Document(msg));
+        }
         self.doc
             .save(&self.path)
             .map_err(|e| DocError::Document(format!("cannot save document: {e}")))
@@ -67,10 +79,44 @@ impl DocEditor {
     ///
     /// # Errors
     ///
-    /// Returns I/O errors.
+    /// Returns deferred `replace_text` errors or I/O errors.
     pub fn save_as(self, path: impl AsRef<Path>) -> Result<()> {
+        if let Some(msg) = self.replace_error {
+            return Err(DocError::Document(msg));
+        }
         self.doc
             .save(path.as_ref())
             .map_err(|e| DocError::Document(format!("cannot save document: {e}")))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use office_oxide::xlsx::write::{CellData, XlsxWriter};
+
+    /// XLSX 不支持文本替换：错误不中断链式调用，`save()` 时如实报出
+    /// （对应 `office_oxide` 0.1.10 的"静默空成功改命名错误"语义）。
+    #[test]
+    fn replace_text_on_xlsx_defers_error_to_save() {
+        let dir = tempfile::TempDir::new().expect("tempdir");
+        let path = dir.path().join("book.xlsx");
+
+        let mut writer = XlsxWriter::new();
+        {
+            let mut sheet = writer.add_sheet("Sheet1");
+            sheet.set_cell(0, 0, CellData::String("value".into()));
+        }
+        let mut file = std::fs::File::create(&path).expect("create xlsx");
+        writer.write_to(&mut file).expect("write xlsx");
+
+        let editor = DocEditor::open(&path).expect("open xlsx");
+        let editor = editor.replace_text("value", "replaced");
+        let err = editor.save().expect_err("deferred replace error");
+        assert!(
+            err.to_string().contains("not supported"),
+            "unexpected error: {err}"
+        );
     }
 }
