@@ -24,43 +24,43 @@ use quick_xml::events::Event;
 // OOXML element / attribute name constants (with w: namespace prefix)
 // ---------------------------------------------------------------------------
 
-const W_P: &[u8] = b"w:p";
-const W_R: &[u8] = b"w:r";
-const W_T: &[u8] = b"w:t";
-const W_PPR: &[u8] = b"w:pPr";
-const W_PSTYLE: &[u8] = b"w:pStyle";
-const W_RPR: &[u8] = b"w:rPr";
-const W_B: &[u8] = b"w:b";
-const W_I: &[u8] = b"w:i";
-const W_STRIKE: &[u8] = b"w:strike";
-const W_TBL: &[u8] = b"w:tbl";
-const W_TR: &[u8] = b"w:tr";
-const W_TC: &[u8] = b"w:tc";
-const W_BR: &[u8] = b"w:br";
-const W_DRAWING: &[u8] = b"w:drawing";
-const W_TCPR: &[u8] = b"w:tcPr";
-const W_GRIDSPAN: &[u8] = b"w:gridSpan";
-const W_VMERGE: &[u8] = b"w:vMerge";
+const W_P: &str = "w:p";
+const W_R: &str = "w:r";
+const W_T: &str = "w:t";
+const W_PPR: &str = "w:pPr";
+const W_PSTYLE: &str = "w:pStyle";
+const W_RPR: &str = "w:rPr";
+const W_B: &str = "w:b";
+const W_I: &str = "w:i";
+const W_STRIKE: &str = "w:strike";
+const W_TBL: &str = "w:tbl";
+const W_TR: &str = "w:tr";
+const W_TC: &str = "w:tc";
+const W_BR: &str = "w:br";
+const W_DRAWING: &str = "w:drawing";
+const W_TCPR: &str = "w:tcPr";
+const W_GRIDSPAN: &str = "w:gridSpan";
+const W_VMERGE: &str = "w:vMerge";
 
-const A_BLIP: &[u8] = b"a:blip";
-const WP_DOC_PR: &[u8] = b"wp:docPr";
-const R_EMBED: &[u8] = b"r:embed";
+const A_BLIP: &str = "a:blip";
+const WP_DOC_PR: &str = "wp:docPr";
+const R_EMBED: &str = "r:embed";
 
-const W_VAL: &[u8] = b"w:val";
-const W_TYPE: &[u8] = b"w:type";
+const W_VAL: &str = "w:val";
+const W_TYPE: &str = "w:type";
 
 // List numbering constants
-const W_NUMPR: &[u8] = b"w:numPr";
-const W_NUMID: &[u8] = b"w:numId";
-const W_ILVL: &[u8] = b"w:ilvl";
+const W_NUMPR: &str = "w:numPr";
+const W_NUMID: &str = "w:numId";
+const W_ILVL: &str = "w:ilvl";
 
 // Hyperlink constants
-const W_HYPERLINK: &[u8] = b"w:hyperlink";
-const R_ID: &[u8] = b"r:id";
+const W_HYPERLINK: &str = "w:hyperlink";
+const R_ID: &str = "r:id";
 
 // OMML math namespace constants (m: prefix)
-const M_OMATH: &[u8] = b"m:oMath";
-const M_OMATHPARA: &[u8] = b"m:oMathPara";
+const M_OMATH: &str = "m:oMath";
+const M_OMATHPARA: &str = "m:oMathPara";
 
 // ---------------------------------------------------------------------------
 // State machine
@@ -726,7 +726,7 @@ impl<R: Read> DocxSaxReader<R> {
                             math_depth += 1;
                         }
                         math_xml_buf.push('<');
-                        math_xml_buf.push_str(std::str::from_utf8(start.as_ref()).unwrap_or(""));
+                        math_xml_buf.push_str(start.as_ref());
                         math_xml_buf.push('>');
                     }
                     Event::End(end) => {
@@ -735,7 +735,7 @@ impl<R: Read> DocxSaxReader<R> {
 
                         // Append closing tag to buffer first.
                         math_xml_buf.push_str("</");
-                        math_xml_buf.push_str(std::str::from_utf8(name_bytes).unwrap_or(""));
+                        math_xml_buf.push_str(name_bytes);
                         math_xml_buf.push('>');
 
                         // Check whether this end tag closes the root math
@@ -761,11 +761,11 @@ impl<R: Read> DocxSaxReader<R> {
                     }
                     Event::Empty(empty) => {
                         math_xml_buf.push('<');
-                        math_xml_buf.push_str(std::str::from_utf8(empty.as_ref()).unwrap_or(""));
+                        math_xml_buf.push_str(empty.as_ref());
                         math_xml_buf.push_str("/>");
                     }
                     Event::Text(text) => {
-                        math_xml_buf.push_str(std::str::from_utf8(text.as_ref()).unwrap_or(""));
+                        math_xml_buf.push_str(text.as_ref());
                     }
                     _ => {}
                 }
@@ -788,7 +788,7 @@ impl<R: Read> DocxSaxReader<R> {
                         math_depth = 1;
                         math_xml_buf.clear();
                         math_xml_buf.push('<');
-                        math_xml_buf.push_str(std::str::from_utf8(start.as_ref()).unwrap_or(""));
+                        math_xml_buf.push_str(start.as_ref());
                         math_xml_buf.push('>');
                     } else {
                         handle_start(start, &mut state_stack)?;
@@ -802,7 +802,7 @@ impl<R: Read> DocxSaxReader<R> {
                         flush_paragraph_runs(sink, &mut state_stack)?;
                         let display = name_bytes == M_OMATHPARA;
                         let mut xml = String::from("<");
-                        xml.push_str(std::str::from_utf8(empty.as_ref()).unwrap_or(""));
+                        xml.push_str(empty.as_ref());
                         xml.push_str("/>");
                         sink.push_block(DocumentBlock::Math {
                             omml: Some(xml),
@@ -1143,7 +1143,7 @@ fn handle_empty(
         WP_DOC_PR => {
             if let Some(ParseState::Drawing { pending_alt, .. }) = stack.last_mut() {
                 for attr in empty.attributes().flatten() {
-                    if attr.key.as_ref() == b"descr" {
+                    if attr.key.as_ref() == "descr" {
                         let val = attr
                             .normalized_value(quick_xml::XmlVersion::Implicit1_0)
                             .ok()
@@ -1165,7 +1165,7 @@ fn handle_empty(
 fn handle_text(text: &quick_xml::events::BytesText, stack: &mut [ParseState]) -> Result<()> {
     // Accumulate text into the appropriate buffer depending on current state.
     // OOXML is always UTF-8, so we can decode the raw bytes directly.
-    let decoded = std::str::from_utf8(text.as_ref()).unwrap_or("").to_owned();
+    let decoded = text.as_ref().to_owned();
     if let Some(state) = stack.last_mut() {
         match state {
             ParseState::Paragraph {
@@ -1506,7 +1506,7 @@ fn extract_bool_attr(tag: &quick_xml::events::BytesStart) -> Option<bool> {
 /// Checks `xml:space="preserve"` on a `<w:t>` tag.
 fn has_preserve_space(tag: &quick_xml::events::BytesStart) -> bool {
     for attr in tag.attributes().flatten() {
-        if attr.key.as_ref() == b"xml:space" {
+        if attr.key.as_ref() == "xml:space" {
             return attr
                 .normalized_value(quick_xml::XmlVersion::Implicit1_0)
                 .is_ok_and(|v| v.as_ref() == "preserve");

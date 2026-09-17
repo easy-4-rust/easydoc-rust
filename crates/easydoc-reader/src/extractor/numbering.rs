@@ -76,26 +76,26 @@ impl Numbering {
                     let name = start.name();
                     let local = name.as_ref();
                     match local {
-                        b"w:abstractNum" => {
-                            current_abstract_id = extract_u32_attr(start, b"w:abstractNumId");
+                        "w:abstractNum" => {
+                            current_abstract_id = extract_u32_attr(start, "w:abstractNumId");
                         }
-                        b"w:lvl" => {
-                            current_ilvl = extract_u8_attr(start, b"w:ilvl");
+                        "w:lvl" => {
+                            current_ilvl = extract_u8_attr(start, "w:ilvl");
                             current_num_fmt = None;
                             current_start = None;
                         }
-                        b"w:numFmt" => {
+                        "w:numFmt" => {
                             current_num_fmt = extract_val_attr(start);
                         }
-                        b"w:start" => {
+                        "w:start" => {
                             current_start =
                                 extract_val_attr(start).and_then(|v| v.parse::<u32>().ok());
                         }
-                        b"w:num" => {
-                            current_num_id = extract_u32_attr(start, b"w:numId");
+                        "w:num" => {
+                            current_num_id = extract_u32_attr(start, "w:numId");
                             in_num = true;
                         }
-                        b"w:abstractNumId" if in_num => {
+                        "w:abstractNumId" if in_num => {
                             // This is inside <w:num> -- read the val attribute.
                             if let (Some(abstract_id), Some(num_id)) =
                                 (extract_val_attr_u32(start), current_num_id)
@@ -110,14 +110,14 @@ impl Numbering {
                     let name = empty.name();
                     let local = name.as_ref();
                     match local {
-                        b"w:numFmt" => {
+                        "w:numFmt" => {
                             current_num_fmt = extract_val_attr(empty);
                         }
-                        b"w:start" => {
+                        "w:start" => {
                             current_start =
                                 extract_val_attr(empty).and_then(|v| v.parse::<u32>().ok());
                         }
-                        b"w:abstractNumId" if in_num => {
+                        "w:abstractNumId" if in_num => {
                             if let (Some(abstract_id), Some(num_id)) =
                                 (extract_val_attr_u32(empty), current_num_id)
                             {
@@ -131,7 +131,7 @@ impl Numbering {
                     let name = end.name();
                     let local = name.as_ref();
                     match local {
-                        b"w:lvl" => {
+                        "w:lvl" => {
                             // Finalize the level we were parsing.
                             if let (Some(abstract_id), Some(ilvl)) =
                                 (current_abstract_id, current_ilvl)
@@ -154,7 +154,7 @@ impl Numbering {
                             current_num_fmt = None;
                             current_start = None;
                         }
-                        b"w:num" => {
+                        "w:num" => {
                             current_num_id = None;
                             in_num = false;
                         }
@@ -187,7 +187,7 @@ impl Numbering {
 }
 
 /// Extracts a `u32` value from a named attribute (e.g. `w:abstractNumId="0"`).
-fn extract_u32_attr(tag: &quick_xml::events::BytesStart, attr_name: &[u8]) -> Option<u32> {
+fn extract_u32_attr(tag: &quick_xml::events::BytesStart, attr_name: &str) -> Option<u32> {
     for attr in tag.attributes().flatten() {
         if attr.key.as_ref() == attr_name {
             let val = attr
@@ -200,7 +200,7 @@ fn extract_u32_attr(tag: &quick_xml::events::BytesStart, attr_name: &[u8]) -> Op
 }
 
 /// Extracts a `u8` value from a named attribute (e.g. `w:ilvl="0"`).
-fn extract_u8_attr(tag: &quick_xml::events::BytesStart, attr_name: &[u8]) -> Option<u8> {
+fn extract_u8_attr(tag: &quick_xml::events::BytesStart, attr_name: &str) -> Option<u8> {
     for attr in tag.attributes().flatten() {
         if attr.key.as_ref() == attr_name {
             let val = attr
@@ -215,7 +215,7 @@ fn extract_u8_attr(tag: &quick_xml::events::BytesStart, attr_name: &[u8]) -> Opt
 /// Extracts the `w:val` attribute as a `String`.
 fn extract_val_attr(tag: &quick_xml::events::BytesStart) -> Option<String> {
     for attr in tag.attributes().flatten() {
-        if attr.key.as_ref() == b"w:val" {
+        if attr.key.as_ref() == "w:val" {
             return attr
                 .normalized_value(quick_xml::XmlVersion::Implicit1_0)
                 .ok()

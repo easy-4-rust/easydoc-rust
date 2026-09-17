@@ -715,25 +715,25 @@ fn collect_image_entries(xml: &str) -> Vec<(String, String)> {
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(quick_xml::events::Event::Empty(ref tag)) => {
-                if tag.name().as_ref() == b"Relationship" {
+                if tag.name().as_ref() == "Relationship" {
                     let mut id = None;
                     let mut target = None;
                     let mut is_image = false;
                     for attr in tag.attributes().flatten() {
                         match attr.key.as_ref() {
-                            b"Id" => {
+                            "Id" => {
                                 id = attr
                                     .normalized_value(quick_xml::XmlVersion::Implicit1_0)
                                     .ok()
                                     .map(std::borrow::Cow::into_owned);
                             }
-                            b"Target" => {
+                            "Target" => {
                                 target = attr
                                     .normalized_value(quick_xml::XmlVersion::Implicit1_0)
                                     .ok()
                                     .map(std::borrow::Cow::into_owned);
                             }
-                            b"Type" => {
+                            "Type" => {
                                 if let Ok(val) =
                                     attr.normalized_value(quick_xml::XmlVersion::Implicit1_0)
                                     && val.ends_with("/image")
