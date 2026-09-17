@@ -3,7 +3,8 @@
 //! Defines the six tools exposed by `easydoc-mcp` and routes `tools/call`
 //! requests to the appropriate `EasyDoc` API.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::RwLock;
 
 use serde::{Deserialize, Serialize};
 
@@ -40,7 +41,7 @@ pub fn tool_definitions() -> Vec<Tool> {
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Absolute path to the DOCX or DOC file"
+                        "description": "Absolute path to the DOCX or DOC file, resolved inside the server root (EASYDOC_MCP_ROOT)"
                     },
                     "mode": {
                         "type": "string",
@@ -63,7 +64,7 @@ pub fn tool_definitions() -> Vec<Tool> {
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Absolute path to the DOCX or DOC file"
+                        "description": "Absolute path to the DOCX or DOC file, resolved inside the server root (EASYDOC_MCP_ROOT)"
                     },
                     "sheet": {
                         "type": "integer",
@@ -85,7 +86,7 @@ pub fn tool_definitions() -> Vec<Tool> {
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Absolute path to the DOCX or DOC file"
+                        "description": "Absolute path to the DOCX or DOC file, resolved inside the server root (EASYDOC_MCP_ROOT)"
                     }
                 },
                 "required": ["path"]
@@ -102,11 +103,11 @@ pub fn tool_definitions() -> Vec<Tool> {
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Absolute path to the DOCX file"
+                        "description": "Absolute path to the DOCX file, resolved inside the server root (EASYDOC_MCP_ROOT)"
                     },
                     "output_dir": {
                         "type": "string",
-                        "description": "Absolute path to the directory where images will be saved"
+                        "description": "Absolute path to the directory where images will be saved, resolved inside the server root (EASYDOC_MCP_ROOT)"
                     }
                 },
                 "required": ["path", "output_dir"]
@@ -122,7 +123,7 @@ pub fn tool_definitions() -> Vec<Tool> {
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Absolute path to the DOCX or DOC file"
+                        "description": "Absolute path to the DOCX or DOC file, resolved inside the server root (EASYDOC_MCP_ROOT)"
                     },
                     "options": {
                         "type": "object",
@@ -153,7 +154,7 @@ pub fn tool_definitions() -> Vec<Tool> {
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Absolute path for the output DOCX file"
+                        "description": "Absolute path for the output DOCX file, resolved inside the server root (EASYDOC_MCP_ROOT)"
                     },
                     "template": {
                         "type": "string",
@@ -241,7 +242,83 @@ fn require_path(args: &serde_json::Value) -> anyhow::Result<PathBuf> {
         .get("path")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("missing required parameter: path"))?;
-    Ok(PathBuf::from(s))
+    resolve_within_root(Path::new(s))
+}
+
+/// 服务根目录：`EASYDOC_MCP_ROOT`（缺省当前目录）。与 `server.rs` 的资源
+/// 扫描根共用同一环境变量 —— 本 MCP 服务器可见的世界只有一个口径。
+/// 测试可通过 `set_server_root_for_testing` 覆盖。
+fn server_root() -> PathBuf {
+    if let Some(root) = SERVER_ROOT_OVERRIDE
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
+    {
+        return root;
+    }
+    match std::env::var("EASYDOC_MCP_ROOT") {
+        Ok(root) => PathBuf::from(root),
+        Err(_) => PathBuf::from("."),
+    }
+}
+
+/// 测试专用的服务根目录覆盖：优先于 `EASYDOC_MCP_ROOT`。
+///
+/// 集成测试无法写环境变量（workspace 全局 `unsafe_code = forbid`，
+/// edition 2024 的 `set_var` 是 unsafe），用此入口把信任边界指向临时目录。
+/// 非测试代码请使用 `EASYDOC_MCP_ROOT`。
+pub fn set_server_root_for_testing(root: &Path) {
+    *SERVER_ROOT_OVERRIDE
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(root.to_path_buf());
+}
+
+static SERVER_ROOT_OVERRIDE: RwLock<Option<PathBuf>> = RwLock::new(None);
+
+/// 将路径归一并校验其落在服务根目录内，返回归一后的路径。
+///
+/// 防路径穿越：`..` 与符号链接都先经 `canonicalize` 归一，再做前缀比对，
+/// 逃出根目录的路径一律拒绝。写场景的目标文件可能尚不存在，
+/// 此时归一其父目录后拼回文件名。
+fn resolve_within_root(path: &Path) -> anyhow::Result<PathBuf> {
+    let root = std::fs::canonicalize(server_root()).unwrap_or_else(|_| server_root());
+    let candidate = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        root.join(path)
+    };
+    let resolved = if let Ok(resolved) = std::fs::canonicalize(&candidate) {
+        resolved
+    } else {
+        let parent = candidate
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .ok_or_else(|| anyhow::anyhow!("invalid path: {}", path.display()))?;
+        let file_name = candidate
+            .file_name()
+            .ok_or_else(|| anyhow::anyhow!("invalid path: {}", path.display()))?;
+        std::fs::canonicalize(parent)?.join(file_name)
+    };
+    if !resolved.starts_with(&root) {
+        return Err(anyhow::anyhow!(
+            "path escapes server root (EASYDOC_MCP_ROOT): {}",
+            path.display()
+        ));
+    }
+    Ok(resolved)
+}
+
+/// ZIP 条目名不可信：剥离路径分隔符，只留扁平文件名（防 zip-slip）。
+///
+/// 输入已取 `file_name()` 末段，此处再清掉平台差异下的残余分隔符
+/// （Windows 混用 `\`），确保落盘文件永远只出现在 `output_dir` 一层。
+fn sanitize_entry_filename(name: &str) -> String {
+    let flat: String = name.chars().filter(|c| !matches!(c, '/' | '\\')).collect();
+    if flat.is_empty() || flat == ".." {
+        String::new()
+    } else {
+        flat
+    }
 }
 
 /// Handler for `read_docx`.
@@ -320,7 +397,7 @@ fn handle_extract_images(args: &serde_json::Value) -> anyhow::Result<serde_json:
         .get("output_dir")
         .and_then(|v| v.as_str())
         .ok_or_else(|| anyhow::anyhow!("missing required parameter: output_dir"))?;
-    let output_dir = PathBuf::from(output_dir);
+    let output_dir = resolve_within_root(Path::new(output_dir))?;
 
     std::fs::create_dir_all(&output_dir)?;
 
@@ -349,11 +426,18 @@ fn handle_extract_images(args: &serde_json::Value) -> anyhow::Result<serde_json:
             && let Ok(bytes) =
                 easydoc_reader::extractor::image::read_zip_part(&mut archive, zip_path)
         {
-            let filename = std::path::Path::new(zip_path).file_name().map_or_else(
-                || format!("{rel_id}.bin"),
-                |f| f.to_string_lossy().into_owned(),
-            );
-            let dest = output_dir.join(&filename);
+            let filename =
+                sanitize_entry_filename(&std::path::Path::new(zip_path).file_name().map_or_else(
+                    || format!("{rel_id}.bin"),
+                    |f| f.to_string_lossy().into_owned(),
+                ));
+            let filename = if filename.is_empty() {
+                format!("{rel_id}.bin")
+            } else {
+                filename
+            };
+            // 双保险：即使条目名混入路径语义，落盘前再过一次根目录校验
+            let dest = resolve_within_root(&output_dir.join(&filename))?;
             std::fs::write(&dest, &bytes)?;
             extracted.push(dest.to_string_lossy().into_owned());
         }

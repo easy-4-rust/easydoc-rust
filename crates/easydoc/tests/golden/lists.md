@@ -2,5 +2,5 @@
 - Unordered 2
   - Nested
 
-1. Starts at 3
+3. Starts at 3
 
