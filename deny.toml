@@ -9,12 +9,22 @@ version = 2
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "warn"
-ignore = []
+ignore = [
+    # comrak -> syntect 传递依赖，RUSTSEC-2025-0141（团队停更，1.3.3 即完整版）。
+    # 无安全升级路径，非漏洞类 advisory；待 comrak 上游替换后移除。
+    "RUSTSEC-2025-0141",
+    # comrak -> syntect 传递依赖，RUSTSEC-2024-0320（yaml-rust unmaintained）。
+    # 无安全升级路径，非漏洞类 advisory；待 comrak 上游替换后移除。
+    "RUSTSEC-2024-0320",
+]
 
 [licenses]
 version = 2
 allow = [
     "MIT",
+    # comrak 0.54 传递依赖 fmt2io 的许可（MIT + no-false-attribs，SPDX 在册，
+    # 宽松可商用）。
+    "MITNFA",
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
