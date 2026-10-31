@@ -283,7 +283,7 @@ impl PackageLimits {
 
         for i in 0..len {
             let entry = archive.by_index(i).map_err(|e| e.to_string())?;
-            let name = entry.name();
+            let name = entry.name().map_err(|e| e.to_string())?;
 
             if name.len() > self.max_filename_len {
                 return Err(format!(

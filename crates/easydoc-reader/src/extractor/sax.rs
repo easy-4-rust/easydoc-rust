@@ -1551,8 +1551,9 @@ fn find_word_document_xml(archive: &mut zip::ZipArchive<File>) -> Result<String>
         let entry = archive
             .by_index(i)
             .map_err(|e| DocError::Zip(e.to_string()))?;
-        if entry.name().to_lowercase() == "word/document.xml" {
-            return Ok(entry.name().to_owned());
+        let name = entry.name().map_err(|e| DocError::Zip(e.to_string()))?;
+        if name.eq_ignore_ascii_case("word/document.xml") {
+            return Ok(name.into_owned());
         }
     }
     Err(DocError::Format(

@@ -42,7 +42,7 @@ impl PackageRewriter {
             let mut writer = zip::ZipWriter::new(file);
             for index in 0..archive.len() {
                 let mut entry = archive.by_index(index)?;
-                let name = entry.name().to_owned();
+                let name = entry.name()?.into_owned();
                 let options = entry_options(&entry);
                 if entry.is_dir() {
                     writer.add_directory(name, options)?;
@@ -77,7 +77,7 @@ impl PackageRewriter {
             if size > self.limits.max_entry_bytes {
                 return Err(DocError::Format(format!(
                     "OOXML entry '{}' expands to {size} bytes, limit is {}",
-                    entry.name(),
+                    entry.name()?,
                     self.limits.max_entry_bytes
                 )));
             }
@@ -94,7 +94,7 @@ impl PackageRewriter {
             if compressed > 0 && size / compressed.max(1) > self.limits.max_compression_ratio {
                 return Err(DocError::Format(format!(
                     "OOXML entry '{}' exceeds compression ratio limit {}",
-                    entry.name(),
+                    entry.name()?,
                     self.limits.max_compression_ratio
                 )));
             }
