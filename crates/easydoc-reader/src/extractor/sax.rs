@@ -719,6 +719,11 @@ impl<R: Read> DocxSaxReader<R> {
             // bytes for every event (start tags, text, end tags, etc.).
             if in_math {
                 match &event {
+                    Event::Eof => {
+                        return Err(DocError::Format(
+                            "unexpected EOF inside OMML math element".to_owned(),
+                        ));
+                    }
                     Event::Start(start) => {
                         let name = start.name();
                         let name_bytes = name.as_ref();
@@ -2576,6 +2581,22 @@ mod tests {
     // -----------------------------------------------------------------------
     // OMML math tests
     // -----------------------------------------------------------------------
+
+    #[test]
+    fn truncated_math_returns_error() {
+        // The third input is the 139-byte timeout artifact from fuzz_docx_xml
+        // run 41032275317 (SHA-256 f1652dd030e76af6d8f5d2892574cbd28b5fc74f4b780b10).
+        for xml in [
+            &b"<m:oMath><m:r>"[..],
+            &b"<m:oMathPara><m:oMath><m:r/>"[..],
+            &include_bytes!(
+                "../../tests/fixtures/timeout-cfd00ebb9a65446aa85f3d4a8185c3a800afdc4e"
+            )[..],
+        ] {
+            let mut reader = DocxSaxReader::from_reader(xml);
+            assert!(reader.read_blocks().is_err());
+        }
+    }
 
     #[test]
     fn inline_math_in_paragraph() {
