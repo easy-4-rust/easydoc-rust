@@ -23,8 +23,9 @@ repository = "https://github.com/easy-4-rust/easydoc-rust"
 [workspace.dependencies]
 base64 = "0.23"
 chrono = { version = "0.4.45", default-features = false, features = ["std"] }
-docx-rs = "0.4"
-office_oxide = "0.1"
+# Upstream zip 9 compatibility fix; crates.io 0.4.22 still requires vulnerable zip 8.
+docx-rs = { git = "https://github.com/bokuweb/docx-rs.git", rev = "ad7fede6a7f3b61a097c28d0c39dd04626e44701" }
+office_oxide = "0.1.16"
 proc-macro-crate = "3.5.0"
 proc-macro2 = "1.0.107"
 quote = "1.0.47"
@@ -34,7 +35,7 @@ syn = { version = "3.0.3", features = ["full"] }
 tempfile = "3.27.0"
 thiserror = "2.0.18"
 uuid = { version = "1.24.0", features = ["v4"] }
-zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+zip = { version = "9.0.4", default-features = false, features = ["deflate"] }
 quick-xml = "0.42"
 anyhow = "1"
 tracing = "0.1"

@@ -54,4 +54,6 @@ skip-tree = []
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []
+# docx-rs has the zip 9 fix upstream, but no crates.io release yet. Cargo.toml
+# pins the exact upstream commit; no other Git dependency is allowed.
+allow-git = ["https://github.com/bokuweb/docx-rs.git"]

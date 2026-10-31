@@ -13,7 +13,7 @@ easydoc-core = { path = "../crates/easydoc-core" }
 easydoc-math = { path = "../crates/easydoc-math" }
 easydoc-reader = { path = "../crates/easydoc-reader" }
 easydoc-markdown = { path = "../crates/easydoc-markdown" }
-office_oxide = "0.1"
+office_oxide = "0.1.16"
 
 # 防止被根 workspace 探测到：独立 workspace
 [[bin]]
